@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,53 +8,49 @@ import {
   GraduationCap, 
   Users, 
   BookOpen, 
-  Calendar, 
-  DollarSign, 
-  Settings, 
+  BarChart3, 
   LogOut,
   Home
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { signOut, user } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
 
-  const navItems = [
-    { icon: Home, label: 'Overview', path: '/dashboard' },
-    { icon: Users, label: 'Students', path: '/students' },
-    { icon: BookOpen, label: 'Classes', path: '/classes' },
-    { icon: Calendar, label: 'Attendance', path: '/attendance' },
-    { icon: DollarSign, label: 'Fees', path: '/fees' },
-    { icon: Settings, label: 'Settings', path: '/settings' },
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: Home },
+    { name: 'Students', href: '/students', icon: Users },
+    { name: 'Classes', href: '/classes', icon: BookOpen },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-2">
-              <GraduationCap className="h-8 w-8 text-primary" />
-              <h1 className="text-2xl font-bold text-gray-900">
+      <header className="bg-white shadow">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center">
+              <GraduationCap className="h-8 w-8 text-primary mr-3" />
+              <h1 className="text-xl font-semibold text-gray-900">
                 Spring of Knowledge Academy
               </h1>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-700">
                 Welcome, {user?.email}
               </span>
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={signOut}
+                onClick={handleSignOut}
                 className="flex items-center space-x-2"
               >
                 <LogOut className="h-4 w-4" />
@@ -64,37 +61,41 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
-          {/* Sidebar */}
-          <aside className="w-64 flex-shrink-0">
-            <Card>
-              <CardContent className="p-4">
-                <nav className="space-y-2">
-                  {navItems.map((item) => (
+      <div className="flex">
+        {/* Sidebar */}
+        <nav className="w-64 bg-white shadow-sm h-[calc(100vh-64px)]">
+          <div className="p-4">
+            <ul className="space-y-2">
+              {navigation.map((item) => {
+                const isActive = location.pathname === item.href;
+                const Icon = item.icon;
+                
+                return (
+                  <li key={item.name}>
                     <Link
-                      key={item.path}
-                      to={item.path}
-                      className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isActive(item.path)
+                      to={item.href}
+                      className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        isActive
                           ? 'bg-primary text-primary-foreground'
-                          : 'text-gray-600 hover:bg-gray-100'
+                          : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.label}</span>
+                      <Icon className="h-5 w-5" />
+                      <span>{item.name}</span>
                     </Link>
-                  ))}
-                </nav>
-              </CardContent>
-            </Card>
-          </aside>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </nav>
 
-          {/* Main Content */}
-          <main className="flex-1">
+        {/* Main content */}
+        <main className="flex-1 p-6">
+          <div className="mx-auto max-w-7xl">
             {children}
-          </main>
-        </div>
+          </div>
+        </main>
       </div>
     </div>
   );

@@ -30,9 +30,11 @@ export const AuthForm = () => {
     e.preventDefault();
     setLoading(true);
 
+    console.log('Sign in attempt');
     const { error } = await signIn(formData.email, formData.password);
 
     if (error) {
+      console.error('Sign in error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -52,12 +54,14 @@ export const AuthForm = () => {
     e.preventDefault();
     setLoading(true);
 
+    console.log('Sign up attempt');
     const { error } = await signUp(formData.email, formData.password, {
       full_name: formData.fullName,
       role: formData.role
     });
 
     if (error) {
+      console.error('Sign up error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -66,7 +70,7 @@ export const AuthForm = () => {
     } else {
       toast({
         title: "Success",
-        description: "Account created successfully! Please check your email to verify your account.",
+        description: "Account created successfully! You are now signed in.",
       });
     }
 
@@ -95,9 +99,9 @@ export const AuthForm = () => {
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="signin-email">Email</Label>
                   <Input
-                    id="email"
+                    id="signin-email"
                     name="email"
                     type="email"
                     placeholder="Enter your email"
@@ -107,9 +111,9 @@ export const AuthForm = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="signin-password">Password</Label>
                   <Input
-                    id="password"
+                    id="signin-password"
                     name="password"
                     type="password"
                     placeholder="Enter your password"
@@ -140,9 +144,9 @@ export const AuthForm = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="signup-email">Email</Label>
                   <Input
-                    id="email"
+                    id="signup-email"
                     name="email"
                     type="email"
                     placeholder="Enter your email"
@@ -152,9 +156,9 @@ export const AuthForm = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="signup-password">Password</Label>
                   <Input
-                    id="password"
+                    id="signup-password"
                     name="password"
                     type="password"
                     placeholder="Create a password"
