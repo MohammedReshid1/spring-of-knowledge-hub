@@ -65,7 +65,10 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
   const submitMutation = useMutation({
     mutationFn: async (data: ClassFormData) => {
       const payload = {
-        ...data,
+        class_name: data.class_name,
+        grade_level_id: data.grade_level_id,
+        max_capacity: data.max_capacity,
+        academic_year: data.academic_year,
         teacher_id: data.teacher_id || null,
       };
 
