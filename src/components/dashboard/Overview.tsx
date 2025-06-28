@@ -1,135 +1,358 @@
 
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, BookOpen, GraduationCap, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { Users, BookOpen, GraduationCap, TrendingUp, Calendar, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const Overview = () => {
+  const { data: dashboardStats, isLoading } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      // Get students data
+      const { data: students, error: studentsError } = await supabase
+        .from('students')
+        .select('status, grade_level, created_at, registration_payments(payment_status)');
+      
+      if (studentsError) throw studentsError;
+
+      // Get classes data
+      const { data: classes, error: classesError } = await supabase
+        .from('classes')
+        .select('id, current_enrollment, max_capacity');
+      
+      if (classesError) throw classesError;
+
+      // Get grade levels data
+      const { data: gradeLevels, error: gradeLevelsError } = await supabase
+        .from('grade_levels')
+        .select('grade, current_enrollment, max_capacity');
+      
+      if (gradeLevelsError) throw gradeLevelsError;
+
+      // Calculate stats
+      const totalStudents = students.length;
+      const activeStudents = students.filter(s => s.status === 'Active').length;
+      const totalClasses = classes.length;
+      
+      // Calculate enrollment rate
+      const totalCapacity = gradeLevels.reduce((sum, grade) => sum + grade.max_capacity, 0);
+      const totalEnrolled = gradeLevels.reduce((sum, grade) => sum + grade.current_enrollment, 0);
+      const enrollmentRate = totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 100) : 0;
+
+      // Payment statistics
+      const paidStudents = students.filter(s => 
+        s.registration_payments?.some(p => p.payment_status === 'Paid')
+      ).length;
+      const unpaidStudents = students.filter(s => 
+        s.registration_payments?.some(p => p.payment_status === 'Unpaid') || 
+        !s.registration_payments?.length
+      ).length;
+
+      // Recent registrations (this month)
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const recentRegistrations = students.filter(s => {
+        const createdDate = new Date(s.created_at);
+        return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
+      }).length;
+
+      // Status breakdown
+      const statusCounts = students.reduce((acc, student) => {
+        acc[student.status] = (acc[student.status] || 0) + 1;
+        return acc;
+      }, {});
+
+      // Grade level utilization
+      const gradeUtilization = gradeLevels.map(grade => ({
+        grade: grade.grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        utilization: grade.max_capacity > 0 ? Math.round((grade.current_enrollment / grade.max_capacity) * 100) : 0,
+        enrolled: grade.current_enrollment,
+        capacity: grade.max_capacity
+      }));
+
+      return {
+        totalStudents,
+        activeStudents,
+        totalClasses,
+        enrollmentRate,
+        paidStudents,
+        unpaidStudents,
+        recentRegistrations,
+        statusCounts,
+        gradeUtilization: gradeUtilization.slice(0, 5) // Show top 5 grades
+      };
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const stats = dashboardStats || {
+    totalStudents: 0,
+    activeStudents: 0,
+    totalClasses: 0,
+    enrollmentRate: 0,
+    paidStudents: 0,
+    unpaidStudents: 0,
+    recentRegistrations: 0,
+    statusCounts: {},
+    gradeUtilization: []
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h2>
+        <p className="text-gray-600 mt-1">
           Welcome to the Spring of Knowledge Academy Registration Management System
         </p>
       </div>
 
-      {/* Statistics Cards */}
+      {/* Main Statistics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-blue-700">Total Students</CardTitle>
+            <Users className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">
-              No students registered yet
+            <div className="text-2xl font-bold text-blue-900">{stats.totalStudents}</div>
+            <p className="text-xs text-blue-600 mt-1">
+              {stats.recentRegistrations} new this month
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Classes</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-green-700">Active Students</CardTitle>
+            <GraduationCap className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">
-              No classes created yet
+            <div className="text-2xl font-bold text-green-900">{stats.activeStudents}</div>
+            <p className="text-xs text-green-600 mt-1">
+              {stats.totalStudents > 0 ? Math.round((stats.activeStudents / stats.totalStudents) * 100) : 0}% of total
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Grade Levels</CardTitle>
-            <GraduationCap className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-purple-700">Active Classes</CardTitle>
+            <BookOpen className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">13</div>
-            <p className="text-xs text-muted-foreground">
-              Pre-K through Grade 12
+            <div className="text-2xl font-bold text-purple-900">{stats.totalClasses}</div>
+            <p className="text-xs text-purple-600 mt-1">
+              Across all grade levels
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Enrollment Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-orange-700">Enrollment Rate</CardTitle>
+            <TrendingUp className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0%</div>
-            <p className="text-xs text-muted-foreground">
-              Start registering students
+            <div className="text-2xl font-bold text-orange-900">{stats.enrollmentRate}%</div>
+            <p className="text-xs text-orange-600 mt-1">
+              School capacity utilization
             </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Secondary Statistics */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Payment Status */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-600" />
+              Payment Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <span className="text-sm">Paid</span>
+              </div>
+              <Badge className="bg-green-100 text-green-800">{stats.paidStudents}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <span className="text-sm">Unpaid</span>
+              </div>
+              <Badge className="bg-red-100 text-red-800">{stats.unpaidStudents}</Badge>
+            </div>
+            <div className="pt-2">
+              <Progress 
+                value={stats.totalStudents > 0 ? (stats.paidStudents / stats.totalStudents) * 100 : 0} 
+                className="h-2"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                {stats.totalStudents > 0 ? Math.round((stats.paidStudents / stats.totalStudents) * 100) : 0}% payment completion
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Student Status Breakdown */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="h-5 w-5 text-purple-600" />
+              Student Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Object.entries(stats.statusCounts).map(([status, count]) => (
+              <div key={status} className="flex items-center justify-between">
+                <span className="text-sm capitalize">{status.replace('_', ' ')}</span>
+                <Badge variant="outline">{count}</Badge>
+              </div>
+            ))}
+            {Object.keys(stats.statusCounts).length === 0 && (
+              <p className="text-sm text-gray-500">No student data available</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Grade Level Utilization */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-green-600" />
+              Grade Utilization
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {stats.gradeUtilization.map((grade) => (
+              <div key={grade.grade} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span>{grade.grade}</span>
+                  <span className="text-gray-600">{grade.enrolled}/{grade.capacity}</span>
+                </div>
+                <Progress value={grade.utilization} className="h-2" />
+              </div>
+            ))}
+            {stats.gradeUtilization.length === 0 && (
+              <p className="text-sm text-gray-500">No grade level data available</p>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Quick Actions */}
       <div className="grid gap-6 md:grid-cols-2">
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle className="text-lg">Quick Actions</CardTitle>
             <CardDescription>
               Common tasks you can perform
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span>Register New Student</span>
-              <Badge variant="secondary">Coming Soon</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Create New Class</span>
-              <Badge variant="secondary">Coming Soon</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>View Reports</span>
-              <Badge variant="secondary">Coming Soon</Badge>
-            </div>
+          <CardContent className="space-y-3">
+            <Link to="/students">
+              <Button variant="outline" className="w-full justify-start hover:bg-blue-50">
+                <Users className="h-4 w-4 mr-2" />
+                Manage Students
+              </Button>
+            </Link>
+            <Link to="/classes">
+              <Button variant="outline" className="w-full justify-start hover:bg-green-50">
+                <BookOpen className="h-4 w-4 mr-2" />
+                Manage Classes
+              </Button>
+            </Link>
+            <Button variant="outline" className="w-full justify-start hover:bg-purple-50" disabled>
+              <Calendar className="h-4 w-4 mr-2" />
+              View Reports
+              <Badge variant="secondary" className="ml-auto">Coming Soon</Badge>
+            </Button>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover:shadow-md transition-shadow">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle className="text-lg">Recent Activity</CardTitle>
             <CardDescription>
               Latest system activity
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-muted-foreground">
-              No recent activity to display. Start by registering students or creating classes.
-            </div>
+            {stats.recentRegistrations > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                  <Users className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium">{stats.recentRegistrations} new student{stats.recentRegistrations !== 1 ? 's' : ''} registered</p>
+                    <p className="text-xs text-gray-600">This month</p>
+                  </div>
+                </div>
+                {stats.unpaidStudents > 0 && (
+                  <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
+                    <AlertCircle className="h-5 w-5 text-orange-600" />
+                    <div>
+                      <p className="text-sm font-medium">{stats.unpaidStudents} pending payment{stats.unpaidStudents !== 1 ? 's' : ''}</p>
+                      <p className="text-xs text-gray-600">Requires attention</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-600 font-medium">No recent activity</p>
+                <p className="text-xs text-gray-500">Start by registering students or creating classes</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* System Status */}
-      <Card>
+      <Card className="hover:shadow-md transition-shadow">
         <CardHeader>
-          <CardTitle>System Status</CardTitle>
+          <CardTitle className="text-lg">System Status</CardTitle>
           <CardDescription>
             Current system information
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="flex items-center space-x-2">
-              <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm">Database Connected</span>
+            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+              <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-green-800">Database Connected</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm">Authentication Active</span>
+            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+              <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-green-800">Authentication Active</span>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm">All Systems Operational</span>
+            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+              <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium text-green-800">All Systems Operational</span>
             </div>
           </div>
         </CardContent>
