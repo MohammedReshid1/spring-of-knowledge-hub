@@ -189,6 +189,50 @@ export type Database = {
         }
         Relationships: []
       }
+      registration_payments: {
+        Row: {
+          academic_year: string | null
+          amount_paid: number | null
+          created_at: string | null
+          id: string
+          notes: string | null
+          payment_date: string | null
+          payment_status: string | null
+          student_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          academic_year?: string | null
+          amount_paid?: number | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_status?: string | null
+          student_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          academic_year?: string | null
+          amount_paid?: number | null
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_status?: string | null
+          student_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_payments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_enrollments: {
         Row: {
           academic_year: string
@@ -234,20 +278,26 @@ export type Database = {
           admission_date: string | null
           class_id: string | null
           created_at: string
+          current_class: string | null
+          current_section: string | null
           date_of_birth: string
           email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
+          father_name: string | null
           first_name: string
           gender: string | null
           grade_level: Database["public"]["Enums"]["grade_level"]
+          grandfather_name: string | null
           id: string
           last_name: string
           medical_info: string | null
+          mother_name: string | null
           parent_guardian_id: string | null
           phone: string | null
+          photo_url: string | null
           previous_school: string | null
-          status: Database["public"]["Enums"]["student_status"]
+          status: Database["public"]["Enums"]["student_status"] | null
           student_id: string
           updated_at: string
         }
@@ -256,20 +306,26 @@ export type Database = {
           admission_date?: string | null
           class_id?: string | null
           created_at?: string
+          current_class?: string | null
+          current_section?: string | null
           date_of_birth: string
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          father_name?: string | null
           first_name: string
           gender?: string | null
           grade_level: Database["public"]["Enums"]["grade_level"]
+          grandfather_name?: string | null
           id?: string
           last_name: string
           medical_info?: string | null
+          mother_name?: string | null
           parent_guardian_id?: string | null
           phone?: string | null
+          photo_url?: string | null
           previous_school?: string | null
-          status?: Database["public"]["Enums"]["student_status"]
+          status?: Database["public"]["Enums"]["student_status"] | null
           student_id: string
           updated_at?: string
         }
@@ -278,20 +334,26 @@ export type Database = {
           admission_date?: string | null
           class_id?: string | null
           created_at?: string
+          current_class?: string | null
+          current_section?: string | null
           date_of_birth?: string
           email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
+          father_name?: string | null
           first_name?: string
           gender?: string | null
           grade_level?: Database["public"]["Enums"]["grade_level"]
+          grandfather_name?: string | null
           id?: string
           last_name?: string
           medical_info?: string | null
+          mother_name?: string | null
           parent_guardian_id?: string | null
           phone?: string | null
+          photo_url?: string | null
           previous_school?: string | null
-          status?: Database["public"]["Enums"]["student_status"]
+          status?: Database["public"]["Enums"]["student_status"] | null
           student_id?: string
           updated_at?: string
         }
@@ -393,12 +455,18 @@ export type Database = {
         | "grade_11"
         | "grade_12"
       student_status:
-        | "active"
-        | "inactive"
-        | "graduated"
-        | "withdrawn"
-        | "pending"
-      user_role: "admin" | "teacher" | "parent" | "student"
+        | "Active"
+        | "Graduated"
+        | "Transferred Out"
+        | "Dropped Out"
+        | "On Leave"
+      user_role:
+        | "admin"
+        | "teacher"
+        | "parent"
+        | "student"
+        | "super_admin"
+        | "registrar"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -531,13 +599,20 @@ export const Constants = {
         "grade_12",
       ],
       student_status: [
-        "active",
-        "inactive",
-        "graduated",
-        "withdrawn",
-        "pending",
+        "Active",
+        "Graduated",
+        "Transferred Out",
+        "Dropped Out",
+        "On Leave",
       ],
-      user_role: ["admin", "teacher", "parent", "student"],
+      user_role: [
+        "admin",
+        "teacher",
+        "parent",
+        "student",
+        "super_admin",
+        "registrar",
+      ],
     },
   },
 } as const

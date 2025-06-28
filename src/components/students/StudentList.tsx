@@ -75,10 +75,11 @@ export const StudentList = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
-      case 'pending': return 'bg-yellow-500';
-      case 'inactive': return 'bg-gray-500';
-      case 'withdrawn': return 'bg-red-500';
+      case 'Active': return 'bg-green-500';
+      case 'Graduated': return 'bg-blue-500';
+      case 'Transferred Out': return 'bg-yellow-500';
+      case 'Dropped Out': return 'bg-red-500';
+      case 'On Leave': return 'bg-gray-500';
       default: return 'bg-gray-500';
     }
   };
