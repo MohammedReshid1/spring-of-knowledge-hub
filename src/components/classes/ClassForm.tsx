@@ -37,14 +37,22 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
     },
   });
 
-  const { data: gradelevels } = useQuery({
+  // Fixed query to properly fetch grade levels
+  const { data: gradelevels, isLoading: isLoadingGrades } = useQuery({
     queryKey: ['grade-levels'],
     queryFn: async () => {
+      console.log('Fetching grade levels...');
       const { data, error } = await supabase
         .from('grade_levels')
         .select('*')
         .order('grade');
-      if (error) throw error;
+      
+      if (error) {
+        console.error('Error fetching grade levels:', error);
+        throw error;
+      }
+      
+      console.log('Grade levels fetched:', data);
       return data;
     }
   });
@@ -101,6 +109,10 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
     }
   });
 
+  const formatGradeLevel = (grade: string) => {
+    return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const onSubmit = (data: ClassFormData) => {
     submitMutation.mutate(data);
   };
@@ -135,11 +147,17 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {gradelevels?.map((grade) => (
-                    <SelectItem key={grade.id} value={grade.id}>
-                      {grade.grade.replace('_', ' ').toUpperCase()}
-                    </SelectItem>
-                  ))}
+                  {isLoadingGrades ? (
+                    <SelectItem value="" disabled>Loading grades...</SelectItem>
+                  ) : gradelevels && gradelevels.length > 0 ? (
+                    gradelevels.map((grade) => (
+                      <SelectItem key={grade.id} value={grade.id}>
+                        {formatGradeLevel(grade.grade)}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>No grade levels found</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage />

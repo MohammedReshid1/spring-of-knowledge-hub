@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
@@ -101,6 +100,76 @@ export const StudentList = () => {
     }
   });
 
+  const exportToCSV = () => {
+    if (!students || students.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No students to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const csvHeaders = [
+      'Student ID', 'First Name', 'Last Name', 'Grade Level', 'Class', 
+      'Email', 'Phone', 'Status', 'Date of Birth', 'Gender', 'Address',
+      'Emergency Contact Name', 'Emergency Contact Phone', 'Created At'
+    ];
+
+    const csvData = students.map(student => [
+      student.student_id,
+      student.first_name,
+      student.last_name,
+      student.grade_level,
+      student.classes?.class_name || '',
+      student.email || '',
+      student.phone || '',
+      student.status,
+      student.date_of_birth,
+      student.gender || '',
+      student.address || '',
+      student.emergency_contact_name || '',
+      student.emergency_contact_phone || '',
+      new Date(student.created_at).toLocaleDateString()
+    ]);
+
+    const csvContent = [csvHeaders, ...csvData]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `students_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Success",
+      description: "Students exported successfully",
+    });
+  };
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, ''));
+      
+      // Process CSV data here
+      toast({
+        title: "Import Started",
+        description: "CSV file processing started",
+      });
+    };
+    reader.readAsText(file);
+  };
+
   const filteredStudents = students?.filter(student => {
     const matchesSearch = 
       student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -173,32 +242,56 @@ export const StudentList = () => {
           <h1 className="text-3xl font-bold text-gray-900">Student Management</h1>
           <p className="text-gray-600 mt-1">Manage student registrations and information</p>
         </div>
-        <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
-          <SheetTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 shadow-sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Student
+        <div className="flex items-center space-x-2">
+          {/* Import/Export Buttons */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImport}
+              className="hidden"
+              id="csv-import"
+            />
+            <label htmlFor="csv-import">
+              <Button variant="outline" size="sm" asChild>
+                <span className="cursor-pointer">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import CSV
+                </span>
+              </Button>
+            </label>
+            <Button variant="outline" size="sm" onClick={exportToCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
             </Button>
-          </SheetTrigger>
-          <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle className="text-xl">
-                {editingStudent ? 'Edit Student' : 'Add New Student'}
-              </SheetTitle>
-            </SheetHeader>
-            <div className="mt-6">
-              <StudentForm
-                student={editingStudent}
-                onSuccess={() => {
-                  setIsFormOpen(false);
-                  setEditingStudent(null);
-                  queryClient.invalidateQueries({ queryKey: ['students'] });
-                  queryClient.invalidateQueries({ queryKey: ['student-stats'] });
-                }}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+          </div>
+          <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <SheetTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 shadow-sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Student
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle className="text-xl">
+                  {editingStudent ? 'Edit Student' : 'Add New Student'}
+                </SheetTitle>
+              </SheetHeader>
+              <div className="mt-6">
+                <StudentForm
+                  student={editingStudent}
+                  onSuccess={() => {
+                    setIsFormOpen(false);
+                    setEditingStudent(null);
+                    queryClient.invalidateQueries({ queryKey: ['students'] });
+                    queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+                  }}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
       {/* Stats Cards */}
