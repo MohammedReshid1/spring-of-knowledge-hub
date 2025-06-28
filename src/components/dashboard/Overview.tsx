@@ -61,11 +61,12 @@ export const Overview = () => {
         return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
       }).length;
 
-      // Status breakdown
-      const statusCounts = students.reduce((acc, student) => {
-        acc[student.status] = (acc[student.status] || 0) + 1;
+      // Status breakdown - properly typed
+      const statusCounts: Record<string, number> = students.reduce((acc, student) => {
+        const status = student.status || 'Unknown';
+        acc[status] = (acc[status] || 0) + 1;
         return acc;
-      }, {});
+      }, {} as Record<string, number>);
 
       // Grade level utilization
       const gradeUtilization = gradeLevels.map(grade => ({
@@ -113,7 +114,7 @@ export const Overview = () => {
     paidStudents: 0,
     unpaidStudents: 0,
     recentRegistrations: 0,
-    statusCounts: {},
+    statusCounts: {} as Record<string, number>,
     gradeUtilization: []
   };
 
