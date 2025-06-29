@@ -19,6 +19,9 @@ type GradeLevel = Database['public']['Enums']['grade_level'];
 const studentSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
+  mother_name: z.string().optional(),
+  father_name: z.string().optional(),
+  grandfather_name: z.string().optional(),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
   gender: z.string().optional(),
   grade_level: z.string().min(1, 'Grade level is required') as z.ZodType<GradeLevel>,
@@ -50,6 +53,9 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
     defaultValues: {
       first_name: student?.first_name || '',
       last_name: student?.last_name || '',
+      mother_name: student?.mother_name || '',
+      father_name: student?.father_name || '',
+      grandfather_name: student?.grandfather_name || '',
       date_of_birth: student?.date_of_birth || '',
       gender: student?.gender || '',
       grade_level: student?.grade_level || '',
@@ -92,7 +98,6 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
   const uploadPhoto = async (file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random()}.${fileExt}`;
-    // Fixed: Remove duplicate 'student-photos' in path
     const filePath = fileName;
 
     const { error: uploadError } = await supabase.storage
@@ -119,6 +124,9 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
       const payload = {
         first_name: data.first_name,
         last_name: data.last_name,
+        mother_name: data.mother_name || null,
+        father_name: data.father_name || null,
+        grandfather_name: data.grandfather_name || null,
         date_of_birth: data.date_of_birth,
         grade_level: data.grade_level as GradeLevel,
         gender: data.gender || null,
@@ -258,6 +266,51 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
               </FormItem>
             )}
           />
+        </div>
+
+        {/* Family Names */}
+        <div className="grid grid-cols-1 gap-4">
+          <FormField
+            control={form.control}
+            name="mother_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mother's Name</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="father_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Father's Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="grandfather_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Grandfather's Name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

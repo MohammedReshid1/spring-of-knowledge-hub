@@ -9,10 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export const StudentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,7 +54,6 @@ export const StudentList = () => {
     queryKey: ['students'],
     queryFn: async () => {
       console.log('Fetching students...');
-      // Simplified query to avoid RLS recursion issues
       const { data, error } = await supabase
         .from('students')
         .select(`
@@ -91,7 +93,7 @@ export const StudentList = () => {
       
       const totalStudents = data.length;
       const activeStudents = data.filter(s => s.status === 'Active').length;
-      const statusCounts = data.reduce((acc, student) => {
+      const statusCounts: Record<string, number> = data.reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
@@ -131,6 +133,7 @@ export const StudentList = () => {
     }
   });
 
+  // Enhanced export functions
   const exportToCSV = () => {
     if (!students || students.length === 0) {
       toast({
@@ -142,8 +145,8 @@ export const StudentList = () => {
     }
 
     const csvHeaders = [
-      'Student ID', 'First Name', 'Last Name', 'Grade Level', 'Class', 
-      'Email', 'Phone', 'Status', 'Date of Birth', 'Gender', 'Address',
+      'Student ID', 'First Name', 'Last Name', 'Mother Name', 'Father Name', 'Grandfather Name',
+      'Grade Level', 'Class', 'Email', 'Phone', 'Status', 'Date of Birth', 'Gender', 'Address',
       'Emergency Contact Name', 'Emergency Contact Phone', 'Created At'
     ];
 
@@ -151,6 +154,9 @@ export const StudentList = () => {
       student.student_id,
       student.first_name,
       student.last_name,
+      student.mother_name || '',
+      student.father_name || '',
+      student.grandfather_name || '',
       student.grade_level,
       student.classes?.class_name || '',
       student.email || '',
@@ -178,7 +184,98 @@ export const StudentList = () => {
 
     toast({
       title: "Success",
-      description: "Students exported successfully",
+      description: "Students exported to CSV successfully",
+    });
+  };
+
+  const exportToExcel = () => {
+    if (!students || students.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No students to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const worksheetData = students.map(student => ({
+      'Student ID': student.student_id,
+      'First Name': student.first_name,
+      'Last Name': student.last_name,
+      'Mother Name': student.mother_name || '',
+      'Father Name': student.father_name || '',
+      'Grandfather Name': student.grandfather_name || '',
+      'Grade Level': student.grade_level,
+      'Class': student.classes?.class_name || '',
+      'Email': student.email || '',
+      'Phone': student.phone || '',
+      'Status': student.status,
+      'Date of Birth': student.date_of_birth,
+      'Gender': student.gender || '',
+      'Address': student.address || '',
+      'Emergency Contact Name': student.emergency_contact_name || '',
+      'Emergency Contact Phone': student.emergency_contact_phone || '',
+      'Created At': new Date(student.created_at).toLocaleDateString()
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+
+    XLSX.writeFile(workbook, `students_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    toast({
+      title: "Success",
+      description: "Students exported to Excel successfully",
+    });
+  };
+
+  const exportToPDF = () => {
+    if (!students || students.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No students to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text('Student List Report', 14, 22);
+    
+    // Add date
+    doc.setFontSize(12);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 32);
+    
+    // Prepare table data
+    const tableData = students.map(student => [
+      student.student_id,
+      `${student.first_name} ${student.last_name}`,
+      student.mother_name || '',
+      student.grade_level,
+      student.classes?.class_name || '',
+      student.status,
+      student.phone || '',
+      student.email || ''
+    ]);
+
+    // Add table
+    doc.autoTable({
+      head: [['Student ID', 'Full Name', 'Mother Name', 'Grade', 'Class', 'Status', 'Phone', 'Email']],
+      body: tableData,
+      startY: 40,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [66, 139, 202] }
+    });
+
+    doc.save(`students_report_${new Date().toISOString().split('T')[0]}.pdf`);
+
+    toast({
+      title: "Success",
+      description: "Students exported to PDF successfully",
     });
   };
 
@@ -188,25 +285,57 @@ export const StudentList = () => {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n');
-      const headers = lines[0].split(',').map(h => h.replace(/"/g, ''));
-      
-      // Process CSV data here
-      toast({
-        title: "Import Started",
-        description: "CSV file processing started",
-      });
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        
+        console.log('Imported data:', jsonData);
+        toast({
+          title: "Import Started",
+          description: `Processing ${jsonData.length} records from Excel file`,
+        });
+      } catch (error) {
+        toast({
+          title: "Import Error",
+          description: "Failed to process Excel file",
+          variant: "destructive",
+        });
+      }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Enhanced search function with highlighting
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm || !text) return text;
+    
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 px-1 rounded">
+          {part}
+        </mark>
+      ) : part
+    );
   };
 
   const filteredStudents = students?.filter(student => {
-    const matchesSearch = 
-      student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.student_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!searchTerm && statusFilter === 'all' && gradeFilter === 'all') {
+      return true;
+    }
+
+    const searchLower = searchTerm.toLowerCase();
+    
+    // Enhanced search: ID, First Name, Mother's Name
+    const matchesSearch = !searchTerm || 
+      student.student_id.toLowerCase().includes(searchLower) ||
+      student.first_name.toLowerCase().includes(searchLower) ||
+      (student.mother_name && student.mother_name.toLowerCase().includes(searchLower));
     
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
     const matchesGrade = gradeFilter === 'all' || student.grade_level === gradeFilter;
@@ -285,24 +414,36 @@ export const StudentList = () => {
           <div className="flex items-center space-x-2">
             <input
               type="file"
-              accept=".csv"
+              accept=".xlsx,.xls,.csv"
               onChange={handleImport}
               className="hidden"
-              id="csv-import"
+              id="excel-import"
             />
-            <label htmlFor="csv-import">
+            <label htmlFor="excel-import">
               <Button variant="outline" size="sm" asChild>
                 <span className="cursor-pointer">
                   <Upload className="h-4 w-4 mr-2" />
-                  Import CSV
+                  Import Excel
                 </span>
               </Button>
             </label>
-            <Button variant="outline" size="sm" onClick={exportToCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
+            
+            <div className="flex items-center space-x-1">
+              <Button variant="outline" size="sm" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportToExcel}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Excel
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportToPDF}>
+                <FileText className="h-4 w-4 mr-2" />
+                PDF
+              </Button>
+            </div>
           </div>
+          
           <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
             <SheetTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 shadow-sm">
@@ -391,13 +532,14 @@ export const StudentList = () => {
         </Card>
       </div>
 
-      {/* Filters and Search */}
+      {/* Enhanced Search and Filters */}
       <Card className="shadow-sm">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Search & Filter Students
+            Real-time Search & Filter Students
           </CardTitle>
+          <p className="text-sm text-gray-600">Search by Student ID, First Name, or Mother's Name</p>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -405,7 +547,7 @@ export const StudentList = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by name, student ID, or email..."
+                  placeholder="Search by Student ID, First Name, or Mother's Name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -468,6 +610,7 @@ export const StudentList = () => {
                   <TableRow className="bg-gray-50">
                     <TableHead className="font-semibold">Student</TableHead>
                     <TableHead className="font-semibold">Student ID</TableHead>
+                    <TableHead className="font-semibold">Mother's Name</TableHead>
                     <TableHead className="font-semibold">Grade</TableHead>
                     <TableHead className="font-semibold">Class</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
@@ -488,7 +631,7 @@ export const StudentList = () => {
                           </Avatar>
                           <div>
                             <div className="font-medium text-gray-900">
-                              {student.first_name} {student.last_name}
+                              {highlightSearchTerm(`${student.first_name} ${student.last_name}`, searchTerm)}
                             </div>
                             <div className="text-sm text-gray-500">{student.email}</div>
                           </div>
@@ -496,8 +639,13 @@ export const StudentList = () => {
                       </TableCell>
                       <TableCell>
                         <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                          {student.student_id}
+                          {highlightSearchTerm(student.student_id, searchTerm)}
                         </code>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-gray-600">
+                          {student.mother_name ? highlightSearchTerm(student.mother_name, searchTerm) : 'Not provided'}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-medium">
