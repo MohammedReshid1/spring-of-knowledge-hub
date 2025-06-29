@@ -97,6 +97,9 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
     mutationFn: async (data: PaymentFormData) => {
       setIsSubmitting(true);
 
+      // Generate a unique payment ID
+      const paymentId = crypto.randomUUID();
+
       // Create payment record
       const paymentData = {
         student_id: data.student_id,
@@ -105,11 +108,12 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
         payment_status: data.payment_status,
         academic_year: data.academic_year,
         notes: data.notes || null,
+        payment_id: paymentId,
       };
 
       // Create payment mode record
       const paymentModeData = {
-        payment_id: crypto.randomUUID(),
+        payment_id: paymentId,
         name: data.payment_method,
         payment_type: data.payment_method,
         payment_data: {
@@ -127,23 +131,28 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
           .eq('id', payment.id);
         
         if (paymentError) throw paymentError;
+
+        // Update payment mode if it exists
+        if (payment.payment_id) {
+          const { error: paymentModeError } = await supabase
+            .from('payment_mode')
+            .update(paymentModeData)
+            .eq('payment_id', payment.payment_id);
+          
+          if (paymentModeError) throw paymentModeError;
+        }
       } else {
         // Create new payment mode first
-        const { data: paymentModeResult, error: paymentModeError } = await supabase
+        const { error: paymentModeError } = await supabase
           .from('payment_mode')
-          .insert([paymentModeData])
-          .select()
-          .single();
+          .insert([paymentModeData]);
 
         if (paymentModeError) throw paymentModeError;
 
         // Create new payment with reference to payment mode
         const { error: paymentError } = await supabase
           .from('registration_payments')
-          .insert([{
-            ...paymentData,
-            payment_id: paymentModeResult.payment_id,
-          }]);
+          .insert([paymentData]);
         
         if (paymentError) throw paymentError;
       }
@@ -156,6 +165,7 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
       onSuccess();
     },
     onError: (error) => {
+      console.error('Payment submission error:', error);
       toast({
         title: "Error",
         description: `Failed to ${payment ? 'update' : 'record'} payment: ${error.message}`,
