@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -72,6 +71,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) {
       console.error('Sign up error:', error);
       return { error };
+    }
+
+    // If signup was successful and we have a user, create a profile record
+    if (data.user) {
+      console.log('Creating user profile for:', data.user.email);
+      
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: data.user.id,
+          email: data.user.email,
+          full_name: userData?.full_name || data.user.email?.split('@')[0] || 'User',
+          role: userData?.role || 'student',
+          phone: userData?.phone || null,
+        });
+
+      if (profileError) {
+        console.error('Error creating user profile:', profileError);
+        // Don't return the profile error as the auth signup was successful
+        // The user can still sign in, they just might need to update their profile
+      } else {
+        console.log('User profile created successfully');
+      }
     }
 
     console.log('Sign up successful:', data.user?.email);
