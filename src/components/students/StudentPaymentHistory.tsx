@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { CreditCard, Plus, DollarSign, Calendar, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
-import { PaymentForm } from '../payments/PaymentForm';
+import { EnhancedPaymentForm } from '../payments/EnhancedPaymentForm';
 import { useState } from 'react';
 
 interface StudentPaymentHistoryProps {
@@ -112,7 +112,7 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                 <SheetTitle>Record Payment for {studentName}</SheetTitle>
               </SheetHeader>
               <div className="mt-6">
-                <PaymentForm
+                <EnhancedPaymentForm
                   studentId={studentId}
                   onSuccess={() => {
                     setIsFormOpen(false);
@@ -145,6 +145,7 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                   <TableHead>Date</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Cycle</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead>Academic Year</TableHead>
                   <TableHead>Notes</TableHead>
@@ -170,6 +171,11 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                     <TableCell>
                       <Badge className={getStatusColor(payment.payment_status || '')} variant="outline">
                         {payment.payment_status || 'Unknown'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {payment.payment_cycle ? payment.payment_cycle.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Annual'}
                       </Badge>
                     </TableCell>
                     <TableCell>

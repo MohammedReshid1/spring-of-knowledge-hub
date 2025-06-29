@@ -134,6 +134,19 @@ export const AccountSettings = () => {
     }
   }, [userProfile, profileForm]);
 
+  // Load system settings from localStorage
+  React.useEffect(() => {
+    const savedSettings = localStorage.getItem('systemSettings');
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        systemSettingsForm.reset(parsed);
+      } catch (error) {
+        console.error('Error parsing saved settings:', error);
+      }
+    }
+  }, [systemSettingsForm]);
+
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
       if (!user?.id) throw new Error('User not found');
