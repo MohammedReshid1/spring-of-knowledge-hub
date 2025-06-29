@@ -100,31 +100,17 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
       // Generate a unique payment ID
       const paymentId = crypto.randomUUID();
 
-      // Create payment record
-      const paymentData = {
-        student_id: data.student_id,
-        amount_paid: data.amount_paid,
-        payment_date: data.payment_date.toISOString().split('T')[0],
-        payment_status: data.payment_status,
-        academic_year: data.academic_year,
-        notes: data.notes || null,
-        payment_id: paymentId,
-      };
-
-      // Create payment mode record
-      const paymentModeData = {
-        payment_id: paymentId,
-        name: data.payment_method,
-        payment_type: data.payment_method,
-        payment_data: {
-          amount: data.amount_paid,
-          date: data.payment_date.toISOString(),
-          method: data.payment_method,
-        }
-      };
-
       if (payment) {
         // Update existing payment
+        const paymentData = {
+          student_id: data.student_id,
+          amount_paid: data.amount_paid,
+          payment_date: data.payment_date.toISOString().split('T')[0],
+          payment_status: data.payment_status,
+          academic_year: data.academic_year,
+          notes: data.notes || null,
+        };
+
         const { error: paymentError } = await supabase
           .from('registration_payments')
           .update(paymentData)
@@ -134,6 +120,16 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
 
         // Update payment mode if it exists
         if (payment.payment_id) {
+          const paymentModeData = {
+            name: data.payment_method,
+            payment_type: data.payment_method,
+            payment_data: {
+              amount: data.amount_paid,
+              date: data.payment_date.toISOString(),
+              method: data.payment_method,
+            }
+          };
+
           const { error: paymentModeError } = await supabase
             .from('payment_mode')
             .update(paymentModeData)
@@ -142,14 +138,49 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
           if (paymentModeError) throw paymentModeError;
         }
       } else {
-        // Create new payment mode first
+        // For new payments, create payment mode first, then payment record
+        
+        // Get the next available ID for payment_mode table
+        const { data: maxIdData, error: maxIdError } = await supabase
+          .from('payment_mode')
+          .select('id')
+          .order('id', { ascending: false })
+          .limit(1);
+
+        if (maxIdError) throw maxIdError;
+
+        const nextId = (maxIdData && maxIdData.length > 0) ? maxIdData[0].id + 1 : 1;
+
+        // Create payment mode record first
+        const paymentModeData = {
+          id: nextId,
+          payment_id: paymentId,
+          name: data.payment_method,
+          payment_type: data.payment_method,
+          payment_data: {
+            amount: data.amount_paid,
+            date: data.payment_date.toISOString(),
+            method: data.payment_method,
+          }
+        };
+
         const { error: paymentModeError } = await supabase
           .from('payment_mode')
           .insert([paymentModeData]);
 
         if (paymentModeError) throw paymentModeError;
 
-        // Create new payment with reference to payment mode
+        // Create payment record with reference to payment mode
+        const paymentData = {
+          student_id: data.student_id,
+          amount_paid: data.amount_paid,
+          payment_date: data.payment_date.toISOString().split('T')[0],
+          payment_status: data.payment_status,
+          academic_year: data.academic_year,
+          notes: data.notes || null,
+          payment_id: paymentId,
+        };
+
         const { error: paymentError } = await supabase
           .from('registration_payments')
           .insert([paymentData]);
