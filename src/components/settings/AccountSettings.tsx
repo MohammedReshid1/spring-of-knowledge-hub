@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,8 +37,9 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 export const AccountSettings = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
+  const queryClient = useQueryClient();
 
-  const { data: userProfile } = useQuery({
+  const { data: userProfile, isLoading } = useQuery({
     queryKey: ['user-profile', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -49,7 +50,26 @@ export const AccountSettings = () => {
         .eq('id', user.id)
         .maybeSingle();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        // If user doesn't exist in users table, create a basic profile
+        if (error.code === 'PGRST116') {
+          const { data: newUser, error: insertError } = await supabase
+            .from('users')
+            .insert({
+              id: user.id,
+              email: user.email || '',
+              full_name: user.email?.split('@')[0] || 'User',
+              role: 'admin'
+            })
+            .select()
+            .single();
+          
+          if (insertError) throw insertError;
+          return newUser;
+        }
+        throw error;
+      }
       return data;
     },
     enabled: !!user?.id
@@ -58,9 +78,9 @@ export const AccountSettings = () => {
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      full_name: userProfile?.full_name || '',
-      email: userProfile?.email || '',
-      phone: userProfile?.phone || '',
+      full_name: '',
+      email: '',
+      phone: '',
     },
   });
 
@@ -104,6 +124,7 @@ export const AccountSettings = () => {
         title: "Success",
         description: "Profile updated successfully",
       });
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
     },
     onError: (error) => {
       toast({
@@ -147,6 +168,7 @@ export const AccountSettings = () => {
   };
 
   const getInitials = (name: string) => {
+    if (!name) return 'U';
     return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase();
   };
 
@@ -162,10 +184,25 @@ export const AccountSettings = () => {
     return colors[role] || 'bg-gray-100 text-gray-800';
   };
 
-  if (!userProfile) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!userProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center text-red-600">
+              <p className="font-medium">Unable to load user profile</p>
+              <p className="text-sm mt-1">Please try refreshing the page</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -188,7 +225,7 @@ export const AccountSettings = () => {
               </AvatarFallback>
             </Avatar>
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold">{userProfile.full_name}</h2>
+              <h2 className="text-2xl font-bold">{userProfile.full_name || 'User'}</h2>
               <div className="flex items-center space-x-2">
                 <Badge className={getRoleColor(userProfile.role)} variant="outline">
                   {userProfile.role.replace('_', ' ').toUpperCase()}

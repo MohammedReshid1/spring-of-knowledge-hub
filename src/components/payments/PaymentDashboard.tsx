@@ -13,9 +13,13 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  PieChart
+  PieChart,
+  FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toast } from '@/hooks/use-toast';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export const PaymentDashboard = () => {
   const { data: paymentStats } = useQuery({
@@ -123,12 +127,114 @@ export const PaymentDashboard = () => {
         recentPayments,
         studentsWithIssues,
         completionRate,
-        paidPayments
+        paidPayments,
+        allPayments: payments || []
       };
     },
     staleTime: 30000,
     refetchInterval: 60000,
   });
+
+  const generateReport = () => {
+    if (!paymentStats) {
+      toast({
+        title: "Error",
+        description: "No data available to generate report",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const doc = new jsPDF();
+    
+    // Add title and header
+    doc.setFontSize(20);
+    doc.text('Payment Dashboard Report', 14, 22);
+    
+    doc.setFontSize(12);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 32);
+    doc.text(`Report Period: All Time`, 14, 40);
+    
+    // Summary statistics
+    doc.setFontSize(16);
+    doc.text('Summary Statistics', 14, 55);
+    
+    doc.setFontSize(12);
+    doc.text(`Total Revenue: $${paymentStats.totalRevenue.toFixed(2)}`, 14, 65);
+    doc.text(`Total Payments: ${paymentStats.totalPayments}`, 14, 73);
+    doc.text(`Active Students: ${paymentStats.activeStudents}`, 14, 81);
+    doc.text(`Payment Completion Rate: ${Math.round(paymentStats.completionRate)}%`, 14, 89);
+    doc.text(`Students with Payment Issues: ${paymentStats.studentsWithIssues}`, 14, 97);
+    
+    // Payment status breakdown table
+    doc.setFontSize(16);
+    doc.text('Payment Status Breakdown', 14, 115);
+    
+    const statusData = Object.entries(paymentStats.statusBreakdown).map(([status, count]) => [
+      status,
+      count.toString(),
+      `${((count / paymentStats.totalPayments) * 100).toFixed(1)}%`
+    ]);
+    
+    doc.autoTable({
+      head: [['Status', 'Count', 'Percentage']],
+      body: statusData,
+      startY: 125,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [66, 139, 202] }
+    });
+    
+    // Grade level analysis
+    const finalY = doc.lastAutoTable.finalY || 125;
+    doc.setFontSize(16);
+    doc.text('Grade Level Revenue Analysis', 14, finalY + 20);
+    
+    const gradeData = paymentStats.gradeStats
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 10)
+      .map(grade => [
+        grade.grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        `$${grade.amount.toFixed(2)}`,
+        grade.studentCount.toString(),
+        grade.paymentCount.toString()
+      ]);
+    
+    doc.autoTable({
+      head: [['Grade Level', 'Total Revenue', 'Students', 'Payments']],
+      body: gradeData,
+      startY: finalY + 30,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [66, 139, 202] }
+    });
+    
+    // Recent payments
+    const finalY2 = doc.lastAutoTable.finalY || finalY + 30;
+    doc.setFontSize(16);
+    doc.text('Recent Payments (Last 10)', 14, finalY2 + 20);
+    
+    const recentData = paymentStats.recentPayments.slice(0, 10).map(payment => [
+      payment.students ? `${payment.students.first_name} ${payment.students.last_name}` : 'Unknown',
+      `$${(payment.amount_paid || 0).toFixed(2)}`,
+      payment.payment_status || 'Unknown',
+      payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'No date'
+    ]);
+    
+    doc.autoTable({
+      head: [['Student', 'Amount', 'Status', 'Date']],
+      body: recentData,
+      startY: finalY2 + 30,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [66, 139, 202] }
+    });
+    
+    // Save the PDF
+    doc.save(`payment_dashboard_report_${new Date().toISOString().split('T')[0]}.pdf`);
+    
+    toast({
+      title: "Success",
+      description: "Payment dashboard report generated successfully",
+    });
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -179,6 +285,10 @@ export const PaymentDashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={generateReport}>
+            <FileText className="h-4 w-4 mr-2" />
+            Generate Report
+          </Button>
           <Link to="/payments">
             <Button variant="outline">
               <CreditCard className="h-4 w-4 mr-2" />
@@ -384,7 +494,11 @@ export const PaymentDashboard = () => {
                 View Students
               </Button>
             </Link>
-            <Button variant="outline" className="w-full justify-start hover:bg-purple-50">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start hover:bg-purple-50"
+              onClick={generateReport}
+            >
               <TrendingUp className="h-4 w-4 mr-2" />
               Generate Report
             </Button>

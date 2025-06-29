@@ -10,7 +10,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
@@ -296,7 +297,7 @@ export const StudentList = () => {
     });
   };
 
-  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -309,7 +310,7 @@ export const StudentList = () => {
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        console.log('Imported data:', jsonData);
+        console.log('Imported Excel data:', jsonData);
         toast({
           title: "Import Started",
           description: `Processing ${jsonData.length} records from Excel file`,
@@ -323,6 +324,46 @@ export const StudentList = () => {
       }
     };
     reader.readAsArrayBuffer(file);
+    // Reset the input
+    event.target.value = '';
+  };
+
+  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split('\n');
+        const headers = lines[0].split(',').map(h => h.replace(/"/g, ''));
+        
+        const jsonData = lines.slice(1).filter(line => line.trim()).map(line => {
+          const values = line.split(',').map(v => v.replace(/"/g, ''));
+          const obj = {};
+          headers.forEach((header, index) => {
+            obj[header] = values[index] || '';
+          });
+          return obj;
+        });
+        
+        console.log('Imported CSV data:', jsonData);
+        toast({
+          title: "Import Started",
+          description: `Processing ${jsonData.length} records from CSV file`,
+        });
+      } catch (error) {
+        toast({
+          title: "Import Error",
+          description: "Failed to process CSV file",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsText(file);
+    // Reset the input
+    event.target.value = '';
   };
 
   // Enhanced search function with highlighting
@@ -448,38 +489,69 @@ export const StudentList = () => {
           <p className="text-gray-600 mt-1">Manage student registrations and information</p>
         </div>
         <div className="flex items-center space-x-2">
-          {/* Import/Export Buttons */}
+          {/* Import/Export Dropdown */}
           <div className="flex items-center space-x-2">
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleImport}
-              className="hidden"
-              id="excel-import"
-            />
-            <label htmlFor="excel-import">
-              <Button variant="outline" size="sm" asChild>
-                <span className="cursor-pointer">
+            {/* Import Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
                   <Upload className="h-4 w-4 mr-2" />
-                  Import Excel
-                </span>
-              </Button>
-            </label>
-            
-            <div className="flex items-center space-x-1">
-              <Button variant="outline" size="sm" onClick={exportToCSV}>
-                <Download className="h-4 w-4 mr-2" />
-                CSV
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportToExcel}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Excel
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportToPDF}>
-                <FileText className="h-4 w-4 mr-2" />
-                PDF
-              </Button>
-            </div>
+                  Import
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem asChild>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleImportExcel}
+                      className="hidden"
+                    />
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Import Excel
+                  </label>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleImportCSV}
+                      className="hidden"
+                    />
+                    <FileText className="h-4 w-4 mr-2" />
+                    Import CSV
+                  </label>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Export Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={exportToCSV}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToExcel}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Export Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           
           <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
