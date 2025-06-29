@@ -1,4 +1,3 @@
-
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -32,7 +31,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
       class_name: classData?.class_name || '',
       grade_level_id: classData?.grade_level_id || '',
       max_capacity: classData?.max_capacity || 25,
-      teacher_id: classData?.teacher_id || '',
+      teacher_id: classData?.teacher_id || 'unassigned',
       academic_year: classData?.academic_year || new Date().getFullYear().toString(),
     },
   });
@@ -86,7 +85,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
         grade_level_id: data.grade_level_id,
         max_capacity: data.max_capacity,
         academic_year: data.academic_year,
-        teacher_id: data.teacher_id || null,
+        teacher_id: data.teacher_id === 'unassigned' ? null : data.teacher_id,
       };
 
       if (classData) {
@@ -205,7 +204,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">No teacher assigned</SelectItem>
+                  <SelectItem value="unassigned">No teacher assigned</SelectItem>
                   {teachers && teachers.length > 0 ? (
                     teachers.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id}>
