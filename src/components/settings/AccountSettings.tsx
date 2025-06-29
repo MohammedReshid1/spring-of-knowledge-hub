@@ -47,7 +47,7 @@ export const AccountSettings = () => {
         .from('users')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       
       if (error) throw error;
       return data;
