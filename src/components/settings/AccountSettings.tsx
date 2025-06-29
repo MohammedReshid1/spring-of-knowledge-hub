@@ -234,21 +234,28 @@ export const AccountSettings = () => {
     updatePasswordMutation.mutate(data);
   };
 
-  const getInitials = (name: string) => {
+  const getInitials = (name: string | null | undefined) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase();
   };
 
-  const getRoleColor = (role: string) => {
-    const colors = {
+  const getRoleColor = (role: string | null | undefined) => {
+    const actualRole = role || 'unknown';
+    const colors: Record<string, string> = {
       'admin': 'bg-blue-100 text-blue-800',
       'teacher': 'bg-green-100 text-green-800',
       'parent': 'bg-purple-100 text-purple-800',
       'student': 'bg-orange-100 text-orange-800',
       'super_admin': 'bg-red-100 text-red-800',
-      'registrar': 'bg-yellow-100 text-yellow-800'
+      'registrar': 'bg-yellow-100 text-yellow-800',
+      'unknown': 'bg-gray-100 text-gray-800'
     };
-    return colors[role] || 'bg-gray-100 text-gray-800';
+    return colors[actualRole] || 'bg-gray-100 text-gray-800';
+  };
+
+  const formatRole = (role: string | null | undefined) => {
+    const actualRole = role || 'unknown';
+    return actualRole.replace('_', ' ').toUpperCase();
   };
 
   if (isLoading) {
@@ -304,7 +311,7 @@ export const AccountSettings = () => {
               <h2 className="text-2xl font-bold">{userProfile.full_name || 'User'}</h2>
               <div className="flex items-center space-x-2">
                 <Badge className={getRoleColor(userProfile.role)} variant="outline">
-                  {userProfile.role.replace('_', ' ').toUpperCase()}
+                  {formatRole(userProfile.role)}
                 </Badge>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-600">{userProfile.email}</span>
