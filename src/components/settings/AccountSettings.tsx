@@ -9,17 +9,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { User, Mail, Phone, Lock, Shield, Calendar } from 'lucide-react';
+import { User, Mail, Phone, Lock, Shield, Calendar, DollarSign, Settings } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 const profileSchema = z.object({
   full_name: z.string().min(1, 'Full name is required'),
   email: z.string().email('Valid email is required'),
   phone: z.string().optional(),
+});
+
+const systemSettingsSchema = z.object({
+  currency: z.enum(['USD', 'ETB', 'EUR', 'GBP']),
+  date_format: z.enum(['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD']),
+  timezone: z.string(),
 });
 
 const passwordSchema = z.object({
@@ -32,6 +39,7 @@ const passwordSchema = z.object({
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
+type SystemSettingsFormData = z.infer<typeof systemSettingsSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export const AccountSettings = () => {
@@ -39,40 +47,53 @@ export const AccountSettings = () => {
   const [activeTab, setActiveTab] = useState('profile');
   const queryClient = useQueryClient();
 
-  const { data: userProfile, isLoading } = useQuery({
+  const { data: userProfile, isLoading, error } = useQuery({
     queryKey: ['user-profile', user?.id],
     queryFn: async () => {
-      if (!user?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-      
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        // If user doesn't exist in users table, create a basic profile
-        if (error.code === 'PGRST116') {
-          const { data: newUser, error: insertError } = await supabase
-            .from('users')
-            .insert({
-              id: user.id,
-              email: user.email || '',
-              full_name: user.email?.split('@')[0] || 'User',
-              role: 'admin'
-            })
-            .select()
-            .single();
-          
-          if (insertError) throw insertError;
-          return newUser;
-        }
-        throw error;
+      if (!user?.id) {
+        throw new Error('No user ID available');
       }
-      return data;
+      
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching user profile:', error);
+          
+          // If user doesn't exist in users table, create a basic profile
+          if (error.code === 'PGRST116') {
+            console.log('Creating new user profile...');
+            const { data: newUser, error: insertError } = await supabase
+              .from('users')
+              .insert({
+                id: user.id,
+                email: user.email || '',
+                full_name: user.email?.split('@')[0] || 'User',
+                role: 'admin'
+              })
+              .select()
+              .single();
+            
+            if (insertError) {
+              console.error('Error creating user profile:', insertError);
+              throw insertError;
+            }
+            return newUser;
+          }
+          throw error;
+        }
+        return data;
+      } catch (err) {
+        console.error('Failed to fetch/create user profile:', err);
+        throw err;
+      }
     },
-    enabled: !!user?.id
+    enabled: !!user?.id,
+    retry: 1
   });
 
   const profileForm = useForm<ProfileFormData>({
@@ -81,6 +102,15 @@ export const AccountSettings = () => {
       full_name: '',
       email: '',
       phone: '',
+    },
+  });
+
+  const systemSettingsForm = useForm<SystemSettingsFormData>({
+    resolver: zodResolver(systemSettingsSchema),
+    defaultValues: {
+      currency: 'ETB',
+      date_format: 'DD/MM/YYYY',
+      timezone: 'Africa/Addis_Ababa',
     },
   });
 
@@ -135,6 +165,26 @@ export const AccountSettings = () => {
     }
   });
 
+  const updateSystemSettingsMutation = useMutation({
+    mutationFn: async (data: SystemSettingsFormData) => {
+      // Store system settings in localStorage for now
+      localStorage.setItem('systemSettings', JSON.stringify(data));
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "System settings updated successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update system settings: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: PasswordFormData) => {
       const { error } = await supabase.auth.updateUser({
@@ -161,6 +211,10 @@ export const AccountSettings = () => {
 
   const onProfileSubmit = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
+  };
+
+  const onSystemSettingsSubmit = (data: SystemSettingsFormData) => {
+    updateSystemSettingsMutation.mutate(data);
   };
 
   const onPasswordSubmit = (data: PasswordFormData) => {
@@ -192,14 +246,23 @@ export const AccountSettings = () => {
     );
   }
 
-  if (!userProfile) {
+  if (error || !userProfile) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center text-red-600">
               <p className="font-medium">Unable to load user profile</p>
-              <p className="text-sm mt-1">Please try refreshing the page</p>
+              <p className="text-sm mt-1">
+                {error?.message || 'Please try refreshing the page'}
+              </p>
+              <Button 
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['user-profile'] })}
+                className="mt-4"
+                variant="outline"
+              >
+                Retry
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -212,7 +275,7 @@ export const AccountSettings = () => {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Account Settings</h1>
-        <p className="text-gray-600 mt-1">Manage your account information and security settings</p>
+        <p className="text-gray-600 mt-1">Manage your account information and system preferences</p>
       </div>
 
       {/* Profile Overview */}
@@ -244,8 +307,9 @@ export const AccountSettings = () => {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="profile">Profile Information</TabsTrigger>
+          <TabsTrigger value="system">System Settings</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
 
@@ -310,6 +374,104 @@ export const AccountSettings = () => {
                       disabled={updateProfileMutation.isPending}
                     >
                       {updateProfileMutation.isPending ? 'Updating...' : 'Update Profile'}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="system" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                System Preferences
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Form {...systemSettingsForm}>
+                <form onSubmit={systemSettingsForm.handleSubmit(onSystemSettingsSubmit)} className="space-y-4">
+                  <FormField
+                    control={systemSettingsForm.control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Default Currency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="ETB">Ethiopian Birr (ETB)</SelectItem>
+                            <SelectItem value="USD">US Dollar (USD)</SelectItem>
+                            <SelectItem value="EUR">Euro (EUR)</SelectItem>
+                            <SelectItem value="GBP">British Pound (GBP)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={systemSettingsForm.control}
+                    name="date_format"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date Format</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select date format" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                            <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                            <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={systemSettingsForm.control}
+                    name="timezone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Timezone</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Africa/Addis_Ababa">Africa/Addis Ababa (EAT)</SelectItem>
+                            <SelectItem value="UTC">UTC</SelectItem>
+                            <SelectItem value="America/New_York">America/New York (EST)</SelectItem>
+                            <SelectItem value="Europe/London">Europe/London (GMT)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Separator />
+
+                  <div className="flex justify-end">
+                    <Button 
+                      type="submit" 
+                      disabled={updateSystemSettingsMutation.isPending}
+                    >
+                      {updateSystemSettingsMutation.isPending ? 'Updating...' : 'Update Settings'}
                     </Button>
                   </div>
                 </form>

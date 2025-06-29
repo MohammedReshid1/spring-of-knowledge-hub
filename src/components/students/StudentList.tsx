@@ -30,6 +30,27 @@ export const StudentList = () => {
   const [selectAll, setSelectAll] = useState(false);
   const queryClient = useQueryClient();
 
+  // Get currency from system settings
+  const getCurrency = () => {
+    const settings = localStorage.getItem('systemSettings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.currency || 'ETB';
+    }
+    return 'ETB';
+  };
+
+  const formatCurrency = (amount: number) => {
+    const currency = getCurrency();
+    const symbols = {
+      'ETB': 'ETB',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£'
+    };
+    return `${symbols[currency] || currency} ${amount.toFixed(2)}`;
+  };
+
   // Real-time subscription for students
   useEffect(() => {
     const channel = supabase

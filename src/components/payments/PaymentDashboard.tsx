@@ -1,14 +1,20 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   DollarSign, 
   TrendingUp, 
   Users, 
-  Calendar, 
+  CalendarIcon, 
   CreditCard, 
   AlertCircle,
   CheckCircle,
@@ -18,10 +24,37 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 export const PaymentDashboard = () => {
+  const [reportType, setReportType] = useState('quarterly');
+  const [customStartDate, setCustomStartDate] = useState<Date>();
+  const [customEndDate, setCustomEndDate] = useState<Date>();
+
+  // Get currency from system settings
+  const getCurrency = () => {
+    const settings = localStorage.getItem('systemSettings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.currency || 'ETB';
+    }
+    return 'ETB';
+  };
+
+  const formatCurrency = (amount: number) => {
+    const currency = getCurrency();
+    const symbols = {
+      'ETB': 'ETB',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£'
+    };
+    return `${symbols[currency] || currency} ${amount.toFixed(2)}`;
+  };
+
   const { data: paymentStats } = useQuery({
     queryKey: ['payment-dashboard-stats'],
     queryFn: async () => {
@@ -135,6 +168,36 @@ export const PaymentDashboard = () => {
     refetchInterval: 60000,
   });
 
+  const getDateRange = () => {
+    const now = new Date();
+    let startDate: Date;
+    let endDate = now;
+
+    switch (reportType) {
+      case 'quarterly':
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        startDate = new Date(now.getFullYear(), currentQuarter * 3, 1);
+        break;
+      case 'three_month':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        break;
+      case 'half_year':
+        startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        break;
+      case 'annual':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case 'custom':
+        startDate = customStartDate || new Date(now.getFullYear(), 0, 1);
+        endDate = customEndDate || now;
+        break;
+      default:
+        startDate = new Date(now.getFullYear(), 0, 1);
+    }
+
+    return { startDate, endDate };
+  };
+
   const generateReport = () => {
     if (!paymentStats) {
       toast({
@@ -145,6 +208,18 @@ export const PaymentDashboard = () => {
       return;
     }
 
+    const { startDate, endDate } = getDateRange();
+    
+    // Filter payments based on date range
+    const filteredPayments = paymentStats.allPayments.filter(payment => {
+      if (!payment.payment_date) return false;
+      const paymentDate = new Date(payment.payment_date);
+      return paymentDate >= startDate && paymentDate <= endDate;
+    });
+
+    const filteredRevenue = filteredPayments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
+    const filteredCount = filteredPayments.length;
+
     const doc = new jsPDF();
     
     // Add title and header
@@ -153,22 +228,23 @@ export const PaymentDashboard = () => {
     
     doc.setFontSize(12);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 32);
-    doc.text(`Report Period: All Time`, 14, 40);
+    doc.text(`Report Period: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`, 14, 40);
+    doc.text(`Report Type: ${reportType.replace('_', ' ').toUpperCase()}`, 14, 48);
     
     // Summary statistics
     doc.setFontSize(16);
-    doc.text('Summary Statistics', 14, 55);
+    doc.text('Summary Statistics', 14, 65);
     
     doc.setFontSize(12);
-    doc.text(`Total Revenue: $${paymentStats.totalRevenue.toFixed(2)}`, 14, 65);
-    doc.text(`Total Payments: ${paymentStats.totalPayments}`, 14, 73);
-    doc.text(`Active Students: ${paymentStats.activeStudents}`, 14, 81);
-    doc.text(`Payment Completion Rate: ${Math.round(paymentStats.completionRate)}%`, 14, 89);
-    doc.text(`Students with Payment Issues: ${paymentStats.studentsWithIssues}`, 14, 97);
+    doc.text(`Total Revenue: ${formatCurrency(filteredRevenue)}`, 14, 75);
+    doc.text(`Total Payments: ${filteredCount}`, 14, 83);
+    doc.text(`Active Students: ${paymentStats.activeStudents}`, 14, 91);
+    doc.text(`Payment Completion Rate: ${Math.round(paymentStats.completionRate)}%`, 14, 99);
+    doc.text(`Students with Payment Issues: ${paymentStats.studentsWithIssues}`, 14, 107);
     
     // Payment status breakdown table
     doc.setFontSize(16);
-    doc.text('Payment Status Breakdown', 14, 115);
+    doc.text('Payment Status Breakdown', 14, 125);
     
     const statusData = Object.entries(paymentStats.statusBreakdown).map(([status, count]) => [
       status,
@@ -179,13 +255,13 @@ export const PaymentDashboard = () => {
     doc.autoTable({
       head: [['Status', 'Count', 'Percentage']],
       body: statusData,
-      startY: 125,
+      startY: 135,
       styles: { fontSize: 10 },
       headStyles: { fillColor: [66, 139, 202] }
     });
     
     // Grade level analysis
-    const finalY = doc.lastAutoTable.finalY || 125;
+    const finalY = doc.lastAutoTable.finalY || 135;
     doc.setFontSize(16);
     doc.text('Grade Level Revenue Analysis', 14, finalY + 20);
     
@@ -194,7 +270,7 @@ export const PaymentDashboard = () => {
       .slice(0, 10)
       .map(grade => [
         grade.grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        `$${grade.amount.toFixed(2)}`,
+        formatCurrency(grade.amount),
         grade.studentCount.toString(),
         grade.paymentCount.toString()
       ]);
@@ -214,7 +290,7 @@ export const PaymentDashboard = () => {
     
     const recentData = paymentStats.recentPayments.slice(0, 10).map(payment => [
       payment.students ? `${payment.students.first_name} ${payment.students.last_name}` : 'Unknown',
-      `$${(payment.amount_paid || 0).toFixed(2)}`,
+      formatCurrency(payment.amount_paid || 0),
       payment.payment_status || 'Unknown',
       payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'No date'
     ]);
@@ -228,19 +304,13 @@ export const PaymentDashboard = () => {
     });
     
     // Save the PDF
-    doc.save(`payment_dashboard_report_${new Date().toISOString().split('T')[0]}.pdf`);
+    const reportTypeLabel = reportType.replace('_', '_').toUpperCase();
+    doc.save(`payment_${reportType}_report_${new Date().toISOString().split('T')[0]}.pdf`);
     
     toast({
       title: "Success",
-      description: "Payment dashboard report generated successfully",
+      description: `${reportTypeLabel} payment report generated successfully`,
     });
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
   };
 
   const formatGradeLevel = (grade: string) => {
@@ -285,10 +355,6 @@ export const PaymentDashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={generateReport}>
-            <FileText className="h-4 w-4 mr-2" />
-            Generate Report
-          </Button>
           <Link to="/payments">
             <Button variant="outline">
               <CreditCard className="h-4 w-4 mr-2" />
@@ -297,6 +363,96 @@ export const PaymentDashboard = () => {
           </Link>
         </div>
       </div>
+
+      {/* Report Generation Section */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Generate Payment Report
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div>
+              <Label htmlFor="reportType">Report Type</Label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select report type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quarterly">Quarterly Report</SelectItem>
+                  <SelectItem value="three_month">3-Month Report</SelectItem>
+                  <SelectItem value="half_year">Half-Year Report</SelectItem>
+                  <SelectItem value="annual">Annual Report</SelectItem>
+                  <SelectItem value="custom">Custom Date Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {reportType === 'custom' && (
+              <>
+                <div>
+                  <Label>Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !customStartDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customStartDate ? format(customStartDate, "PPP") : "Pick start date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={customStartDate}
+                        onSelect={setCustomStartDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <Label>End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !customEndDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customEndDate ? format(customEndDate, "PPP") : "Pick end date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={customEndDate}
+                        onSelect={setCustomEndDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </>
+            )}
+
+            <Button onClick={generateReport} className="w-full">
+              <FileText className="h-4 w-4 mr-2" />
+              Generate Report
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Main Statistics Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -466,7 +622,7 @@ export const PaymentDashboard = () => {
               </div>
             ) : (
               <div className="text-center py-8">
-                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <CalendarIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                 <p className="text-sm text-gray-600 font-medium">No recent payments</p>
                 <p className="text-xs text-gray-500">Payment activity will appear here</p>
               </div>
