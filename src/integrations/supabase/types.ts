@@ -189,6 +189,33 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_mode: {
+        Row: {
+          created_at: string
+          id: number
+          name: string | null
+          payment_data: Json | null
+          payment_id: string
+          payment_type: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          name?: string | null
+          payment_data?: Json | null
+          payment_id: string
+          payment_type?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          name?: string | null
+          payment_data?: Json | null
+          payment_id?: string
+          payment_type?: string | null
+        }
+        Relationships: []
+      }
       registration_payments: {
         Row: {
           academic_year: string | null
@@ -197,8 +224,10 @@ export type Database = {
           id: string
           notes: string | null
           payment_date: string | null
+          payment_id: string | null
           payment_status: string | null
           student_id: string | null
+          transaction_data: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -208,8 +237,10 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_date?: string | null
+          payment_id?: string | null
           payment_status?: string | null
           student_id?: string | null
+          transaction_data?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -219,11 +250,20 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_date?: string | null
+          payment_id?: string | null
           payment_status?: string | null
           student_id?: string | null
+          transaction_data?: Json | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "registration_payments_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payment_mode"
+            referencedColumns: ["payment_id"]
+          },
           {
             foreignKeyName: "registration_payments_student_id_fkey"
             columns: ["student_id"]

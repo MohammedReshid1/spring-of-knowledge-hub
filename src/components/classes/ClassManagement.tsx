@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,9 +17,43 @@ export const ClassManagement = () => {
   const [editingClass, setEditingClass] = useState(null);
   const queryClient = useQueryClient();
 
+  // Real-time subscriptions
+  useEffect(() => {
+    const classesChannel = supabase
+      .channel('classes-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'classes' },
+        () => {
+          console.log('Classes updated, refetching...');
+          queryClient.invalidateQueries({ queryKey: ['classes'] });
+          queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
+        }
+      )
+      .subscribe();
+
+    const gradeChannel = supabase
+      .channel('grade-levels-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'grade_levels' },
+        () => {
+          console.log('Grade levels updated, refetching...');
+          queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(classesChannel);
+      supabase.removeChannel(gradeChannel);
+    };
+  }, [queryClient]);
+
   const { data: classes, isLoading } = useQuery({
     queryKey: ['classes'],
     queryFn: async () => {
+      console.log('Fetching classes...');
       const { data, error } = await supabase
         .from('classes')
         .select(`
@@ -37,7 +71,11 @@ export const ClassManagement = () => {
         `)
         .order('academic_year', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching classes:', error);
+        throw error;
+      }
+      console.log('Classes fetched successfully:', data?.length);
       return data;
     }
   });
@@ -45,12 +83,17 @@ export const ClassManagement = () => {
   const { data: gradeStats } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
+      console.log('Fetching grade stats...');
       const { data, error } = await supabase
         .from('grade_levels')
         .select('*')
         .order('grade');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching grade stats:', error);
+        throw error;
+      }
+      console.log('Grade stats fetched successfully:', data?.length);
       return data;
     }
   });
@@ -104,6 +147,13 @@ export const ClassManagement = () => {
     }
   };
 
+  const handleFormSuccess = () => {
+    setIsFormOpen(false);
+    setEditingClass(null);
+    queryClient.invalidateQueries({ queryKey: ['classes'] });
+    queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
+  };
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -128,11 +178,7 @@ export const ClassManagement = () => {
             <div className="mt-6">
               <ClassForm
                 classData={editingClass}
-                onSuccess={() => {
-                  setIsFormOpen(false);
-                  setEditingClass(null);
-                  queryClient.invalidateQueries({ queryKey: ['classes'] });
-                }}
+                onSuccess={handleFormSuccess}
               />
             </div>
           </SheetContent>
@@ -145,57 +191,65 @@ export const ClassManagement = () => {
           <CardTitle className="text-lg">Grade Level Capacity Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {gradeStats?.map((grade) => {
-              const percentage = grade.max_capacity > 0 ? (grade.current_enrollment / grade.max_capacity) * 100 : 0;
-              const isNearCapacity = percentage >= 80;
-              const isFull = percentage >= 95;
-              
-              return (
-                <Card key={grade.id} className={`border-l-4 ${
-                  isFull ? 'border-l-red-500 bg-red-50' : 
-                  isNearCapacity ? 'border-l-yellow-500 bg-yellow-50' : 
-                  'border-l-green-500 bg-green-50'
-                } hover:shadow-md transition-shadow`}>
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-gray-900">
-                          {formatGradeLevel(grade.grade)}
-                        </h3>
-                        {isFull ? (
-                          <AlertCircle className="h-4 w-4 text-red-500" />
-                        ) : isNearCapacity ? (
-                          <AlertCircle className="h-4 w-4 text-yellow-500" />
-                        ) : (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-gray-600" />
-                          <span className={`text-lg font-bold ${getCapacityColor(grade.current_enrollment, grade.max_capacity)}`}>
-                            {grade.current_enrollment}
-                          </span>
-                          <span className="text-sm text-gray-500">/ {grade.max_capacity}</span>
+          {!gradeStats || gradeStats.length === 0 ? (
+            <div className="text-center py-8">
+              <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 font-medium">No grade levels found</p>
+              <p className="text-gray-500 text-sm">Grade levels will appear here once configured</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {gradeStats.map((grade) => {
+                const percentage = grade.max_capacity > 0 ? (grade.current_enrollment / grade.max_capacity) * 100 : 0;
+                const isNearCapacity = percentage >= 80;
+                const isFull = percentage >= 95;
+                
+                return (
+                  <Card key={grade.id} className={`border-l-4 ${
+                    isFull ? 'border-l-red-500 bg-red-50' : 
+                    isNearCapacity ? 'border-l-yellow-500 bg-yellow-50' : 
+                    'border-l-green-500 bg-green-50'
+                  } hover:shadow-md transition-shadow`}>
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-medium text-gray-900">
+                            {formatGradeLevel(grade.grade)}
+                          </h3>
+                          {isFull ? (
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                          ) : isNearCapacity ? (
+                            <AlertCircle className="h-4 w-4 text-yellow-500" />
+                          ) : (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          )}
                         </div>
-                        <Badge className={getCapacityBadgeColor(grade.current_enrollment, grade.max_capacity)} variant="outline">
-                          {Math.round(percentage)}%
-                        </Badge>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-gray-600" />
+                            <span className={`text-lg font-bold ${getCapacityColor(grade.current_enrollment, grade.max_capacity)}`}>
+                              {grade.current_enrollment}
+                            </span>
+                            <span className="text-sm text-gray-500">/ {grade.max_capacity}</span>
+                          </div>
+                          <Badge className={getCapacityBadgeColor(grade.current_enrollment, grade.max_capacity)} variant="outline">
+                            {Math.round(percentage)}%
+                          </Badge>
+                        </div>
+                        
+                        <Progress value={percentage} className="h-2" />
+                        
+                        <p className="text-xs text-gray-600">
+                          {grade.max_capacity - grade.current_enrollment} spots available
+                        </p>
                       </div>
-                      
-                      <Progress value={percentage} className="h-2" />
-                      
-                      <p className="text-xs text-gray-600">
-                        {grade.max_capacity - grade.current_enrollment} spots available
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

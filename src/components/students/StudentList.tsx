@@ -23,9 +23,34 @@ export const StudentList = () => {
   const [gradeFilter, setGradeFilter] = useState('all');
   const queryClient = useQueryClient();
 
+  // Real-time subscription for students
+  useEffect(() => {
+    const channel = supabase
+      .channel('students-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'students'
+        },
+        () => {
+          console.log('Students table changed, refetching...');
+          queryClient.invalidateQueries({ queryKey: ['students'] });
+          queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   const { data: students, isLoading, error } = useQuery({
     queryKey: ['students'],
     queryFn: async () => {
+      console.log('Fetching students...');
       const { data, error } = await supabase
         .from('students')
         .select(`
@@ -45,7 +70,11 @@ export const StudentList = () => {
         `)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching students:', error);
+        throw error;
+      }
+      console.log('Students fetched successfully:', data?.length);
       return data;
     }
   });
@@ -62,9 +91,10 @@ export const StudentList = () => {
       const totalStudents = data.length;
       const activeStudents = data.filter(s => s.status === 'Active').length;
       const statusCounts = data.reduce((acc, student) => {
-        acc[student.status] = (acc[student.status] || 0) + 1;
+        const status = student.status || 'Unknown';
+        acc[status] = (acc[status] || 0) + 1;
         return acc;
-      }, {});
+      }, {} as Record<string, number>);
       
       return {
         totalStudents,
@@ -227,6 +257,13 @@ export const StudentList = () => {
             <div className="text-center text-red-600">
               <p className="font-medium">Error loading students</p>
               <p className="text-sm mt-1">{error.message}</p>
+              <Button 
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['students'] })}
+                className="mt-4"
+                variant="outline"
+              >
+                Retry
+              </Button>
             </div>
           </CardContent>
         </Card>

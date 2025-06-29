@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,29 +10,78 @@ import { Users, BookOpen, GraduationCap, TrendingUp, Calendar, CreditCard, Alert
 import { Link } from 'react-router-dom';
 
 export const Overview = () => {
+  const queryClient = useQueryClient();
+
+  // Real-time subscriptions for dashboard updates
+  useEffect(() => {
+    const studentsChannel = supabase
+      .channel('dashboard-students')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'students' },
+        () => {
+          console.log('Students updated, refreshing dashboard...');
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        }
+      )
+      .subscribe();
+
+    const classesChannel = supabase
+      .channel('dashboard-classes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'classes' },
+        () => {
+          console.log('Classes updated, refreshing dashboard...');
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        }
+      )
+      .subscribe();
+
+    const gradesChannel = supabase
+      .channel('dashboard-grades')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'grade_levels' },
+        () => {
+          console.log('Grade levels updated, refreshing dashboard...');
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(studentsChannel);
+      supabase.removeChannel(classesChannel);
+      supabase.removeChannel(gradesChannel);
+    };
+  }, [queryClient]);
+
   const { data: dashboardStats, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
-      // Get students data
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select('status, grade_level, created_at, registration_payments(payment_status)');
+      console.log('Fetching dashboard stats...');
       
-      if (studentsError) throw studentsError;
+      // Optimized parallel queries
+      const [studentsResult, classesResult, gradeLevelsResult] = await Promise.all([
+        supabase
+          .from('students')
+          .select('status, grade_level, created_at, registration_payments(payment_status)'),
+        supabase
+          .from('classes')
+          .select('id, current_enrollment, max_capacity'),
+        supabase
+          .from('grade_levels')
+          .select('grade, current_enrollment, max_capacity')
+      ]);
 
-      // Get classes data
-      const { data: classes, error: classesError } = await supabase
-        .from('classes')
-        .select('id, current_enrollment, max_capacity');
-      
-      if (classesError) throw classesError;
+      if (studentsResult.error) throw studentsResult.error;
+      if (classesResult.error) throw classesResult.error;
+      if (gradeLevelsResult.error) throw gradeLevelsResult.error;
 
-      // Get grade levels data
-      const { data: gradeLevels, error: gradeLevelsError } = await supabase
-        .from('grade_levels')
-        .select('grade, current_enrollment, max_capacity');
-      
-      if (gradeLevelsError) throw gradeLevelsError;
+      const students = studentsResult.data || [];
+      const classes = classesResult.data || [];
+      const gradeLevels = gradeLevelsResult.data || [];
 
       // Calculate stats
       const totalStudents = students.length;
@@ -61,7 +110,7 @@ export const Overview = () => {
         return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
       }).length;
 
-      // Status breakdown - properly typed
+      // Status breakdown
       const statusCounts: Record<string, number> = students.reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
@@ -76,6 +125,7 @@ export const Overview = () => {
         capacity: grade.max_capacity
       }));
 
+      console.log('Dashboard stats calculated successfully');
       return {
         totalStudents,
         activeStudents,
@@ -85,9 +135,11 @@ export const Overview = () => {
         unpaidStudents,
         recentRegistrations,
         statusCounts,
-        gradeUtilization: gradeUtilization.slice(0, 5) // Show top 5 grades
+        gradeUtilization: gradeUtilization.slice(0, 5)
       };
-    }
+    },
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 60000, // Refetch every minute
   });
 
   if (isLoading) {
@@ -287,11 +339,6 @@ export const Overview = () => {
                 Manage Classes
               </Button>
             </Link>
-            <Button variant="outline" className="w-full justify-start hover:bg-purple-50" disabled>
-              <Calendar className="h-4 w-4 mr-2" />
-              View Reports
-              <Badge variant="secondary" className="ml-auto">Coming Soon</Badge>
-            </Button>
           </CardContent>
         </Card>
 
@@ -349,7 +396,7 @@ export const Overview = () => {
             </div>
             <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
               <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-green-800">Authentication Active</span>
+              <span className="text-sm font-medium text-green-800">Real-time Active</span>
             </div>
             <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
               <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
