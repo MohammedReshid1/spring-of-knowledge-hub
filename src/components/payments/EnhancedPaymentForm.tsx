@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, CreditCard, DollarSign, Upload, Building2 } from 'lucide-react';
+import { CalendarIcon, CreditCard, DollarSign, Upload, Building2, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -115,17 +115,16 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
   const uploadScreenshot = async (file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `payment_${Date.now()}.${fileExt}`;
-    const filePath = `payment-screenshots/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from('payment-screenshots')
-      .upload(filePath, file);
+      .upload(fileName, file);
 
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage
       .from('payment-screenshots')
-      .getPublicUrl(filePath);
+      .getPublicUrl(fileName);
 
     return data.publicUrl;
   };
@@ -602,6 +601,59 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
                           id="screenshot-upload"
                         />
                         <label htmlFor="screenshot-upload">
+                          <Button type="button" variant="outline" size="sm" asChild>
+                            <span className="cursor-pointer">
+                              <Upload className="h-4 w-4 mr-2" />
+                              Upload Screenshot
+                            </span>
+                          </Button>
+                        </label>
+                        {screenshotFile && (
+                          <span className="text-sm text-green-600">
+                            {screenshotFile.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Mobile Payment Details */}
+              {watchPaymentMethod === 'Mobile Payment' && (
+                <Card className="bg-green-50 border-green-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      Mobile Payment Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="transaction_number"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Transaction ID *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter mobile payment transaction ID" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Payment Screenshot (Optional)</label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleScreenshotChange}
+                          className="hidden"
+                          id="mobile-screenshot-upload"
+                        />
+                        <label htmlFor="mobile-screenshot-upload">
                           <Button type="button" variant="outline" size="sm" asChild>
                             <span className="cursor-pointer">
                               <Upload className="h-4 w-4 mr-2" />

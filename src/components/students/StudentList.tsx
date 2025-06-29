@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
@@ -24,6 +25,8 @@ export const StudentList = () => {
   const [editingStudent, setEditingStudent] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [gradeFilter, setGradeFilter] = useState('all');
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
   const queryClient = useQueryClient();
 
   // Real-time subscription for students
@@ -133,12 +136,21 @@ export const StudentList = () => {
     }
   });
 
-  // Enhanced export functions
+  // Enhanced export functions with selection support
+  const getStudentsToExport = () => {
+    if (selectedStudents.size > 0) {
+      return filteredStudents.filter(student => selectedStudents.has(student.id));
+    }
+    return filteredStudents;
+  };
+
   const exportToCSV = () => {
-    if (!students || students.length === 0) {
+    const studentsToExport = getStudentsToExport();
+    
+    if (!studentsToExport || studentsToExport.length === 0) {
       toast({
         title: "No Data",
-        description: "No students to export",
+        description: "No students selected for export",
         variant: "destructive",
       });
       return;
@@ -150,7 +162,7 @@ export const StudentList = () => {
       'Emergency Contact Name', 'Emergency Contact Phone', 'Created At'
     ];
 
-    const csvData = students.map(student => [
+    const csvData = studentsToExport.map(student => [
       student.student_id,
       student.first_name,
       student.last_name,
@@ -184,21 +196,23 @@ export const StudentList = () => {
 
     toast({
       title: "Success",
-      description: "Students exported to CSV successfully",
+      description: `${studentsToExport.length} students exported to CSV successfully`,
     });
   };
 
   const exportToExcel = () => {
-    if (!students || students.length === 0) {
+    const studentsToExport = getStudentsToExport();
+    
+    if (!studentsToExport || studentsToExport.length === 0) {
       toast({
         title: "No Data",
-        description: "No students to export",
+        description: "No students selected for export",
         variant: "destructive",
       });
       return;
     }
 
-    const worksheetData = students.map(student => ({
+    const worksheetData = studentsToExport.map(student => ({
       'Student ID': student.student_id,
       'First Name': student.first_name,
       'Last Name': student.last_name,
@@ -226,15 +240,17 @@ export const StudentList = () => {
 
     toast({
       title: "Success",
-      description: "Students exported to Excel successfully",
+      description: `${studentsToExport.length} students exported to Excel successfully`,
     });
   };
 
   const exportToPDF = () => {
-    if (!students || students.length === 0) {
+    const studentsToExport = getStudentsToExport();
+    
+    if (!studentsToExport || studentsToExport.length === 0) {
       toast({
         title: "No Data",
-        description: "No students to export",
+        description: "No students selected for export",
         variant: "destructive",
       });
       return;
@@ -246,12 +262,13 @@ export const StudentList = () => {
     doc.setFontSize(20);
     doc.text('Student List Report', 14, 22);
     
-    // Add date
+    // Add date and count
     doc.setFontSize(12);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 32);
+    doc.text(`Total Students: ${studentsToExport.length}`, 14, 40);
     
     // Prepare table data
-    const tableData = students.map(student => [
+    const tableData = studentsToExport.map(student => [
       student.student_id,
       `${student.first_name} ${student.last_name}`,
       student.mother_name || '',
@@ -266,7 +283,7 @@ export const StudentList = () => {
     doc.autoTable({
       head: [['Student ID', 'Full Name', 'Mother Name', 'Grade', 'Class', 'Status', 'Phone', 'Email']],
       body: tableData,
-      startY: 40,
+      startY: 48,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [66, 139, 202] }
     });
@@ -275,7 +292,7 @@ export const StudentList = () => {
 
     toast({
       title: "Success",
-      description: "Students exported to PDF successfully",
+      description: `${studentsToExport.length} students exported to PDF successfully`,
     });
   };
 
@@ -342,6 +359,27 @@ export const StudentList = () => {
     
     return matchesSearch && matchesStatus && matchesGrade;
   }) || [];
+
+  // Selection handlers
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked);
+    if (checked) {
+      setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
+    } else {
+      setSelectedStudents(new Set());
+    }
+  };
+
+  const handleSelectStudent = (studentId: string, checked: boolean) => {
+    const newSelected = new Set(selectedStudents);
+    if (checked) {
+      newSelected.add(studentId);
+    } else {
+      newSelected.delete(studentId);
+    }
+    setSelectedStudents(newSelected);
+    setSelectAll(newSelected.size === filteredStudents.length);
+  };
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -503,16 +541,10 @@ export const StudentList = () => {
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-1">
-                <p className="text-sm font-medium text-purple-600">New This Month</p>
-                <p className="text-2xl font-bold text-purple-900">
-                  {students?.filter(s => {
-                    const created = new Date(s.created_at);
-                    const now = new Date();
-                    return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear();
-                  }).length || 0}
-                </p>
+                <p className="text-sm font-medium text-purple-600">Selected</p>
+                <p className="text-2xl font-bold text-purple-900">{selectedStudents.size}</p>
               </div>
-              <Plus className="h-8 w-8 text-purple-500" />
+              <CheckSquare className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
@@ -540,6 +572,20 @@ export const StudentList = () => {
             Real-time Search & Filter Students
           </CardTitle>
           <p className="text-sm text-gray-600">Search by Student ID, First Name, or Mother's Name</p>
+          {selectedStudents.size > 0 && (
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                {selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected
+              </Badge>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSelectedStudents(new Set())}
+              >
+                Clear Selection
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -608,6 +654,12 @@ export const StudentList = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectAll}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead className="font-semibold">Student</TableHead>
                     <TableHead className="font-semibold">Student ID</TableHead>
                     <TableHead className="font-semibold">Mother's Name</TableHead>
@@ -622,9 +674,19 @@ export const StudentList = () => {
                   {filteredStudents.map((student) => (
                     <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
                       <TableCell>
+                        <Checkbox
+                          checked={selectedStudents.has(student.id)}
+                          onCheckedChange={(checked) => handleSelectStudent(student.id, checked as boolean)}
+                        />
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={student.photo_url} alt={`${student.first_name} ${student.last_name}`} />
+                            <AvatarImage 
+                              src={student.photo_url} 
+                              alt={`${student.first_name} ${student.last_name}`}
+                              className="object-cover"
+                            />
                             <AvatarFallback className="bg-primary/10 text-primary font-medium">
                               {getInitials(student.first_name, student.last_name)}
                             </AvatarFallback>

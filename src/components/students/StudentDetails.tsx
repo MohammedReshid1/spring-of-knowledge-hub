@@ -2,7 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, Mail, Phone, MapPin, User, Calendar, AlertCircle, CreditCard } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { X, Mail, Phone, MapPin, User, Calendar, AlertCircle, CreditCard, Users } from 'lucide-react';
 import { StudentPaymentHistory } from './StudentPaymentHistory';
 
 interface StudentDetailsProps {
@@ -13,11 +14,12 @@ interface StudentDetailsProps {
 export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-500';
-      case 'pending': return 'bg-yellow-500';
-      case 'inactive': return 'bg-gray-500';
-      case 'withdrawn': return 'bg-red-500';
-      default: return 'bg-gray-500';
+      case 'Active': return 'bg-green-100 text-green-800 border-green-200';
+      case 'Graduated': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Transferred Out': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Dropped Out': return 'bg-red-100 text-red-800 border-red-200';
+      case 'On Leave': return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -38,11 +40,34 @@ export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
     return age;
   };
 
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+  const formatGradeLevel = (grade: string) => {
+    return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-6 border-b">
-          <h2 className="text-2xl font-bold">Student Details</h2>
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16">
+              <AvatarImage 
+                src={student.photo_url} 
+                alt={`${student.first_name} ${student.last_name}`}
+                className="object-cover"
+              />
+              <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                {getInitials(student.first_name, student.last_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h2 className="text-2xl font-bold">{student.first_name} {student.last_name}</h2>
+              <p className="text-gray-600">Student ID: {student.student_id}</p>
+            </div>
+          </div>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
@@ -77,7 +102,7 @@ export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Status</label>
                       <div>
-                        <Badge className={getStatusColor(student.status)}>
+                        <Badge className={getStatusColor(student.status)} variant="outline">
                           {student.status}
                         </Badge>
                       </div>
@@ -97,13 +122,47 @@ export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
                       <label className="text-sm font-medium text-muted-foreground">Grade Level</label>
                       <div>
                         <Badge variant="outline">
-                          {student.grade_level.replace('_', ' ').toUpperCase()}
+                          {formatGradeLevel(student.grade_level)}
                         </Badge>
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Family Information */}
+              {(student.mother_name || student.father_name || student.grandfather_name) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      Family Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {student.mother_name && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Mother's Name</label>
+                          <div>{student.mother_name}</div>
+                        </div>
+                      )}
+                      {student.father_name && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Father's Name</label>
+                          <div>{student.father_name}</div>
+                        </div>
+                      )}
+                      {student.grandfather_name && (
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Grandfather's Name</label>
+                          <div>{student.grandfather_name}</div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Contact Information */}
               <Card>

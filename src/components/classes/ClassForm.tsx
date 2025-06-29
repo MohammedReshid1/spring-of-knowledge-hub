@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,8 @@ interface ClassFormProps {
 }
 
 export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
+  const queryClient = useQueryClient();
+  
   const form = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
@@ -100,12 +102,39 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
           .insert([payload]);
         if (error) throw error;
       }
+
+      // Update grade level capacity when creating/updating classes
+      if (data.grade_level_id) {
+        // Get current grade level data
+        const { data: gradeLevel, error: gradeError } = await supabase
+          .from('grade_levels')
+          .select('max_capacity')
+          .eq('id', data.grade_level_id)
+          .single();
+
+        if (!gradeError && gradeLevel) {
+          // Update grade level max capacity to accommodate this class
+          const newMaxCapacity = Math.max(gradeLevel.max_capacity, data.max_capacity);
+          
+          const { error: updateError } = await supabase
+            .from('grade_levels')
+            .update({ max_capacity: newMaxCapacity })
+            .eq('id', data.grade_level_id);
+
+          if (updateError) {
+            console.error('Error updating grade level capacity:', updateError);
+          }
+        }
+      }
     },
     onSuccess: () => {
       toast({
         title: "Success",
         description: `Class ${classData ? 'updated' : 'created'} successfully`,
       });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-levels'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
       onSuccess();
     },
     onError: (error) => {

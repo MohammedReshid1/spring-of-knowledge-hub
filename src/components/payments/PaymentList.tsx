@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Search, Eye, Edit, Trash2, DollarSign, CreditCard, Download, Filter, Receipt } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { PaymentForm } from './PaymentForm';
+import { EnhancedPaymentForm } from './EnhancedPaymentForm';
 import { format } from 'date-fns';
 
 export const PaymentList = () => {
@@ -19,6 +19,7 @@ export const PaymentList = () => {
   const [editingPayment, setEditingPayment] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
+  const [cycleFilter, setCycleFilter] = useState('all');
   const queryClient = useQueryClient();
 
   // Real-time subscription for payments
@@ -82,7 +83,7 @@ export const PaymentList = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('registration_payments')
-        .select('payment_status, amount_paid, academic_year');
+        .select('payment_status, amount_paid, academic_year, payment_cycle');
       
       if (error) throw error;
       
@@ -106,6 +107,12 @@ export const PaymentList = () => {
         acc[year].amount += payment.amount_paid || 0;
         return acc;
       }, {} as Record<string, { count: number; amount: number }>);
+
+      const cycleCounts = data.reduce((acc, payment) => {
+        const cycle = payment.payment_cycle || 'Unknown';
+        acc[cycle] = (acc[cycle] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
       
       return {
         totalPayments,
@@ -113,7 +120,8 @@ export const PaymentList = () => {
         paidPayments,
         unpaidPayments,
         statusCounts,
-        yearlyStats
+        yearlyStats,
+        cycleCounts
       };
     }
   });
@@ -156,7 +164,8 @@ export const PaymentList = () => {
 
     const csvHeaders = [
       'Payment ID', 'Student Name', 'Student ID', 'Amount', 'Payment Date', 
-      'Status', 'Academic Year', 'Payment Method', 'Notes'
+      'Status', 'Academic Year', 'Payment Cycle', 'Payment Method', 'Bank Name', 
+      'Transaction Number', 'Notes'
     ];
 
     const csvData = payments.map(payment => [
@@ -167,7 +176,10 @@ export const PaymentList = () => {
       payment.payment_date || '',
       payment.payment_status || '',
       payment.academic_year || '',
+      payment.payment_cycle || '',
       payment.payment_mode?.name || 'Unknown',
+      payment.payment_mode?.payment_data?.bank_name || '',
+      payment.payment_mode?.payment_data?.transaction_number || '',
       payment.notes || ''
     ]);
 
@@ -202,8 +214,9 @@ export const PaymentList = () => {
     
     const matchesStatus = statusFilter === 'all' || payment.payment_status === statusFilter;
     const matchesYear = yearFilter === 'all' || payment.academic_year === yearFilter;
+    const matchesCycle = cycleFilter === 'all' || payment.payment_cycle === cycleFilter;
     
-    return matchesSearch && matchesStatus && matchesYear;
+    return matchesSearch && matchesStatus && matchesYear && matchesCycle;
   }) || [];
 
   const getStatusColor = (status: string) => {
@@ -221,6 +234,10 @@ export const PaymentList = () => {
     return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  const formatPaymentCycle = (cycle: string) => {
+    return cycle.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const handleDelete = (paymentId: string) => {
     if (confirm('Are you sure you want to delete this payment record? This action cannot be undone.')) {
       deletePaymentMutation.mutate(paymentId);
@@ -228,6 +245,7 @@ export const PaymentList = () => {
   };
 
   const uniqueYears = [...new Set(payments?.map(p => p.academic_year).filter(Boolean))].sort();
+  const uniqueCycles = [...new Set(payments?.map(p => p.payment_cycle).filter(Boolean))].sort();
 
   if (error) {
     return (
@@ -278,7 +296,7 @@ export const PaymentList = () => {
                 </SheetTitle>
               </SheetHeader>
               <div className="mt-6">
-                <PaymentForm
+                <EnhancedPaymentForm
                   payment={editingPayment}
                   onSuccess={() => {
                     setIsFormOpen(false);
@@ -380,6 +398,17 @@ export const PaymentList = () => {
                 <SelectItem value="Refunded">Refunded</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={cycleFilter} onValueChange={setCycleFilter}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filter by cycle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Cycles</SelectItem>
+                {uniqueCycles.map((cycle) => (
+                  <SelectItem key={cycle} value={cycle}>{formatPaymentCycle(cycle)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={yearFilter} onValueChange={setYearFilter}>
               <SelectTrigger className="w-full sm:w-48">
                 <SelectValue placeholder="Filter by year" />
@@ -423,6 +452,7 @@ export const PaymentList = () => {
                     <TableHead className="font-semibold">Amount</TableHead>
                     <TableHead className="font-semibold">Date</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
+                    <TableHead className="font-semibold">Cycle</TableHead>
                     <TableHead className="font-semibold">Method</TableHead>
                     <TableHead className="font-semibold">Academic Year</TableHead>
                     <TableHead className="font-semibold">Actions</TableHead>
@@ -465,6 +495,11 @@ export const PaymentList = () => {
                       <TableCell>
                         <Badge className={getStatusColor(payment.payment_status || '')} variant="outline">
                           {payment.payment_status || 'Unknown'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs">
+                          {payment.payment_cycle ? formatPaymentCycle(payment.payment_cycle) : 'Unknown'}
                         </Badge>
                       </TableCell>
                       <TableCell>
