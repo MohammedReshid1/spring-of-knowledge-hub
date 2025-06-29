@@ -92,7 +92,8 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
   const uploadPhoto = async (file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random()}.${fileExt}`;
-    const filePath = `student-photos/${fileName}`;
+    // Fixed: Remove duplicate 'student-photos' in path
+    const filePath = fileName;
 
     const { error: uploadError } = await supabase.storage
       .from('student-photos')
