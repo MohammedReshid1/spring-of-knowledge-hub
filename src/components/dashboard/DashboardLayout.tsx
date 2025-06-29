@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,7 +9,9 @@ import {
   BookOpen, 
   BarChart3, 
   LogOut,
-  Home
+  Home,
+  CreditCard,
+  DollarSign
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -25,6 +26,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Students', href: '/students', icon: Users },
     { name: 'Classes', href: '/classes', icon: BookOpen },
+    { name: 'Payments', href: '/payments', icon: CreditCard },
+    { name: 'Payment Dashboard', href: '/payment-dashboard', icon: DollarSign },
   ];
 
   const handleSignOut = async () => {

@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +9,8 @@ import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Overview } from "./components/dashboard/Overview";
 import { StudentList } from "./components/students/StudentList";
 import { ClassManagement } from "./components/classes/ClassManagement";
+import { PaymentList } from "./components/payments/PaymentList";
+import { PaymentDashboard } from "./components/payments/PaymentDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -93,6 +94,26 @@ const App = () => (
                 <ProtectedRoute>
                   <DashboardLayout>
                     <ClassManagement />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payments"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <PaymentList />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payment-dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <PaymentDashboard />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
