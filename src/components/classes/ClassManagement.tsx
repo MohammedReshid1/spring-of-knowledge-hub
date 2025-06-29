@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -80,21 +79,64 @@ export const ClassManagement = () => {
     }
   });
 
+  // Updated grade stats query to calculate capacity from classes
   const { data: gradeStats } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
       console.log('Fetching grade stats...');
-      const { data, error } = await supabase
+      
+      // Get all grade levels
+      const { data: gradeLevels, error: gradeError } = await supabase
         .from('grade_levels')
         .select('*')
         .order('grade');
       
-      if (error) {
-        console.error('Error fetching grade stats:', error);
-        throw error;
+      if (gradeError) {
+        console.error('Error fetching grade levels:', gradeError);
+        throw gradeError;
       }
-      console.log('Grade stats fetched successfully:', data?.length);
-      return data;
+
+      // Get all classes grouped by grade level
+      const { data: classesData, error: classesError } = await supabase
+        .from('classes')
+        .select(`
+          *,
+          grade_levels:grade_level_id (
+            id,
+            grade
+          )
+        `);
+      
+      if (classesError) {
+        console.error('Error fetching classes for stats:', classesError);
+        throw classesError;
+      }
+
+      // Calculate total capacity per grade level from classes
+      const gradeCapacities = classesData?.reduce((acc, cls) => {
+        if (cls.grade_levels?.grade) {
+          const grade = cls.grade_levels.grade;
+          if (!acc[grade]) {
+            acc[grade] = { totalCapacity: 0, currentEnrollment: 0 };
+          }
+          acc[grade].totalCapacity += cls.max_capacity || 0;
+          acc[grade].currentEnrollment += cls.current_enrollment || 0;
+        }
+        return acc;
+      }, {} as Record<string, { totalCapacity: number; currentEnrollment: number }>) || {};
+
+      // Merge with grade levels data
+      const enhancedGradeStats = gradeLevels?.map(grade => {
+        const gradeCapacity = gradeCapacities[grade.grade] || { totalCapacity: 0, currentEnrollment: 0 };
+        return {
+          ...grade,
+          max_capacity: gradeCapacity.totalCapacity || grade.max_capacity,
+          current_enrollment: gradeCapacity.currentEnrollment || grade.current_enrollment
+        };
+      }) || [];
+
+      console.log('Grade stats calculated successfully:', enhancedGradeStats.length);
+      return enhancedGradeStats;
     }
   });
 
@@ -189,6 +231,7 @@ export const ClassManagement = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">Grade Level Capacity Overview</CardTitle>
+          <p className="text-sm text-gray-600">Capacity calculated from total class capacities per grade level</p>
         </CardHeader>
         <CardContent>
           {!gradeStats || gradeStats.length === 0 ? (

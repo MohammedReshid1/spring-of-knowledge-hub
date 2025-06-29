@@ -9,8 +9,10 @@ import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Overview } from "./components/dashboard/Overview";
 import { StudentList } from "./components/students/StudentList";
 import { ClassManagement } from "./components/classes/ClassManagement";
+import { TeacherManagement } from "./components/teachers/TeacherManagement";
 import { PaymentList } from "./components/payments/PaymentList";
 import { PaymentDashboard } from "./components/payments/PaymentDashboard";
+import { AccountSettings } from "./components/settings/AccountSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -99,6 +101,16 @@ const App = () => (
               }
             />
             <Route
+              path="/teachers"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <TeacherManagement />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/payments"
               element={
                 <ProtectedRoute>
@@ -114,6 +126,16 @@ const App = () => (
                 <ProtectedRoute>
                   <DashboardLayout>
                     <PaymentDashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <AccountSettings />
                   </DashboardLayout>
                 </ProtectedRoute>
               }

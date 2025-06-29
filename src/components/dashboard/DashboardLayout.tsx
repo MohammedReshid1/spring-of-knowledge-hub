@@ -11,7 +11,9 @@ import {
   LogOut,
   Home,
   CreditCard,
-  DollarSign
+  DollarSign,
+  UserCheck,
+  Settings
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -26,8 +28,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Students', href: '/students', icon: Users },
     { name: 'Classes', href: '/classes', icon: BookOpen },
+    { name: 'Teachers', href: '/teachers', icon: UserCheck },
     { name: 'Payments', href: '/payments', icon: CreditCard },
     { name: 'Payment Dashboard', href: '/payment-dashboard', icon: DollarSign },
+    { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
   const handleSignOut = async () => {
