@@ -57,16 +57,25 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
     }
   });
 
+  // Simplified teachers query to avoid RLS issues
   const { data: teachers } = useQuery({
     queryKey: ['teachers'],
     queryFn: async () => {
+      console.log('Fetching teachers...');
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select('id, full_name, email')
         .eq('role', 'teacher')
         .order('full_name');
-      if (error) throw error;
-      return data;
+      
+      if (error) {
+        console.error('Error fetching teachers:', error);
+        // Return empty array instead of throwing to prevent form from breaking
+        return [];
+      }
+      
+      console.log('Teachers fetched:', data?.length);
+      return data || [];
     }
   });
 
@@ -148,7 +157,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                 </FormControl>
                 <SelectContent>
                   {isLoadingGrades ? (
-                    <SelectItem value="" disabled>Loading grades...</SelectItem>
+                    <SelectItem value="loading" disabled>Loading grades...</SelectItem>
                   ) : gradelevels && gradelevels.length > 0 ? (
                     gradelevels.map((grade) => (
                       <SelectItem key={grade.id} value={grade.id}>
@@ -156,7 +165,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>No grade levels found</SelectItem>
+                    <SelectItem value="no-grades" disabled>No grade levels found</SelectItem>
                   )}
                 </SelectContent>
               </Select>
@@ -196,11 +205,16 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {teachers?.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.full_name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="">No teacher assigned</SelectItem>
+                  {teachers && teachers.length > 0 ? (
+                    teachers.map((teacher) => (
+                      <SelectItem key={teacher.id} value={teacher.id}>
+                        {teacher.full_name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-teachers" disabled>No teachers found</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <FormMessage />

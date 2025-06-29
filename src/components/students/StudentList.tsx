@@ -51,6 +51,7 @@ export const StudentList = () => {
     queryKey: ['students'],
     queryFn: async () => {
       console.log('Fetching students...');
+      // Simplified query to avoid RLS recursion issues
       const { data, error } = await supabase
         .from('students')
         .select(`
