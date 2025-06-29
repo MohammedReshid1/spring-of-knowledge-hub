@@ -90,40 +90,57 @@ export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Student ID</label>
-                      <div className="font-mono text-lg">{student.student_id}</div>
+                  <div className="flex items-start gap-6">
+                    {/* Student Photo */}
+                    <div className="flex-shrink-0">
+                      <Avatar className="h-32 w-32">
+                        <AvatarImage 
+                          src={student.photo_url} 
+                          alt={`${student.first_name} ${student.last_name}`}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="bg-primary/10 text-primary text-2xl font-semibold">
+                          {getInitials(student.first_name, student.last_name)}
+                        </AvatarFallback>
+                      </Avatar>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Full Name</label>
-                      <div className="text-lg">{student.first_name} {student.last_name}</div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Status</label>
+                    
+                    {/* Student Information Grid */}
+                    <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
-                        <Badge className={getStatusColor(student.status)} variant="outline">
-                          {student.status}
-                        </Badge>
+                        <label className="text-sm font-medium text-muted-foreground">Student ID</label>
+                        <div className="font-mono text-lg">{student.student_id}</div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Date of Birth</label>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        {formatDate(student.date_of_birth)} (Age: {calculateAge(student.date_of_birth)})
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Gender</label>
-                      <div className="capitalize">{student.gender || 'Not specified'}</div>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Grade Level</label>
                       <div>
-                        <Badge variant="outline">
-                          {formatGradeLevel(student.grade_level)}
-                        </Badge>
+                        <label className="text-sm font-medium text-muted-foreground">Full Name</label>
+                        <div className="text-lg">{student.first_name} {student.last_name}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Status</label>
+                        <div>
+                          <Badge className={getStatusColor(student.status)} variant="outline">
+                            {student.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Date of Birth</label>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {formatDate(student.date_of_birth)} (Age: {calculateAge(student.date_of_birth)})
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Gender</label>
+                        <div className="capitalize">{student.gender || 'Not specified'}</div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Grade Level</label>
+                        <div>
+                          <Badge variant="outline">
+                            {formatGradeLevel(student.grade_level)}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -184,7 +201,7 @@ export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4" />
                         <div>
-                          <label className="text-sm font-medium text-muted-foreground">Phone</label>
+                          <label className="text-sm font-medium text-muted-foreground">Parent's/Guardian's Phone</label>
                           <div>{student.phone}</div>
                         </div>
                       </div>

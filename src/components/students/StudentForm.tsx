@@ -18,22 +18,22 @@ type GradeLevel = Database['public']['Enums']['grade_level'];
 
 const studentSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().min(1, 'Last name is required'),
-  mother_name: z.string().optional(),
-  father_name: z.string().optional(),
-  grandfather_name: z.string().optional(),
+  mother_name: z.string().min(1, 'Mother\'s name is required'),
+  father_name: z.string().min(1, 'Father\'s name is required'),
+  grandfather_name: z.string().min(1, 'Grandfather\'s name is required'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
-  gender: z.string().optional(),
+  gender: z.enum(['male', 'female'], { required_error: 'Gender is required' }),
   grade_level: z.string().min(1, 'Grade level is required') as z.ZodType<GradeLevel>,
   class_id: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
+  phone: z.string().min(1, 'Parent\'s/Guardian\'s phone number is required'),
+  phone_secondary: z.string().optional(),
   address: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
   medical_info: z.string().optional(),
-  previous_school: z.string().optional(),
-  photo_url: z.string().optional(),
+  previous_school: z.string().min(1, 'Previous school is required'),
+  photo_url: z.string().min(1, 'Student photo is required'),
 });
 
 type StudentFormData = z.infer<typeof studentSchema>;
@@ -52,16 +52,16 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
     resolver: zodResolver(studentSchema),
     defaultValues: {
       first_name: student?.first_name || '',
-      last_name: student?.last_name || '',
       mother_name: student?.mother_name || '',
       father_name: student?.father_name || '',
       grandfather_name: student?.grandfather_name || '',
       date_of_birth: student?.date_of_birth || '',
-      gender: student?.gender || '',
+      gender: student?.gender || undefined,
       grade_level: student?.grade_level || '',
       class_id: student?.class_id || '',
       email: student?.email || '',
       phone: student?.phone || '',
+      phone_secondary: student?.phone_secondary || '',
       address: student?.address || '',
       emergency_contact_name: student?.emergency_contact_name || '',
       emergency_contact_phone: student?.emergency_contact_phone || '',
@@ -89,7 +89,9 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
       setPhotoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
+        const result = reader.result as string;
+        setPhotoPreview(result);
+        form.setValue('photo_url', result); // Set the form value to satisfy validation
       };
       reader.readAsDataURL(file);
     }
@@ -123,7 +125,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
 
       const payload = {
         first_name: data.first_name,
-        last_name: data.last_name,
+        last_name: '', // Remove last name as requested
         mother_name: data.mother_name || null,
         father_name: data.father_name || null,
         grandfather_name: data.grandfather_name || null,
@@ -132,6 +134,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
         gender: data.gender || null,
         email: data.email || null,
         phone: data.phone || null,
+        phone_secondary: data.phone_secondary || null,
         address: data.address || null,
         emergency_contact_name: data.emergency_contact_name || null,
         emergency_contact_phone: data.emergency_contact_phone || null,
@@ -176,6 +179,14 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
   });
 
   const onSubmit = (data: StudentFormData) => {
+    if (!photoPreview && !student?.photo_url) {
+      toast({
+        title: "Error",
+        description: "Student photo is required",
+        variant: "destructive",
+      });
+      return;
+    }
     submitMutation.mutate(data);
   };
 
@@ -201,20 +212,20 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
     cls.grade_levels?.grade === selectedGrade
   ) || [];
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const getInitials = (firstName: string) => {
+    return firstName.charAt(0).toUpperCase();
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto">
-        {/* Photo Upload Section */}
+        {/* Photo Upload Section - Required */}
         <div className="flex flex-col items-center space-y-4 p-4 border rounded-lg bg-gray-50">
           <Avatar className="h-24 w-24">
             <AvatarImage src={photoPreview} alt="Student photo" />
             <AvatarFallback className="bg-primary/10 text-primary text-lg">
-              {form.watch('first_name') && form.watch('last_name') 
-                ? getInitials(form.watch('first_name'), form.watch('last_name'))
+              {form.watch('first_name') 
+                ? getInitials(form.watch('first_name'))
                 : <Camera className="h-8 w-8" />
               }
             </AvatarFallback>
@@ -227,55 +238,43 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
               onChange={handlePhotoChange}
               className="hidden"
               id="photo-upload"
+              required={!student?.photo_url}
             />
             <label htmlFor="photo-upload">
               <Button type="button" variant="outline" size="sm" asChild>
                 <span className="cursor-pointer">
                   <Upload className="h-4 w-4 mr-2" />
-                  Upload Photo
+                  Upload Photo *
                 </span>
               </Button>
             </label>
           </div>
+          <p className="text-xs text-gray-500">Student photo is required</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="first_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>First Name *</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="last_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Last Name *</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        {/* First Name - Required */}
+        <FormField
+          control={form.control}
+          name="first_name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>First Name *</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-        {/* Family Names */}
+        {/* Family Names - All Required */}
         <div className="grid grid-cols-1 gap-4">
           <FormField
             control={form.control}
             name="mother_name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mother's Name</FormLabel>
+                <FormLabel>Mother's Name *</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -289,7 +288,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
               name="father_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Father's Name</FormLabel>
+                  <FormLabel>Father's Name *</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -302,7 +301,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
               name="grandfather_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Grandfather's Name</FormLabel>
+                  <FormLabel>Grandfather's Name *</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -332,7 +331,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
             name="gender"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Gender</FormLabel>
+                <FormLabel>Gender *</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                   <FormControl>
                     <SelectTrigger>
@@ -342,7 +341,6 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
                   <SelectContent>
                     <SelectItem value="male">Male</SelectItem>
                     <SelectItem value="female">Female</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -421,7 +419,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone</FormLabel>
+                <FormLabel>Parent's/Guardian's Phone Number *</FormLabel>
                 <FormControl>
                   <Input {...field} />
                 </FormControl>
@@ -430,6 +428,20 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="phone_secondary"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Secondary Phone Number (Optional)</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}
@@ -493,7 +505,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
           name="previous_school"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Previous School</FormLabel>
+              <FormLabel>Previous School *</FormLabel>
               <FormControl>
                 <Input {...field} />
               </FormControl>

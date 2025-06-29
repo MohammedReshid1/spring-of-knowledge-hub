@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
@@ -24,6 +26,27 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const { user, signOut } = useAuth();
   const location = useLocation();
 
+  // Fetch user profile to get full name
+  const { data: userProfile } = useQuery({
+    queryKey: ['user-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Students', href: '/students', icon: Users },
@@ -37,6 +60,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const handleSignOut = async () => {
     await signOut();
   };
+
+  const displayName = userProfile?.full_name || user?.email || 'User';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -52,7 +77,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-700">
-                Welcome, {user?.email}
+                Welcome, {displayName}
               </span>
               <Button 
                 variant="outline" 
