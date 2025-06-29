@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 export const useAuth = () => {
   const authContext = useAuthContext();
   
-  // Get user role
+  // Get user role - Fixed function name
   const { data: userRole } = useQuery({
     queryKey: ['user-role', authContext.user?.id],
     queryFn: async () => {
