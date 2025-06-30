@@ -52,7 +52,7 @@ export const PaymentDashboard = () => {
       'EUR': '€',
       'GBP': '£'
     };
-    return `${symbols[currency] || currency} ${amount.toFixed(2)}`;
+    return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
   };
 
   const { data: paymentStats } = useQuery({
@@ -252,7 +252,7 @@ export const PaymentDashboard = () => {
       `${((count / paymentStats.totalPayments) * 100).toFixed(1)}%`
     ]);
     
-    doc.autoTable({
+    (doc as any).autoTable({
       head: [['Status', 'Count', 'Percentage']],
       body: statusData,
       startY: 135,
@@ -261,7 +261,7 @@ export const PaymentDashboard = () => {
     });
     
     // Grade level analysis
-    const finalY = doc.lastAutoTable.finalY || 135;
+    const finalY = (doc as any).lastAutoTable?.finalY || 135;
     doc.setFontSize(16);
     doc.text('Grade Level Revenue Analysis', 14, finalY + 20);
     
@@ -275,7 +275,7 @@ export const PaymentDashboard = () => {
         grade.paymentCount.toString()
       ]);
     
-    doc.autoTable({
+    (doc as any).autoTable({
       head: [['Grade Level', 'Total Revenue', 'Students', 'Payments']],
       body: gradeData,
       startY: finalY + 30,
@@ -284,7 +284,7 @@ export const PaymentDashboard = () => {
     });
     
     // Recent payments
-    const finalY2 = doc.lastAutoTable.finalY || finalY + 30;
+    const finalY2 = (doc as any).lastAutoTable?.finalY || finalY + 30;
     doc.setFontSize(16);
     doc.text('Recent Payments (Last 10)', 14, finalY2 + 20);
     
@@ -295,7 +295,7 @@ export const PaymentDashboard = () => {
       payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'No date'
     ]);
     
-    doc.autoTable({
+    (doc as any).autoTable({
       head: [['Student', 'Amount', 'Status', 'Date']],
       body: recentData,
       startY: finalY2 + 30,
@@ -325,7 +325,7 @@ export const PaymentDashboard = () => {
       'Waived': 'bg-blue-100 text-blue-800',
       'Refunded': 'bg-purple-100 text-purple-800'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
   if (!paymentStats) {

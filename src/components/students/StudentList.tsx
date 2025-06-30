@@ -48,7 +48,7 @@ export const StudentList = () => {
       'EUR': '€',
       'GBP': '£'
     };
-    return `${symbols[currency] || currency} ${amount.toFixed(2)}`;
+    return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
   };
 
   // Real-time subscription for students
@@ -301,8 +301,8 @@ export const StudentList = () => {
       student.email || ''
     ]);
 
-    // Add table
-    doc.autoTable({
+    // Add table using type assertion
+    (doc as any).autoTable({
       head: [['Student ID', 'Full Name', 'Mother Name', 'Grade', 'Class', 'Status', 'Phone', 'Email']],
       body: tableData,
       startY: 48,
@@ -451,7 +451,7 @@ export const StudentList = () => {
       'Dropped Out': 'bg-red-100 text-red-800 border-red-200',
       'On Leave': 'bg-gray-100 text-gray-800 border-gray-200'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
   const getPaymentStatusColor = (status: string) => {
@@ -462,7 +462,7 @@ export const StudentList = () => {
       'Waived': 'bg-blue-100 text-blue-800',
       'Refunded': 'bg-purple-100 text-purple-800'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
   const formatGradeLevel = (grade: string) => {

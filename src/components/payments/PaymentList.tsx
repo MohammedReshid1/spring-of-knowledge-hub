@@ -1,26 +1,50 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Eye, Edit, Trash2, DollarSign, CreditCard, Download, Filter, Receipt } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { EnhancedPaymentForm } from './EnhancedPaymentForm';
-import { format } from 'date-fns';
+import { Link } from 'react-router-dom';
 
 export const PaymentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPayment, setSelectedPayment] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [yearFilter, setYearFilter] = useState('all');
   const [cycleFilter, setCycleFilter] = useState('all');
   const queryClient = useQueryClient();
+
+  // Get currency from system settings
+  const getCurrency = () => {
+    const settings = localStorage.getItem('systemSettings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.currency || 'ETB';
+    }
+    return 'ETB';
+  };
+
+  const formatCurrency = (amount: number) => {
+    const currency = getCurrency();
+    const symbols = {
+      'ETB': 'ETB',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£'
+    };
+    return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
+  };
 
   // Real-time subscription for payments
   useEffect(() => {
@@ -56,15 +80,12 @@ export const PaymentList = () => {
           *,
           students:student_id (
             id,
+            student_id,
             first_name,
             last_name,
-            student_id,
-            grade_level
-          ),
-          payment_mode:payment_id (
-            name,
-            payment_type,
-            payment_data
+            mother_name,
+            grade_level,
+            photo_url
           )
         `)
         .order('payment_date', { ascending: false });
@@ -83,45 +104,20 @@ export const PaymentList = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('registration_payments')
-        .select('payment_status, amount_paid, academic_year, payment_cycle');
+        .select('payment_status, amount_paid');
       
       if (error) throw error;
       
       const totalPayments = data.length;
-      const totalAmount = data.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0);
+      const totalRevenue = data.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0);
       const paidPayments = data.filter(p => p.payment_status === 'Paid').length;
-      const unpaidPayments = data.filter(p => p.payment_status === 'Unpaid').length;
-      
-      const statusCounts = data.reduce((acc, payment) => {
-        const status = payment.payment_status || 'Unknown';
-        acc[status] = (acc[status] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      const yearlyStats = data.reduce((acc, payment) => {
-        const year = payment.academic_year || 'Unknown';
-        if (!acc[year]) {
-          acc[year] = { count: 0, amount: 0 };
-        }
-        acc[year].count += 1;
-        acc[year].amount += payment.amount_paid || 0;
-        return acc;
-      }, {} as Record<string, { count: number; amount: number }>);
-
-      const cycleCounts = data.reduce((acc, payment) => {
-        const cycle = payment.payment_cycle || 'Unknown';
-        acc[cycle] = (acc[cycle] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
+      const pendingPayments = data.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length;
       
       return {
         totalPayments,
-        totalAmount,
+        totalRevenue,
         paidPayments,
-        unpaidPayments,
-        statusCounts,
-        yearlyStats,
-        cycleCounts
+        pendingPayments
       };
     }
   });
@@ -152,71 +148,18 @@ export const PaymentList = () => {
     }
   });
 
-  const exportToCSV = () => {
-    if (!payments || payments.length === 0) {
-      toast({
-        title: "No Data",
-        description: "No payments to export",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const csvHeaders = [
-      'Payment ID', 'Student Name', 'Student ID', 'Amount', 'Payment Date', 
-      'Status', 'Academic Year', 'Payment Cycle', 'Payment Method', 'Bank Name', 
-      'Transaction Number', 'Notes'
-    ];
-
-    const csvData = payments.map(payment => [
-      payment.id,
-      payment.students ? `${payment.students.first_name} ${payment.students.last_name}` : 'Unknown',
-      payment.students?.student_id || 'Unknown',
-      payment.amount_paid || 0,
-      payment.payment_date || '',
-      payment.payment_status || '',
-      payment.academic_year || '',
-      payment.payment_cycle || '',
-      payment.payment_mode?.name || 'Unknown',
-      payment.payment_mode?.payment_data?.bank_name || '',
-      payment.payment_mode?.payment_data?.transaction_number || '',
-      payment.notes || ''
-    ]);
-
-    const csvContent = [csvHeaders, ...csvData]
-      .map(row => row.map(field => `"${field}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `payments_export_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-
-    toast({
-      title: "Success",
-      description: "Payments exported successfully",
-    });
-  };
-
   const filteredPayments = payments?.filter(payment => {
-    const studentName = payment.students 
-      ? `${payment.students.first_name} ${payment.students.last_name}`.toLowerCase()
-      : '';
-    const studentId = payment.students?.student_id?.toLowerCase() || '';
-    
-    const matchesSearch = 
-      studentName.includes(searchTerm.toLowerCase()) ||
-      studentId.includes(searchTerm.toLowerCase()) ||
-      payment.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      payment.students?.first_name?.toLowerCase().includes(searchLower) ||
+      payment.students?.last_name?.toLowerCase().includes(searchLower) ||
+      payment.students?.student_id?.toLowerCase().includes(searchLower) ||
+      payment.students?.mother_name?.toLowerCase().includes(searchLower);
     
     const matchesStatus = statusFilter === 'all' || payment.payment_status === statusFilter;
-    const matchesYear = yearFilter === 'all' || payment.academic_year === yearFilter;
     const matchesCycle = cycleFilter === 'all' || payment.payment_cycle === cycleFilter;
     
-    return matchesSearch && matchesStatus && matchesYear && matchesCycle;
+    return matchesSearch && matchesStatus && matchesCycle;
   }) || [];
 
   const getStatusColor = (status: string) => {
@@ -227,25 +170,60 @@ export const PaymentList = () => {
       'Waived': 'bg-blue-100 text-blue-800 border-blue-200',
       'Refunded': 'bg-purple-100 text-purple-800 border-purple-200'
     };
-    return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  const formatGradeLevel = (grade: string) => {
-    return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const getCycleColor = (cycle: string) => {
+    const colors = {
+      'registration_fee': 'bg-indigo-100 text-indigo-800',
+      '1st_quarter': 'bg-green-100 text-green-800',
+      '2nd_quarter': 'bg-blue-100 text-blue-800',
+      '3rd_quarter': 'bg-orange-100 text-orange-800',
+      '4th_quarter': 'bg-red-100 text-red-800',
+      '1st_semester': 'bg-teal-100 text-teal-800',
+      '2nd_semester': 'bg-pink-100 text-pink-800',
+      'annual': 'bg-gray-100 text-gray-800'
+    };
+    return colors[cycle as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
-  const formatPaymentCycle = (cycle: string) => {
-    return cycle.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const formatCycle = (cycle: string) => {
+    const cycleLabels = {
+      'registration_fee': 'Registration Fee',
+      '1st_quarter': '1st Quarter',
+      '2nd_quarter': '2nd Quarter',
+      '3rd_quarter': '3rd Quarter',
+      '4th_quarter': '4th Quarter',
+      '1st_semester': '1st Semester',
+      '2nd_semester': '2nd Semester',
+      'annual': 'Annual'
+    };
+    return cycleLabels[cycle as keyof typeof cycleLabels] || cycle;
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
+  };
+
+  const formatPaymentDetails = (paymentDetails: any) => {
+    if (!paymentDetails || typeof paymentDetails !== 'object') {
+      return { bank_name: 'N/A', transaction_number: 'N/A' };
+    }
+    
+    // Handle the case where paymentDetails is a Json type
+    const details = typeof paymentDetails === 'string' ? JSON.parse(paymentDetails) : paymentDetails;
+    
+    return {
+      bank_name: details?.bank_name || 'N/A',
+      transaction_number: details?.transaction_number || 'N/A'
+    };
   };
 
   const handleDelete = (paymentId: string) => {
-    if (confirm('Are you sure you want to delete this payment record? This action cannot be undone.')) {
+    if (confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
       deletePaymentMutation.mutate(paymentId);
     }
   };
-
-  const uniqueYears = [...new Set(payments?.map(p => p.academic_year).filter(Boolean))].sort();
-  const uniqueCycles = [...new Set(payments?.map(p => p.payment_cycle).filter(Boolean))].sort();
 
   if (error) {
     return (
@@ -278,10 +256,12 @@ export const PaymentList = () => {
           <p className="text-gray-600 mt-1">Track and manage student payment records</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+          <Link to="/dashboard">
+            <Button variant="outline">
+              <Receipt className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+          </Link>
           <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
             <SheetTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 shadow-sm">
@@ -289,7 +269,7 @@ export const PaymentList = () => {
                 Record Payment
               </Button>
             </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
+            <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
               <SheetHeader>
                 <SheetTitle className="text-xl">
                   {editingPayment ? 'Edit Payment' : 'Record New Payment'}
@@ -319,7 +299,7 @@ export const PaymentList = () => {
               <div className="flex-1">
                 <p className="text-sm font-medium text-green-600">Total Revenue</p>
                 <p className="text-2xl font-bold text-green-900">
-                  ${stats?.totalAmount?.toFixed(2) || '0.00'}
+                  {formatCurrency(stats?.totalRevenue || 0)}
                 </p>
               </div>
               <DollarSign className="h-8 w-8 text-green-500" />
@@ -334,37 +314,37 @@ export const PaymentList = () => {
                 <p className="text-sm font-medium text-blue-600">Total Payments</p>
                 <p className="text-2xl font-bold text-blue-900">{stats?.totalPayments || 0}</p>
               </div>
-              <Receipt className="h-8 w-8 text-blue-500" />
+              <Users className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200">
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-1">
-                <p className="text-sm font-medium text-emerald-600">Paid</p>
-                <p className="text-2xl font-bold text-emerald-900">{stats?.paidPayments || 0}</p>
+                <p className="text-sm font-medium text-purple-600">Paid</p>
+                <p className="text-2xl font-bold text-purple-900">{stats?.paidPayments || 0}</p>
               </div>
-              <CreditCard className="h-8 w-8 text-emerald-500" />
+              <CreditCard className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-1">
-                <p className="text-sm font-medium text-red-600">Unpaid</p>
-                <p className="text-2xl font-bold text-red-900">{stats?.unpaidPayments || 0}</p>
+                <p className="text-sm font-medium text-orange-600">Pending</p>
+                <p className="text-2xl font-bold text-orange-900">{stats?.pendingPayments || 0}</p>
               </div>
-              <CreditCard className="h-8 w-8 text-red-500" />
+              <Calendar className="h-8 w-8 text-orange-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters and Search */}
+      {/* Search and Filters */}
       <Card className="shadow-sm">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg flex items-center gap-2">
@@ -378,7 +358,7 @@ export const PaymentList = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by student name, ID, or payment ID..."
+                  placeholder="Search by student name, ID, or mother's name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -404,20 +384,14 @@ export const PaymentList = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Cycles</SelectItem>
-                {uniqueCycles.map((cycle) => (
-                  <SelectItem key={cycle} value={cycle}>{formatPaymentCycle(cycle)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={yearFilter} onValueChange={setYearFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by year" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Years</SelectItem>
-                {uniqueYears.map((year) => (
-                  <SelectItem key={year} value={year}>{year}</SelectItem>
-                ))}
+                <SelectItem value="registration_fee">Registration Fee</SelectItem>
+                <SelectItem value="1st_quarter">1st Quarter</SelectItem>
+                <SelectItem value="2nd_quarter">2nd Quarter</SelectItem>
+                <SelectItem value="3rd_quarter">3rd Quarter</SelectItem>
+                <SelectItem value="4th_quarter">4th Quarter</SelectItem>
+                <SelectItem value="1st_semester">1st Semester</SelectItem>
+                <SelectItem value="2nd_semester">2nd Semester</SelectItem>
+                <SelectItem value="annual">Annual</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -428,7 +402,7 @@ export const PaymentList = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">
-            Payment Records ({filteredPayments.length})
+            Payments ({filteredPayments.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -439,7 +413,7 @@ export const PaymentList = () => {
             </div>
           ) : filteredPayments.length === 0 ? (
             <div className="text-center py-12">
-              <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">No payments found</p>
               <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
             </div>
@@ -449,92 +423,167 @@ export const PaymentList = () => {
                 <TableHeader>
                   <TableRow className="bg-gray-50">
                     <TableHead className="font-semibold">Student</TableHead>
+                    <TableHead className="font-semibold">Payment Cycle</TableHead>
                     <TableHead className="font-semibold">Amount</TableHead>
-                    <TableHead className="font-semibold">Date</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold">Cycle</TableHead>
-                    <TableHead className="font-semibold">Method</TableHead>
-                    <TableHead className="font-semibold">Academic Year</TableHead>
+                    <TableHead className="font-semibold">Payment Method</TableHead>
+                    <TableHead className="font-semibold">Date</TableHead>
                     <TableHead className="font-semibold">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPayments.map((payment) => (
-                    <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
-                      <TableCell>
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {payment.students 
-                              ? `${payment.students.first_name} ${payment.students.last_name}`
-                              : 'Unknown Student'
+                  {filteredPayments.map((payment) => {
+                    const paymentDetails = formatPaymentDetails(payment.payment_details);
+                    return (
+                      <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage 
+                                src={payment.students?.photo_url} 
+                                alt={`${payment.students?.first_name} ${payment.students?.last_name}`}
+                                className="object-cover"
+                              />
+                              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                                {getInitials(payment.students?.first_name || '', payment.students?.last_name || '')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {payment.students?.first_name} {payment.students?.last_name}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                ID: {payment.students?.student_id}
+                              </div>
+                              {payment.students?.mother_name && (
+                                <div className="text-xs text-gray-400">
+                                  Mother: {payment.students.mother_name}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getCycleColor(payment.payment_cycle)} variant="outline">
+                            {formatCycle(payment.payment_cycle)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-green-600">
+                            {formatCurrency(payment.amount_paid || 0)}
+                          </div>
+                          {payment.total_amount && payment.total_amount !== payment.amount_paid && (
+                            <div className="text-xs text-gray-500">
+                              of {formatCurrency(payment.total_amount)}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(payment.payment_status)} variant="outline">
+                            {payment.payment_status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <div className="font-medium">{payment.payment_method}</div>
+                            {payment.payment_method === 'Bank Transfer' && (
+                              <div className="text-xs text-gray-500">
+                                <div>Bank: {paymentDetails.bank_name}</div>
+                                <div>Ref: {paymentDetails.transaction_number}</div>
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {payment.payment_date 
+                              ? new Date(payment.payment_date).toLocaleDateString()
+                              : 'Not recorded'
                             }
                           </div>
-                          <div className="text-sm text-gray-500">
-                            ID: {payment.students?.student_id || 'Unknown'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="hover:bg-blue-50 hover:text-blue-600"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                  <DialogTitle>Payment Details</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-6">
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                      <h3 className="font-semibold text-gray-900">Student Information</h3>
+                                      <div className="mt-2 space-y-1">
+                                        <p><span className="font-medium">Name:</span> {payment.students?.first_name} {payment.students?.last_name}</p>
+                                        <p><span className="font-medium">Student ID:</span> {payment.students?.student_id}</p>
+                                        <p><span className="font-medium">Grade:</span> {payment.students?.grade_level}</p>
+                                        {payment.students?.mother_name && (
+                                          <p><span className="font-medium">Mother:</span> {payment.students.mother_name}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h3 className="font-semibold text-gray-900">Payment Information</h3>
+                                      <div className="mt-2 space-y-1">
+                                        <p><span className="font-medium">Cycle:</span> {formatCycle(payment.payment_cycle)}</p>
+                                        <p><span className="font-medium">Amount:</span> {formatCurrency(payment.amount_paid || 0)}</p>
+                                        <p><span className="font-medium">Status:</span> {payment.payment_status}</p>
+                                        <p><span className="font-medium">Method:</span> {payment.payment_method}</p>
+                                        <p><span className="font-medium">Date:</span> {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'Not recorded'}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {payment.payment_method === 'Bank Transfer' && (
+                                    <div>
+                                      <h3 className="font-semibold text-gray-900">Bank Transfer Details</h3>
+                                      <div className="mt-2 space-y-1">
+                                        <p><span className="font-medium">Bank:</span> {paymentDetails.bank_name}</p>
+                                        <p><span className="font-medium">Transaction:</span> {paymentDetails.transaction_number}</p>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {payment.notes && (
+                                    <div>
+                                      <h3 className="font-semibold text-gray-900">Notes</h3>
+                                      <p className="mt-2 text-gray-600">{payment.notes}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingPayment(payment);
+                                setIsFormOpen(true);
+                              }}
+                              className="hover:bg-green-50 hover:text-green-600"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(payment.id)}
+                              className="hover:bg-red-50 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                          {payment.students?.grade_level && (
-                            <Badge variant="outline" className="text-xs mt-1">
-                              {formatGradeLevel(payment.students.grade_level)}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-medium text-green-600">
-                          ${payment.amount_paid?.toFixed(2) || '0.00'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-600">
-                          {payment.payment_date 
-                            ? format(new Date(payment.payment_date), 'MMM dd, yyyy')
-                            : 'No date'
-                          }
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(payment.payment_status || '')} variant="outline">
-                          {payment.payment_status || 'Unknown'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {payment.payment_cycle ? formatPaymentCycle(payment.payment_cycle) : 'Unknown'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-600">
-                          {payment.payment_mode?.name || 'Unknown'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-600">{payment.academic_year || 'Unknown'}</span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingPayment(payment);
-                              setIsFormOpen(true);
-                            }}
-                            className="hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(payment.id)}
-                            className="hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
