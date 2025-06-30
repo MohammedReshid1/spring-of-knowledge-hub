@@ -14,6 +14,7 @@ import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter,
 import { toast } from '@/hooks/use-toast';
 import { EnhancedPaymentForm } from './EnhancedPaymentForm';
 import { Link } from 'react-router-dom';
+import { getHighlightedText } from '@/utils/searchHighlight';
 
 export const PaymentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,7 +43,14 @@ export const PaymentList = () => {
       'EUR': '€',
       'GBP': '£'
     };
-    return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
+    const symbol = symbols[currency as keyof typeof symbols] || currency;
+    
+    // For ETB, show the symbol after the amount
+    if (currency === 'ETB') {
+      return `${amount.toFixed(2)} ${symbol}`;
+    }
+    
+    return `${symbol} ${amount.toFixed(2)}`;
   };
 
   // Real-time subscription for payments
@@ -209,7 +217,6 @@ export const PaymentList = () => {
       return { bank_name: 'N/A', transaction_number: 'N/A' };
     }
     
-    // Handle the case where paymentDetails is a Json type
     const details = typeof paymentDetails === 'string' ? JSON.parse(paymentDetails) : paymentDetails;
     
     return {
@@ -449,14 +456,14 @@ export const PaymentList = () => {
                             </Avatar>
                             <div>
                               <div className="font-medium text-gray-900">
-                                {payment.students?.first_name} {payment.students?.last_name}
+                                {getHighlightedText(`${payment.students?.first_name} ${payment.students?.last_name}`, searchTerm)}
                               </div>
                               <div className="text-sm text-gray-500">
-                                ID: {payment.students?.student_id}
+                                ID: {getHighlightedText(payment.students?.student_id || '', searchTerm)}
                               </div>
                               {payment.students?.mother_name && (
                                 <div className="text-xs text-gray-400">
-                                  Mother: {payment.students.mother_name}
+                                  Mother: {getHighlightedText(payment.students.mother_name, searchTerm)}
                                 </div>
                               )}
                             </div>

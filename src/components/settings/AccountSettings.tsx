@@ -1,9 +1,9 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Users, CreditCard } from 'lucide-react';
+import { Settings, Users, User } from 'lucide-react';
 import { UserManagement } from './UserManagement';
-import { IDCardPrinting } from '../students/IDCardPrinting';
+import { AccountManagement } from './AccountManagement';
 
 export const AccountSettings = () => {
   return (
@@ -13,37 +13,24 @@ export const AccountSettings = () => {
         <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 
-      <Tabs defaultValue="users" className="space-y-6">
+      <Tabs defaultValue="account" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="account" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Account Management
+          </TabsTrigger>
           <TabsTrigger value="users" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             User Management
           </TabsTrigger>
-          <TabsTrigger value="id-cards" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            ID Card Printing
-          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="account">
+          <AccountManagement />
+        </TabsContent>
 
         <TabsContent value="users">
           <UserManagement />
-        </TabsContent>
-
-        <TabsContent value="id-cards">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Student ID Card Printing
-              </CardTitle>
-              <CardDescription>
-                Generate and print ID cards for students with customizable templates
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <IDCardPrinting />
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>
