@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -433,7 +432,7 @@ export const PaymentList = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredPayments.map((payment) => {
-                    const paymentDetails = formatPaymentDetails(payment.payment_details);
+                    const paymentDetails = formatPaymentDetails((payment as any).payment_details || (payment as any).transaction_data);
                     return (
                       <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
                         <TableCell>
@@ -472,9 +471,9 @@ export const PaymentList = () => {
                           <div className="font-medium text-green-600">
                             {formatCurrency(payment.amount_paid || 0)}
                           </div>
-                          {payment.total_amount && payment.total_amount !== payment.amount_paid && (
+                          {(payment as any).total_amount && (payment as any).total_amount !== payment.amount_paid && (
                             <div className="text-xs text-gray-500">
-                              of {formatCurrency(payment.total_amount)}
+                              of {formatCurrency((payment as any).total_amount)}
                             </div>
                           )}
                         </TableCell>
@@ -485,8 +484,8 @@ export const PaymentList = () => {
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">
-                            <div className="font-medium">{payment.payment_method}</div>
-                            {payment.payment_method === 'Bank Transfer' && (
+                            <div className="font-medium">{(payment as any).payment_method || 'Cash'}</div>
+                            {(payment as any).payment_method === 'Bank Transfer' && (
                               <div className="text-xs text-gray-500">
                                 <div>Bank: {paymentDetails.bank_name}</div>
                                 <div>Ref: {paymentDetails.transaction_number}</div>
@@ -537,12 +536,12 @@ export const PaymentList = () => {
                                         <p><span className="font-medium">Cycle:</span> {formatCycle(payment.payment_cycle)}</p>
                                         <p><span className="font-medium">Amount:</span> {formatCurrency(payment.amount_paid || 0)}</p>
                                         <p><span className="font-medium">Status:</span> {payment.payment_status}</p>
-                                        <p><span className="font-medium">Method:</span> {payment.payment_method}</p>
+                                        <p><span className="font-medium">Method:</span> {(payment as any).payment_method || 'Cash'}</p>
                                         <p><span className="font-medium">Date:</span> {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'Not recorded'}</p>
                                       </div>
                                     </div>
                                   </div>
-                                  {payment.payment_method === 'Bank Transfer' && (
+                                  {(payment as any).payment_method === 'Bank Transfer' && (
                                     <div>
                                       <h3 className="font-semibold text-gray-900">Bank Transfer Details</h3>
                                       <div className="mt-2 space-y-1">

@@ -266,9 +266,12 @@ export type Database = {
           notes: string | null
           payment_cycle: string
           payment_date: string | null
+          payment_details: Json | null
           payment_id: string | null
+          payment_method: string | null
           payment_status: string | null
           student_id: string | null
+          total_amount: number | null
           transaction_data: Json | null
           updated_at: string | null
         }
@@ -280,9 +283,12 @@ export type Database = {
           notes?: string | null
           payment_cycle?: string
           payment_date?: string | null
+          payment_details?: Json | null
           payment_id?: string | null
+          payment_method?: string | null
           payment_status?: string | null
           student_id?: string | null
+          total_amount?: number | null
           transaction_data?: Json | null
           updated_at?: string | null
         }
@@ -294,9 +300,12 @@ export type Database = {
           notes?: string | null
           payment_cycle?: string
           payment_date?: string | null
+          payment_details?: Json | null
           payment_id?: string | null
+          payment_method?: string | null
           payment_status?: string | null
           student_id?: string | null
+          total_amount?: number | null
           transaction_data?: Json | null
           updated_at?: string | null
         }
