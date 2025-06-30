@@ -14,7 +14,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { User, Mail, Phone, Lock, Shield, Calendar, DollarSign, Settings } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { User, Mail, Phone, Lock, Shield, Calendar, DollarSign, Settings, UserPlus, Trash2, Edit, Users } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 const profileSchema = z.object({
@@ -38,13 +41,24 @@ const passwordSchema = z.object({
   path: ["confirm_password"],
 });
 
+const newUserSchema = z.object({
+  full_name: z.string().min(1, 'Full name is required'),
+  email: z.string().email('Valid email is required'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  role: z.enum(['admin', 'registrar', 'teacher', 'parent']),
+  phone: z.string().optional(),
+});
+
 type ProfileFormData = z.infer<typeof profileSchema>;
 type SystemSettingsFormData = z.infer<typeof systemSettingsSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
+type NewUserFormData = z.infer<typeof newUserSchema>;
 
 export const AccountSettings = () => {
-  const { user } = useAuth();
+  const { user, signUp } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
+  const [isNewUserFormOpen, setIsNewUserFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const queryClient = useQueryClient();
 
   const { data: userProfile, isLoading, error } = useQuery({
@@ -96,6 +110,21 @@ export const AccountSettings = () => {
     retry: 1
   });
 
+  // Fetch all users for admin management
+  const { data: allUsers, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['all-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: userProfile?.role === 'admin' || userProfile?.role === 'super_admin',
+  });
+
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -123,6 +152,17 @@ export const AccountSettings = () => {
     },
   });
 
+  const newUserForm = useForm<NewUserFormData>({
+    resolver: zodResolver(newUserSchema),
+    defaultValues: {
+      full_name: '',
+      email: '',
+      password: '',
+      role: 'registrar',
+      phone: '',
+    },
+  });
+
   // Update form values when userProfile changes
   React.useEffect(() => {
     if (userProfile) {
@@ -133,6 +173,19 @@ export const AccountSettings = () => {
       });
     }
   }, [userProfile, profileForm]);
+
+  // Load system settings from localStorage
+  React.useEffect(() => {
+    const savedSettings = localStorage.getItem('systemSettings');
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        systemSettingsForm.reset(parsed);
+      } catch (error) {
+        console.error('Error parsing saved settings:', error);
+      }
+    }
+  }, [systemSettingsForm]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
@@ -209,6 +262,59 @@ export const AccountSettings = () => {
     }
   });
 
+  const createUserMutation = useMutation({
+    mutationFn: async (data: NewUserFormData) => {
+      const { error } = await signUp(data.email, data.password, {
+        full_name: data.full_name,
+        role: data.role,
+        phone: data.phone
+      });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "User created successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['all-users'] });
+      setIsNewUserFormOpen(false);
+      newUserForm.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create user: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "User deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['all-users'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete user: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const onProfileSubmit = (data: ProfileFormData) => {
     updateProfileMutation.mutate(data);
   };
@@ -221,22 +327,47 @@ export const AccountSettings = () => {
     updatePasswordMutation.mutate(data);
   };
 
-  const getInitials = (name: string) => {
+  const onNewUserSubmit = (data: NewUserFormData) => {
+    createUserMutation.mutate(data);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (userId === user?.id) {
+      toast({
+        title: "Error",
+        description: "You cannot delete your own account",
+        variant: "destructive",
+      });
+      return;
+    }
+    deleteUserMutation.mutate(userId);
+  };
+
+  const getInitials = (name: string | null | undefined) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase();
   };
 
-  const getRoleColor = (role: string) => {
-    const colors = {
+  const getRoleColor = (role: string | null | undefined) => {
+    const actualRole = role || 'unknown';
+    const colors: Record<string, string> = {
       'admin': 'bg-blue-100 text-blue-800',
       'teacher': 'bg-green-100 text-green-800',
       'parent': 'bg-purple-100 text-purple-800',
       'student': 'bg-orange-100 text-orange-800',
       'super_admin': 'bg-red-100 text-red-800',
-      'registrar': 'bg-yellow-100 text-yellow-800'
+      'registrar': 'bg-yellow-100 text-yellow-800',
+      'unknown': 'bg-gray-100 text-gray-800'
     };
-    return colors[role] || 'bg-gray-100 text-gray-800';
+    return colors[actualRole] || 'bg-gray-100 text-gray-800';
   };
+
+  const formatRole = (role: string | null | undefined) => {
+    const actualRole = role || 'unknown';
+    return actualRole.replace('_', ' ').toUpperCase();
+  };
+
+  const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'super_admin';
 
   if (isLoading) {
     return (
@@ -291,7 +422,7 @@ export const AccountSettings = () => {
               <h2 className="text-2xl font-bold">{userProfile.full_name || 'User'}</h2>
               <div className="flex items-center space-x-2">
                 <Badge className={getRoleColor(userProfile.role)} variant="outline">
-                  {userProfile.role.replace('_', ' ').toUpperCase()}
+                  {formatRole(userProfile.role)}
                 </Badge>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-600">{userProfile.email}</span>
@@ -307,10 +438,13 @@ export const AccountSettings = () => {
 
       {/* Settings Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="profile">Profile Information</TabsTrigger>
           <TabsTrigger value="system">System Settings</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="users">User Management</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -590,6 +724,300 @@ export const AccountSettings = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="users" className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    User Management
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Create and manage user accounts for the system
+                  </p>
+                </div>
+                <Sheet open={isNewUserFormOpen} onOpenChange={setIsNewUserFormOpen}>
+                  <SheetTrigger asChild>
+                    <Button>
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Add User
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetHeader>
+                      <SheetTitle>Create New User</SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-6">
+                      <Form {...newUserForm}>
+                        <form onSubmit={newUserForm.handleSubmit(onNewUserSubmit)} className="space-y-4">
+                          <FormField
+                            control={newUserForm.control}
+                            name="full_name"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Full Name</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter full name" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={newUserForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                  <Input type="email" placeholder="Enter email address" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={newUserForm.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Password</FormLabel>
+                                <FormControl>
+                                  <Input type="password" placeholder="Enter password" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={newUserForm.control}
+                            name="role"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Role</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select role" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="registrar">Registrar</SelectItem>
+                                    <SelectItem value="teacher">Teacher</SelectItem>
+                                    <SelectItem value="parent">Parent</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={newUserForm.control}
+                            name="phone"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Phone (Optional)</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Enter phone number" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <div className="flex justify-end space-x-2 pt-4">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setIsNewUserFormOpen(false)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="submit"
+                              disabled={createUserMutation.isPending}
+                            >
+                              {createUserMutation.isPending ? 'Creating...' : 'Create User'}
+                            </Button>
+                          </div>
+                        </form>
+                      </Form>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </CardHeader>
+              <CardContent>
+                {isLoadingUsers ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="text-gray-600 mt-4">Loading users...</p>
+                  </div>
+                ) : !allUsers || allUsers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 font-medium">No users found</p>
+                    <p className="text-gray-500 text-sm">Create your first user account</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Contact</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {allUsers.map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell>
+                              <div className="flex items-center space-x-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                                    {getInitials(user.full_name)}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="font-medium">{user.full_name}</div>
+                                  <div className="text-sm text-gray-500">{user.email}</div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={getRoleColor(user.role)} variant="outline">
+                                {formatRole(user.role)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div className="flex items-center gap-1">
+                                  <Mail className="h-3 w-3" />
+                                  {user.email}
+                                </div>
+                                {user.phone && (
+                                  <div className="flex items-center gap-1 text-gray-500">
+                                    <Phone className="h-3 w-3" />
+                                    {user.phone}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-gray-600">
+                                {new Date(user.created_at).toLocaleDateString()}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingUser(user);
+                                    newUserForm.reset({
+                                      full_name: user.full_name,
+                                      email: user.email,
+                                      password: '',
+                                      role: user.role,
+                                      phone: user.phone || '',
+                                    });
+                                    setIsNewUserFormOpen(true);
+                                  }}
+                                  className="hover:bg-blue-50 hover:text-blue-600"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                {user.id !== userProfile.id && (
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="hover:bg-red-50 hover:text-red-600"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete User</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to delete {user.full_name}? This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteUser(user.id)}
+                                          className="bg-red-600 hover:bg-red-700"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Role Permissions Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Role Permissions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-blue-100 text-blue-800" variant="outline">
+                        ADMIN
+                      </Badge>
+                    </div>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• Full system access</li>
+                      <li>• Create, edit, delete all records</li>
+                      <li>• Manage users and roles</li>
+                      <li>• Access all payment operations</li>
+                      <li>• System configuration</li>
+                    </ul>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-yellow-100 text-yellow-800" variant="outline">
+                        REGISTRAR
+                      </Badge>
+                    </div>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• Register new students</li>
+                      <li>• View student information</li>
+                      <li>• Update basic student details</li>
+                      <li>• Change payment status (unpaid → paid only)</li>
+                      <li>• Cannot delete records</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

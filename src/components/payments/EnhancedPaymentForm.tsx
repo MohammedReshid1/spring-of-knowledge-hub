@@ -52,7 +52,7 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
       payment_date: payment?.payment_date ? new Date(payment.payment_date) : new Date(),
       payment_status: payment?.payment_status || 'Unpaid',
       academic_year: payment?.academic_year || new Date().getFullYear().toString(),
-      payment_cycle: payment?.payment_cycle || '1st_quarter',
+      payment_cycle: payment?.payment_cycle || 'registration_fee',
       notes: payment?.notes || '',
       payment_method: payment?.payment_method || 'Cash',
       bank_name: payment?.bank_name || '',
@@ -103,6 +103,15 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
       return data;
     },
     enabled: !!form.watch('student_id')
+  });
+
+  const { data: userRole } = useQuery({
+    queryKey: ['user-role'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_current_user_role');
+      if (error) throw error;
+      return data;
+    }
   });
 
   const handleScreenshotChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -270,6 +279,19 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
       return;
     }
 
+    // Role-based validation for registrars
+    if (userRole === 'registrar' && payment) {
+      // Registrars can only change status from unpaid to paid, not vice versa
+      if (payment.payment_status === 'Paid' && data.payment_status !== 'Paid') {
+        toast({
+          title: "Access Denied",
+          description: "Registrars cannot change payment status from paid to unpaid",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     submitMutation.mutate(data);
   };
 
@@ -329,6 +351,32 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
     { value: '2nd_semester', label: '2nd Semester' },
     { value: 'registration_fee', label: 'Registration Fee' },
   ];
+
+  // Filter payment status options for registrars
+  const getPaymentStatusOptions = () => {
+    if (userRole === 'registrar' && payment?.payment_status === 'Paid') {
+      // Registrars cannot change from paid to unpaid
+      return [{ value: 'Paid', label: 'Paid' }];
+    }
+    
+    if (userRole === 'registrar') {
+      // Registrars can only set to paid or partially paid
+      return [
+        { value: 'Unpaid', label: 'Unpaid' },
+        { value: 'Partially Paid', label: 'Partially Paid' },
+        { value: 'Paid', label: 'Paid' }
+      ];
+    }
+
+    // Admins have full access
+    return [
+      { value: 'Paid', label: 'Paid' },
+      { value: 'Unpaid', label: 'Unpaid' },
+      { value: 'Partially Paid', label: 'Partially Paid' },
+      { value: 'Waived', label: 'Waived' },
+      { value: 'Refunded', label: 'Refunded' }
+    ];
+  };
 
   return (
     <div className="space-y-6">
@@ -392,6 +440,11 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             {payment ? 'Update Payment' : 'Record New Payment'}
+            {userRole === 'registrar' && (
+              <Badge variant="outline" className="ml-2 bg-yellow-100 text-yellow-800">
+                Registrar Access
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -456,11 +509,11 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="Paid">Paid</SelectItem>
-                          <SelectItem value="Unpaid">Unpaid</SelectItem>
-                          <SelectItem value="Partially Paid">Partially Paid</SelectItem>
-                          <SelectItem value="Waived">Waived</SelectItem>
-                          <SelectItem value="Refunded">Refunded</SelectItem>
+                          {getPaymentStatusOptions().map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
