@@ -189,6 +189,47 @@ export type Database = {
         }
         Relationships: []
       }
+      grade_transitions: {
+        Row: {
+          academic_year: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          performed_by: string | null
+          students_graduated: number
+          students_transitioned: number
+          transition_date: string
+        }
+        Insert: {
+          academic_year: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          students_graduated?: number
+          students_transitioned?: number
+          transition_date?: string
+        }
+        Update: {
+          academic_year?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          students_graduated?: number
+          students_transitioned?: number
+          transition_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grade_transitions_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_mode: {
         Row: {
           created_at: string
@@ -223,6 +264,7 @@ export type Database = {
           created_at: string | null
           id: string
           notes: string | null
+          payment_cycle: string
           payment_date: string | null
           payment_id: string | null
           payment_status: string | null
@@ -236,6 +278,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           notes?: string | null
+          payment_cycle?: string
           payment_date?: string | null
           payment_id?: string | null
           payment_status?: string | null
@@ -249,6 +292,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           notes?: string | null
+          payment_cycle?: string
           payment_date?: string | null
           payment_id?: string | null
           payment_status?: string | null
@@ -335,6 +379,7 @@ export type Database = {
           mother_name: string | null
           parent_guardian_id: string | null
           phone: string | null
+          phone_secondary: string | null
           photo_url: string | null
           previous_school: string | null
           status: Database["public"]["Enums"]["student_status"] | null
@@ -363,6 +408,7 @@ export type Database = {
           mother_name?: string | null
           parent_guardian_id?: string | null
           phone?: string | null
+          phone_secondary?: string | null
           photo_url?: string | null
           previous_school?: string | null
           status?: Database["public"]["Enums"]["student_status"] | null
@@ -391,6 +437,7 @@ export type Database = {
           mother_name?: string | null
           parent_guardian_id?: string | null
           phone?: string | null
+          phone_secondary?: string | null
           photo_url?: string | null
           previous_school?: string | null
           status?: Database["public"]["Enums"]["student_status"] | null
@@ -476,7 +523,56 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_auth_user_and_profile: {
+        Args: {
+          user_email: string
+          user_password: string
+          user_full_name: string
+          user_role?: Database["public"]["Enums"]["user_role"]
+          user_phone?: string
+        }
+        Returns: Json
+      }
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_next_grade_level: {
+        Args: { current_grade: Database["public"]["Enums"]["grade_level"] }
+        Returns: Database["public"]["Enums"]["grade_level"]
+      }
+      log_grade_transition: {
+        Args: {
+          p_academic_year: string
+          p_students_transitioned: number
+          p_students_graduated: number
+          p_notes?: string
+        }
+        Returns: string
+      }
+      preview_grade_transition: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          student_id: string
+          student_name: string
+          current_grade: Database["public"]["Enums"]["grade_level"]
+          next_grade: Database["public"]["Enums"]["grade_level"]
+          action: string
+        }[]
+      }
+      should_perform_grade_transition: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      transition_students_to_next_grade: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          student_id: string
+          old_grade: Database["public"]["Enums"]["grade_level"]
+          new_grade: Database["public"]["Enums"]["grade_level"]
+          status: string
+        }[]
+      }
     }
     Enums: {
       grade_level:
