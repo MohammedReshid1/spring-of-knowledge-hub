@@ -115,39 +115,39 @@ export const IDCardPrinting = () => {
             top: 0;
             right: 0;
             width: 100%;
-            height: 60px;
+            height: 50px;
             background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E") repeat-x;
-            background-size: 100px 20px;
-            opacity: 0.3;
+            background-size: 80px 16px;
+            opacity: 0.4;
           }
           .logo {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            width: 40px;
-            height: 40px;
+            top: 8px;
+            left: 8px;
+            width: 32px;
+            height: 32px;
           }
           .title {
             position: absolute;
-            top: 10px;
-            left: 60px;
-            font-size: 14px;
+            top: 8px;
+            left: 48px;
+            font-size: 12px;
             font-weight: bold;
             color: #1e40af;
           }
           .photo {
             position: absolute;
-            top: 40px;
-            right: 20px;
-            width: 80px;
-            height: 80px;
-            border: 4px solid #1e40af;
+            top: 30px;
+            right: 15px;
+            width: 64px;
+            height: 64px;
+            border: 3px solid #1e40af;
             border-radius: 50%;
             background: #e5e7eb;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 10px;
+            font-size: 8px;
             color: #6b7280;
             overflow: hidden;
           }
@@ -163,15 +163,15 @@ export const IDCardPrinting = () => {
             right: 0;
             background: #40E0D0;
             color: white;
-            padding: 10px;
+            padding: 8px;
           }
           .info-row {
             display: flex;
-            margin: 2px 0;
-            font-size: 11px;
+            margin: 1px 0;
+            font-size: 9px;
           }
           .info-label {
-            width: 100px;
+            width: 80px;
             font-weight: 600;
           }
           .info-value {
@@ -186,13 +186,15 @@ export const IDCardPrinting = () => {
           }
           .back-title {
             position: absolute;
-            top: 50px;
+            top: 40px;
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
             color: #1e40af;
+            padding: 0 10px;
+            line-height: 1.2;
           }
           .back-info {
             position: absolute;
@@ -201,18 +203,18 @@ export const IDCardPrinting = () => {
             right: 0;
             background: #40E0D0;
             color: white;
-            padding: 15px;
+            padding: 12px;
           }
           .contact-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 5px;
-            font-size: 10px;
+            gap: 4px;
+            font-size: 8px;
           }
           .contact-item {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
           }
           @media print {
             body { margin: 0; padding: 10px; }
