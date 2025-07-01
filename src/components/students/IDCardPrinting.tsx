@@ -115,7 +115,7 @@ export const IDCardPrinting = () => {
             right: 0;
             width: 100%;
             height: 40px;
-            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E") repeat-x;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E") repeat-x;
             background-size: 60px 12px;
             opacity: 0.4;
           }
@@ -336,8 +336,10 @@ export const IDCardPrinting = () => {
                 id="school-name"
                 value="Spring of Knowledge Academy"
                 disabled
-                className="bg-gray-100"
+                className="bg-gray-50 text-gray-700 cursor-not-allowed"
+                readOnly
               />
+              <p className="text-xs text-gray-500 mt-1">School name cannot be changed</p>
             </div>
             <div>
               <Label htmlFor="academic-year">Academic Year</Label>

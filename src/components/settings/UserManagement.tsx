@@ -25,10 +25,19 @@ const userSchema = z.object({
   phone: z.string().optional(),
 });
 
+const editUserSchema = z.object({
+  full_name: z.string().min(1, 'Full name is required'),
+  role: z.enum(['admin', 'registrar']),
+  phone: z.string().optional(),
+});
+
 type UserFormData = z.infer<typeof userSchema>;
+type EditUserFormData = z.infer<typeof editUserSchema>;
 
 export const UserManagement = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const queryClient = useQueryClient();
 
   const form = useForm<UserFormData>({
@@ -36,6 +45,15 @@ export const UserManagement = () => {
     defaultValues: {
       email: '',
       password: '',
+      full_name: '',
+      role: 'registrar',
+      phone: '',
+    },
+  });
+
+  const editForm = useForm<EditUserFormData>({
+    resolver: zodResolver(editUserSchema),
+    defaultValues: {
       full_name: '',
       role: 'registrar',
       phone: '',
@@ -82,8 +100,86 @@ export const UserManagement = () => {
     }
   });
 
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, userData }: { id: string; userData: EditUserFormData }) => {
+      const { data, error } = await supabase
+        .from('users')
+        .update(userData)
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "User updated successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsEditDialogOpen(false);
+      editForm.reset();
+      setSelectedUser(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: `Failed to update user: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "User deleted successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: `Failed to delete user: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+
   const onSubmit = (data: UserFormData) => {
     createUserMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: EditUserFormData) => {
+    if (selectedUser) {
+      updateUserMutation.mutate({ id: selectedUser.id, userData: data });
+    }
+  };
+
+  const handleEdit = (user: any) => {
+    setSelectedUser(user);
+    editForm.reset({
+      full_name: user.full_name,
+      role: user.role,
+      phone: user.phone || '',
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDelete = (userId: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      deleteUserMutation.mutate(userId);
+    }
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -245,10 +341,15 @@ export const UserManagement = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(user)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" className="text-red-600">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-red-600"
+                        onClick={() => handleDelete(user.id)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -267,6 +368,127 @@ export const UserManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="full_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Full Name *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter full name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Role *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="registrar">Registrar</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter phone number (optional)" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditDialogOpen(false);
+                    setSelectedUser(null);
+                    editForm.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={updateUserMutation.isPending}
+                >
+                  {updateUserMutation.isPending ? 'Updating...' : 'Update User'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Role Descriptions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Info className="h-5 w-5" />
+            User Role Descriptions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-red-100 text-red-800" variant="outline">
+                  admin
+                </Badge>
+                <span className="font-semibold">Administrator</span>
+              </div>
+              <p className="text-sm text-gray-600">
+                Full system access. Can create, edit, and delete all records including students, classes, teachers, and users. 
+                Can manage system settings and configurations.
+              </p>
+            </div>
+            
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Badge className="bg-blue-100 text-blue-800" variant="outline">
+                  registrar
+                </Badge>
+                <span className="font-semibold">Registrar</span>
+              </div>
+              <p className="text-sm text-gray-600">
+                Limited access focused on student management. Can create and view student records, process registrations, 
+                and generate reports. Cannot edit or delete existing records or manage users.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Dialog>
 
       {/* Role Descriptions */}
       <Card>
