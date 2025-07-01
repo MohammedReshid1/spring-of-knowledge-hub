@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -115,33 +114,35 @@ export const IDCardPrinting = () => {
             top: 0;
             right: 0;
             width: 100%;
-            height: 50px;
+            height: 40px;
             background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E") repeat-x;
-            background-size: 80px 16px;
+            background-size: 60px 12px;
             opacity: 0.4;
           }
           .logo {
             position: absolute;
-            top: 8px;
-            left: 8px;
-            width: 32px;
-            height: 32px;
+            top: 6px;
+            left: 6px;
+            width: 24px;
+            height: 24px;
           }
           .title {
             position: absolute;
-            top: 8px;
-            left: 48px;
-            font-size: 12px;
+            top: 32px;
+            left: 6px;
+            right: 90px;
+            text-align: center;
+            font-size: 11px;
             font-weight: bold;
             color: #1e40af;
           }
           .photo {
             position: absolute;
-            top: 30px;
-            right: 15px;
-            width: 64px;
-            height: 64px;
-            border: 3px solid #1e40af;
+            top: 24px;
+            right: 12px;
+            width: 60px;
+            height: 60px;
+            border: 2px solid #1e40af;
             border-radius: 50%;
             background: #e5e7eb;
             display: flex;
@@ -163,7 +164,8 @@ export const IDCardPrinting = () => {
             right: 0;
             background: #40E0D0;
             color: white;
-            padding: 8px;
+            padding: 6px;
+            height: 72px;
           }
           .info-row {
             display: flex;
@@ -171,11 +173,11 @@ export const IDCardPrinting = () => {
             font-size: 9px;
           }
           .info-label {
-            width: 80px;
-            font-weight: 600;
+            width: 64px;
+            font-weight: normal;
           }
           .info-value {
-            font-weight: bold;
+            font-weight: normal;
           }
           .back-card {
             background: white;
@@ -186,11 +188,11 @@ export const IDCardPrinting = () => {
           }
           .back-title {
             position: absolute;
-            top: 40px;
+            top: 32px;
             left: 0;
             right: 0;
             text-align: center;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #1e40af;
             padding: 0 10px;
@@ -203,18 +205,18 @@ export const IDCardPrinting = () => {
             right: 0;
             background: #40E0D0;
             color: white;
-            padding: 12px;
+            padding: 8px;
           }
           .contact-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 4px;
+            gap: 3px;
             font-size: 8px;
           }
           .contact-item {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 3px;
           }
           @media print {
             body { margin: 0; padding: 10px; }
