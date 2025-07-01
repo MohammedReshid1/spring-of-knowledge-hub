@@ -75,7 +75,7 @@ export const IDCardPrinting = () => {
       return;
     }
 
-    // Create a new window for printing with both front and back
+    // Create a new window for printing with your custom SVG designs
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -101,122 +101,73 @@ export const IDCardPrinting = () => {
           .id-card {
             width: 320px;
             height: 200px;
-            border: 2px solid #1e40af;
             border-radius: 8px;
-            background: white;
             position: relative;
             overflow: hidden;
             margin-bottom: 10px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
           }
-          .decorative-pattern {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100%;
-            height: 40px;
-            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E") repeat-x;
-            background-size: 60px 12px;
-            opacity: 0.4;
-          }
-          .logo {
-            position: absolute;
-            top: 6px;
-            left: 6px;
-            width: 24px;
-            height: 24px;
-          }
-          .title {
-            position: absolute;
-            top: 32px;
-            left: 6px;
-            right: 90px;
-            text-align: center;
-            font-size: 11px;
-            font-weight: bold;
-            color: #1e40af;
-          }
-          .photo {
-            position: absolute;
-            top: 24px;
-            right: 12px;
-            width: 60px;
-            height: 60px;
-            border: 2px solid #1e40af;
-            border-radius: 50%;
-            background: #e5e7eb;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 8px;
-            color: #6b7280;
-            overflow: hidden;
-          }
-          .photo img {
+          .svg-background {
             width: 100%;
             height: 100%;
             object-fit: cover;
           }
-          .info-section {
+          .photo-overlay {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #40E0D0;
+            top: 24px;
+            right: 24px;
+            width: 64px;
+            height: 64px;
+            border: 2px solid white;
+            border-radius: 50%;
+            background: white;
+            overflow: hidden;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+          }
+          .photo-overlay img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+          .info-overlay {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 10;
             color: white;
-            padding: 6px;
-            height: 72px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
           }
           .info-row {
-            display: flex;
-            margin: 1px 0;
-            font-size: 9px;
+            margin: 2px 0;
+            font-size: 10px;
           }
-          .info-label {
-            width: 64px;
-            font-weight: normal;
-          }
-          .info-value {
-            font-weight: normal;
-          }
-          .back-card {
-            background: white;
-            border: 2px solid #1e40af;
-            border-radius: 8px;
-            position: relative;
-            overflow: hidden;
-          }
-          .back-title {
-            position: absolute;
-            top: 32px;
-            left: 0;
-            right: 0;
-            text-align: center;
-            font-size: 13px;
+          .student-name {
+            font-size: 14px;
             font-weight: bold;
-            color: #1e40af;
-            padding: 0 10px;
-            line-height: 1.2;
+            margin: 4px 0;
           }
-          .back-info {
+          .school-info {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #40E0D0;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            z-index: 10;
             color: white;
-            padding: 8px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            text-align: center;
+          }
+          .school-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
           }
           .contact-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 3px;
-            font-size: 8px;
-          }
-          .contact-item {
-            display: flex;
-            align-items: center;
-            gap: 3px;
+            gap: 2px;
+            font-size: 9px;
           }
           @media print {
             body { margin: 0; padding: 10px; }
@@ -229,57 +180,31 @@ export const IDCardPrinting = () => {
           <div class="id-card-container">
             <!-- Front Card -->
             <div class="id-card">
-              <div class="decorative-pattern"></div>
-              <div class="logo">🎓</div>
-              <div class="title">STUDENT ID CARD</div>
-              <div class="photo">
+              <img src="/1.svg" alt="ID Card Front" class="svg-background">
+              <div class="photo-overlay">
                 ${student.photo_url ? 
                   `<img src="${student.photo_url}" alt="${student.first_name} ${student.last_name}">` : 
-                  'No Photo'
+                  '<div style="width:100%;height:100%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6b7280;">Photo</div>'
                 }
               </div>
-              <div class="info-section">
-                <div class="info-row">
-                  <span class="info-label">ID Number</span>
-                  <span class="info-value">: ${student.student_id}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Full Name</span>
-                  <span class="info-value">: ${student.first_name} ${student.last_name}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Grade Level</span>
-                  <span class="info-value">: ${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
-                </div>
-                <div class="info-row">
-                  <span class="info-label">Emergency Contact</span>
-                  <span class="info-value">: ${student.emergency_contact_phone || 'N/A'}</span>
-                </div>
+              <div class="info-overlay">
+                <div class="info-row">ID: <strong>${student.student_id}</strong></div>
+                <div class="student-name">${student.first_name} ${student.last_name}</div>
+                <div class="info-row">Grade: ${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                <div class="info-row">Emergency: ${student.emergency_contact_phone || 'N/A'}</div>
               </div>
             </div>
             
             <!-- Back Card -->
-            <div class="id-card back-card">
-              <div class="decorative-pattern"></div>
-              <div class="back-title">SPRING OF KNOWLEDGE ACADEMY</div>
-              <div class="back-info">
+            <div class="id-card">
+              <img src="/2.svg" alt="ID Card Back" class="svg-background">
+              <div class="school-info">
+                <div class="school-name">Spring of Knowledge Academy</div>
                 <div class="contact-grid">
-                  <div class="contact-item">
-                    <span>📞</span>
-                    <span>+123-456-7890</span>
-                  </div>
-                  <div class="contact-item">
-                    <span>🏠</span>
-                    <span>123 Anywhere St., Any City</span>
-                  </div>
-                  <div class="contact-item">
-                    <span>✉️</span>
-                    <span>hello@reallygreatsite.com</span>
-                  </div>
-                  <div class="contact-item">
-                    <span>🌐</span>
-                    <span>www.reallygreatsite.com</span>
-                  </div>
+                  <div>📞 +123-456-7890</div>
+                  <div>🏠 123 Anywhere St.</div>
+                  <div>✉️ hello@springacademy.com</div>
+                  <div>🌐 www.springacademy.com</div>
                 </div>
               </div>
             </div>
