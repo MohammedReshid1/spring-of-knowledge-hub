@@ -75,7 +75,6 @@ export const IDCardPrinting = () => {
       return;
     }
 
-    // Create a new window for printing with your custom SVG designs
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -114,15 +113,15 @@ export const IDCardPrinting = () => {
           }
           .photo-overlay {
             position: absolute;
-            top: 24px;
-            right: 24px;
-            width: 64px;
-            height: 64px;
-            border: 2px solid white;
+            top: 48px;
+            left: 40px;
+            width: 80px;
+            height: 80px;
+            border: 3px solid white;
             border-radius: 50%;
             background: white;
             overflow: hidden;
-            z-index: 10;
+            z-index: 20;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           }
           .photo-overlay img {
@@ -132,42 +131,57 @@ export const IDCardPrinting = () => {
           }
           .info-overlay {
             position: absolute;
-            bottom: 16px;
-            left: 16px;
-            right: 16px;
-            z-index: 10;
-            color: white;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
-          }
-          .info-row {
-            margin: 2px 0;
-            font-size: 10px;
+            top: 48px;
+            right: 40px;
+            z-index: 20;
+            color: black;
+            text-align: right;
+            max-width: 140px;
           }
           .student-name {
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
+            margin: 0 0 8px 0;
+            line-height: 1.2;
+          }
+          .student-info {
+            font-size: 11px;
             margin: 4px 0;
+            font-weight: 600;
+          }
+          .bottom-info {
+            position: absolute;
+            bottom: 16px;
+            left: 40px;
+            right: 40px;
+            z-index: 20;
+            color: black;
+            text-align: center;
+            font-size: 9px;
+            font-weight: 500;
           }
           .school-info {
             position: absolute;
-            bottom: 16px;
-            left: 16px;
-            right: 16px;
-            z-index: 10;
-            color: white;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            z-index: 20;
+            color: black;
             text-align: center;
+            background: rgba(255,255,255,0.8);
+            padding: 12px;
+            border-radius: 6px;
           }
           .school-name {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
           }
           .contact-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 2px;
-            font-size: 9px;
+            font-size: 8px;
           }
           @media print {
             body { margin: 0; padding: 10px; }
@@ -184,14 +198,17 @@ export const IDCardPrinting = () => {
               <div class="photo-overlay">
                 ${student.photo_url ? 
                   `<img src="${student.photo_url}" alt="${student.first_name} ${student.last_name}">` : 
-                  '<div style="width:100%;height:100%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6b7280;">Photo</div>'
+                  '<div style="width:100%;height:100%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6b7280;">Photo</div>'
                 }
               </div>
               <div class="info-overlay">
-                <div class="info-row">ID: <strong>${student.student_id}</strong></div>
                 <div class="student-name">${student.first_name} ${student.last_name}</div>
-                <div class="info-row">Grade: ${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
-                <div class="info-row">Emergency: ${student.emergency_contact_phone || 'N/A'}</div>
+                <div class="student-info">ID: ${student.student_id}</div>
+                <div class="student-info">Grade: ${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+              </div>
+              <div class="bottom-info">
+                <div>Academic Year: ${academicYear}</div>
+                ${student.emergency_contact_phone ? `<div>Emergency: ${student.emergency_contact_phone}</div>` : ''}
               </div>
             </div>
             
@@ -218,7 +235,6 @@ export const IDCardPrinting = () => {
     printWindow.document.close();
     printWindow.focus();
     
-    // Wait for content to load then print
     setTimeout(() => {
       printWindow.print();
     }, 500);

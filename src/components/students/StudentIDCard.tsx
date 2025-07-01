@@ -40,9 +40,9 @@ export const StudentIDCard = ({
             />
           </div>
 
-          {/* Student Photo Overlay */}
-          <div className="absolute top-6 right-6 z-10">
-            <div className="w-16 h-16 rounded-full border-2 border-white overflow-hidden bg-white shadow-md">
+          {/* Student Photo Overlay - Positioned to replace existing photo */}
+          <div className="absolute top-[60px] left-[50px] z-20">
+            <div className="w-[100px] h-[100px] rounded-full border-4 border-white overflow-hidden bg-white shadow-lg">
               {student.photo_url ? (
                 <img 
                   src={student.photo_url} 
@@ -51,30 +51,38 @@ export const StudentIDCard = ({
                 />
               ) : (
                 <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-gray-500 text-xs">Photo</span>
+                  <span className="text-gray-500 text-sm font-medium">Photo</span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Student Information Overlay */}
-          <div className="absolute bottom-4 left-4 right-4 z-10">
-            <div className="space-y-1 text-white text-shadow">
-              <div className="text-xs font-medium">
-                <span className="opacity-90">ID: </span>
-                <span className="font-semibold">{student.student_id}</span>
-              </div>
-              <div className="text-sm font-bold">
+          {/* Student Information Overlay - Positioned in designated text areas */}
+          <div className="absolute top-[60px] right-[50px] z-20 text-right">
+            <div className="space-y-2 text-black">
+              <div className="text-lg font-bold">
                 {student.first_name} {student.last_name}
               </div>
-              <div className="text-xs">
-                <span className="opacity-90">Grade: </span>
-                <span>{formatGradeLevel(student.grade_level)}</span>
+              <div className="text-sm font-semibold">
+                ID: {student.student_id}
               </div>
-              <div className="text-xs">
-                <span className="opacity-90">Emergency: </span>
-                <span>{student.emergency_contact_phone || 'N/A'}</span>
+              <div className="text-sm">
+                Grade: {formatGradeLevel(student.grade_level)}
               </div>
+            </div>
+          </div>
+
+          {/* Additional Info at Bottom */}
+          <div className="absolute bottom-[20px] left-[50px] right-[50px] z-20">
+            <div className="text-center text-black">
+              <div className="text-xs font-medium">
+                Academic Year: {academicYear}
+              </div>
+              {student.emergency_contact_phone && (
+                <div className="text-xs mt-1">
+                  Emergency: {student.emergency_contact_phone}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -92,9 +100,9 @@ export const StudentIDCard = ({
             />
           </div>
 
-          {/* School Information Overlay (if needed based on your design) */}
-          <div className="absolute bottom-4 left-4 right-4 z-10">
-            <div className="text-center text-white text-shadow">
+          {/* School Information Overlay - Positioned to not overlap with design */}
+          <div className="absolute bottom-[30px] left-[30px] right-[30px] z-20">
+            <div className="text-center text-black bg-white bg-opacity-80 p-3 rounded-lg">
               <div className="text-sm font-bold mb-2">
                 Spring of Knowledge Academy
               </div>
