@@ -113,16 +113,14 @@ export const IDCardPrinting = () => {
           }
           .photo-overlay {
             position: absolute;
-            top: 48px;
-            left: 40px;
-            width: 80px;
-            height: 80px;
-            border: 3px solid white;
+            top: 36px;
+            left: 32px;
+            width: 72px;
+            height: 72px;
             border-radius: 50%;
             background: white;
             overflow: hidden;
             z-index: 20;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
           }
           .photo-overlay img {
             width: 100%;
@@ -131,57 +129,15 @@ export const IDCardPrinting = () => {
           }
           .info-overlay {
             position: absolute;
-            top: 48px;
-            right: 40px;
+            top: 40px;
+            left: 128px;
             z-index: 20;
             color: black;
-            text-align: right;
-            max-width: 140px;
           }
-          .student-name {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 0 0 8px 0;
-            line-height: 1.2;
-          }
-          .student-info {
+          .info-field {
             font-size: 11px;
-            margin: 4px 0;
+            margin: 6px 0;
             font-weight: 600;
-          }
-          .bottom-info {
-            position: absolute;
-            bottom: 16px;
-            left: 40px;
-            right: 40px;
-            z-index: 20;
-            color: black;
-            text-align: center;
-            font-size: 9px;
-            font-weight: 500;
-          }
-          .school-info {
-            position: absolute;
-            bottom: 24px;
-            left: 24px;
-            right: 24px;
-            z-index: 20;
-            color: black;
-            text-align: center;
-            background: rgba(255,255,255,0.8);
-            padding: 12px;
-            border-radius: 6px;
-          }
-          .school-name {
-            font-size: 12px;
-            font-weight: bold;
-            margin-bottom: 6px;
-          }
-          .contact-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2px;
-            font-size: 8px;
           }
           @media print {
             body { margin: 0; padding: 10px; }
@@ -194,36 +150,24 @@ export const IDCardPrinting = () => {
           <div class="id-card-container">
             <!-- Front Card -->
             <div class="id-card">
-              <img src="/1.svg" alt="ID Card Front" class="svg-background">
+              <img src="/Green Blue Modern Student ID Card.svg" alt="ID Card Front" class="svg-background">
               <div class="photo-overlay">
                 ${student.photo_url ? 
                   `<img src="${student.photo_url}" alt="${student.first_name} ${student.last_name}">` : 
-                  '<div style="width:100%;height:100%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:10px;color:#6b7280;">Photo</div>'
+                  '<div style="width:100%;height:100%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6b7280;">Photo</div>'
                 }
               </div>
               <div class="info-overlay">
-                <div class="student-name">${student.first_name} ${student.last_name}</div>
-                <div class="student-info">ID: ${student.student_id}</div>
-                <div class="student-info">Grade: ${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
-              </div>
-              <div class="bottom-info">
-                <div>Academic Year: ${academicYear}</div>
-                ${student.emergency_contact_phone ? `<div>Emergency: ${student.emergency_contact_phone}</div>` : ''}
+                <div class="info-field">${student.student_id}</div>
+                <div class="info-field">${student.first_name} ${student.last_name} ${student.father_name || ''}</div>
+                <div class="info-field">${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                <div class="info-field">${student.emergency_contact_phone || 'N/A'}</div>
               </div>
             </div>
             
             <!-- Back Card -->
             <div class="id-card">
               <img src="/2.svg" alt="ID Card Back" class="svg-background">
-              <div class="school-info">
-                <div class="school-name">Spring of Knowledge Academy</div>
-                <div class="contact-grid">
-                  <div>📞 +123-456-7890</div>
-                  <div>🏠 123 Anywhere St.</div>
-                  <div>✉️ hello@springacademy.com</div>
-                  <div>🌐 www.springacademy.com</div>
-                </div>
-              </div>
             </div>
           </div>
         `).join('')}
