@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -113,10 +114,10 @@ export const IDCardPrinting = () => {
           }
           .photo-overlay {
             position: absolute;
-            top: 42px;
-            right: 20px;
-            width: 84px;
-            height: 84px;
+            top: 52px;
+            right: 8px;
+            width: 96px;
+            height: 96px;
             border-radius: 50%;
             background: white;
             overflow: hidden;
@@ -131,16 +132,17 @@ export const IDCardPrinting = () => {
           .info-overlay {
             position: absolute;
             top: 112px;
-            left: 76px;
+            left: 88px;
             z-index: 20;
             color: white;
-            max-width: 136px;
+            max-width: 120px;
           }
           .info-field {
-            font-size: 8px;
-            margin: 6px 0;
+            font-size: 6.5px;
+            margin: 4px 0;
             font-weight: 600;
             color: white;
+            line-height: 1.1;
           }
           @media print {
             body { margin: 0; padding: 10px; }
