@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,7 +16,8 @@ import {
   CreditCard,
   DollarSign,
   UserCheck,
-  Settings
+  Settings,
+  IdCard
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -54,6 +56,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     { name: 'Teachers', href: '/teachers', icon: UserCheck },
     { name: 'Payments', href: '/payments', icon: CreditCard },
     { name: 'Payment Dashboard', href: '/payment-dashboard', icon: DollarSign },
+    { name: 'Student ID Cards', href: '/student-id-cards', icon: IdCard },
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 

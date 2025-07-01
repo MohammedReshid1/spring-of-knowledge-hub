@@ -1,0 +1,5 @@
+
+first_name,last_name,date_of_birth,gender,grade_level,address,phone,email,emergency_contact_name,emergency_contact_phone,father_name,mother_name,grandfather_name,medical_info,previous_school
+John,Doe,2010-05-15,Male,grade_5,123 Main St,0911234567,john.doe@example.com,Jane Doe,0919876543,Robert Doe,Jane Doe,William Doe,No allergies,Previous Elementary School
+Mary,Smith,2009-08-22,Female,grade_6,456 Oak Ave,0912345678,mary.smith@example.com,Tom Smith,0918765432,Tom Smith,Lisa Smith,George Smith,Asthma medication required,Oak Elementary
+Ahmed,Hassan,2011-03-10,Male,grade_4,789 Elm St,0913456789,ahmed.hassan@example.com,Fatima Hassan,0917654321,Mohamed Hassan,Fatima Hassan,Ibrahim Hassan,None,Elm Primary School

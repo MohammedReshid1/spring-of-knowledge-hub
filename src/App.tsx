@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +14,7 @@ import { TeacherManagement } from "./components/teachers/TeacherManagement";
 import { PaymentList } from "./components/payments/PaymentList";
 import { PaymentDashboard } from "./components/payments/PaymentDashboard";
 import { AccountSettings } from "./components/settings/AccountSettings";
+import { IDCardManager } from "./components/students/IDCardManager";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -126,6 +128,16 @@ const App = () => (
                 <ProtectedRoute>
                   <DashboardLayout>
                     <PaymentDashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student-id-cards"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <IDCardManager />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
