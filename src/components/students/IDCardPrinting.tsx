@@ -113,10 +113,10 @@ export const IDCardPrinting = () => {
           }
           .photo-overlay {
             position: absolute;
-            top: 32px;
-            right: 24px;
-            width: 68px;
-            height: 68px;
+            top: 36px;
+            right: 28px;
+            width: 76px;
+            height: 76px;
             border-radius: 50%;
             background: white;
             overflow: hidden;
@@ -131,13 +131,14 @@ export const IDCardPrinting = () => {
           .info-overlay {
             position: absolute;
             top: 112px;
-            left: 24px;
+            left: 76px;
             z-index: 20;
             color: white;
+            max-width: 144px;
           }
           .info-field {
-            font-size: 11px;
-            margin: 4px 0;
+            font-size: 9px;
+            margin: 6px 0;
             font-weight: 600;
             color: white;
           }

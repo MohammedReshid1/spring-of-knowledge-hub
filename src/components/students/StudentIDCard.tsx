@@ -41,9 +41,9 @@ export const StudentIDCard = ({
             />
           </div>
 
-          {/* Student Photo - Positioned in the circle on the right */}
-          <div className="absolute top-[40px] right-[30px] z-20">
-            <div className="w-[85px] h-[85px] rounded-full overflow-hidden bg-white border-2 border-white">
+          {/* Student Photo - Positioned to align with the circle, bigger and moved down-left */}
+          <div className="absolute top-[45px] right-[35px] z-20">
+            <div className="w-[95px] h-[95px] rounded-full overflow-hidden bg-white border-2 border-white">
               {student.photo_url ? (
                 <img 
                   src={student.photo_url} 
@@ -58,25 +58,25 @@ export const StudentIDCard = ({
             </div>
           </div>
 
-          {/* Student Information - Positioned in the designated fields */}
-          <div className="absolute top-[140px] left-[30px] z-20 space-y-2">
-            {/* ID Number field */}
-            <div className="text-white font-semibold text-sm">
+          {/* Student Information - Positioned after the colons in each field, smaller text, confined to blue area */}
+          <div className="absolute top-[140px] left-[95px] z-20 space-y-3 max-w-[180px]">
+            {/* ID Number field - positioned after the colon */}
+            <div className="text-white font-semibold text-xs">
               {student.student_id}
             </div>
             
-            {/* Full Name field */}
-            <div className="text-white font-semibold text-sm">
+            {/* Full Name field - positioned after the colon */}
+            <div className="text-white font-semibold text-xs">
               {student.first_name} {student.last_name} {student.father_name || ''}
             </div>
             
-            {/* Grade Level field */}
-            <div className="text-white font-semibold text-sm">
+            {/* Grade Level field - positioned after the colon */}
+            <div className="text-white font-semibold text-xs">
               {formatGradeLevel(student.grade_level)}
             </div>
             
-            {/* Emergency Contact field */}
-            <div className="text-white font-semibold text-sm">
+            {/* Emergency Contact field - positioned after the colon */}
+            <div className="text-white font-semibold text-xs">
               {student.emergency_contact_phone || 'N/A'}
             </div>
           </div>
