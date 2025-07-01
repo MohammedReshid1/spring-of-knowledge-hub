@@ -15,13 +15,11 @@ interface Student {
 
 interface StudentIDCardProps {
   student: Student;
-  schoolName?: string;
   academicYear?: string;
 }
 
 export const StudentIDCard = ({ 
   student, 
-  schoolName = "Spring of Knowledge Academy",
   academicYear = new Date().getFullYear().toString()
 }: StudentIDCardProps) => {
   const formatGradeLevel = (grade: string) => {
@@ -29,83 +27,124 @@ export const StudentIDCard = ({
   };
 
   return (
-    <Card className="w-[400px] h-[250px] relative overflow-hidden">
-      <CardContent className="p-0 h-full relative">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-br from-teal-400 to-blue-600"></div>
-        
-        {/* Wave Pattern Overlay */}
-        <div 
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.3'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }}
-        ></div>
+    <div className="w-[400px] h-[600px] relative">
+      {/* Front Side */}
+      <Card className="w-full h-[250px] relative overflow-hidden mb-4">
+        <CardContent className="p-0 h-full relative">
+          {/* Background with decorative pattern */}
+          <div className="absolute inset-0 bg-white"></div>
+          
+          {/* Top decorative pattern */}
+          <div 
+            className="absolute top-0 right-0 w-full h-20 opacity-30"
+            style={{
+              background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'repeat-x',
+              backgroundSize: '100px 20px'
+            }}
+          ></div>
 
-        {/* School Logo */}
-        <div className="absolute top-4 left-4 text-white">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mb-2">
-            <div className="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">S</span>
+          {/* School Logo */}
+          <div className="absolute top-4 left-4">
+            <img 
+              src="/lovable-uploads/ae9bac39-28d4-4d27-b664-560c04f51389.png" 
+              alt="Spring of Knowledge Academy Logo"
+              className="w-16 h-16 object-contain"
+            />
+          </div>
+
+          {/* Student ID Card Title */}
+          <div className="absolute top-4 left-24 right-4">
+            <h1 className="text-2xl font-bold text-blue-900 tracking-wide">STUDENT ID CARD</h1>
+          </div>
+
+          {/* Student Photo */}
+          <div className="absolute top-16 right-8">
+            <div className="w-32 h-32 rounded-full border-8 border-blue-900 overflow-hidden bg-white">
+              {student.photo_url ? (
+                <img 
+                  src={student.photo_url} 
+                  alt={`${student.first_name} ${student.last_name}`}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-gray-500 text-xs">No Photo</span>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Student ID Card Title */}
-        <div className="absolute top-4 left-24 text-white">
-          <h1 className="text-2xl font-bold tracking-wide">STUDENT ID CARD</h1>
-        </div>
-
-        {/* Student Photo */}
-        <div className="absolute top-20 right-8">
-          <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden bg-white">
-            {student.photo_url ? (
-              <img 
-                src={student.photo_url} 
-                alt={`${student.first_name} ${student.last_name}`}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                <span className="text-gray-500 text-xs">No Photo</span>
+          {/* Student Information */}
+          <div className="absolute bottom-0 left-0 right-0 bg-teal-400 text-white px-6 py-4">
+            <div className="space-y-2 text-white">
+              <div className="flex items-center">
+                <span className="font-semibold text-base w-32">ID Number</span>
+                <span className="text-base font-bold">: {student.student_id}</span>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Student Information */}
-        <div className="absolute bottom-0 left-0 right-0 bg-teal-500 text-white p-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <div className="mb-2">
-                <span className="font-medium">ID Number</span>
-                <span className="block text-lg font-bold">: {student.student_id}</span>
+              <div className="flex items-center">
+                <span className="font-semibold text-base w-32">Full Name</span>
+                <span className="text-base font-bold">: {student.first_name} {student.last_name}</span>
               </div>
-              <div className="mb-2">
-                <span className="font-medium">Full Name</span>
-                <span className="block text-lg font-bold">: {student.first_name} {student.last_name}</span>
+              <div className="flex items-center">
+                <span className="font-semibold text-base w-32">Grade Level</span>
+                <span className="text-base font-bold">: {formatGradeLevel(student.grade_level)}</span>
               </div>
-            </div>
-            <div>
-              <div className="mb-2">
-                <span className="font-medium">Grade Level</span>
-                <span className="block text-lg font-bold">: {formatGradeLevel(student.grade_level)}</span>
-              </div>
-              <div className="mb-2">
-                <span className="font-medium">Emergency Contact</span>
-                <span className="block text-lg font-bold">: {student.emergency_contact_phone || 'N/A'}</span>
+              <div className="flex items-center">
+                <span className="font-semibold text-base w-32">Emergency Contact</span>
+                <span className="text-base font-bold">: {student.emergency_contact_phone || 'N/A'}</span>
               </div>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Back side info */}
-        <div className="absolute bottom-0 left-0 right-0 h-16 bg-teal-600 flex items-center justify-center">
-          <div className="text-center text-white text-xs space-y-1">
-            <div className="font-bold text-lg">{schoolName.toUpperCase()}</div>
+      {/* Back Side */}
+      <Card className="w-full h-[250px] relative overflow-hidden">
+        <CardContent className="p-0 h-full relative">
+          {/* Background with decorative pattern */}
+          <div className="absolute inset-0 bg-white"></div>
+          
+          {/* Top decorative pattern */}
+          <div 
+            className="absolute top-0 left-0 w-full h-20 opacity-30"
+            style={{
+              background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E")`,
+              backgroundRepeat: 'repeat-x',
+              backgroundSize: '100px 20px'
+            }}
+          ></div>
+
+          {/* School Name */}
+          <div className="absolute top-16 left-0 right-0 text-center">
+            <h1 className="text-3xl font-bold text-blue-900 tracking-wide">
+              SPRING OF KNOWLEDGE ACADEMY
+            </h1>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* Contact Information */}
+          <div className="absolute bottom-0 left-0 right-0 bg-teal-400 text-white px-6 py-6">
+            <div className="grid grid-cols-2 gap-4 text-white text-sm">
+              <div className="flex items-center space-x-2">
+                <span>📞</span>
+                <span>+123-456-7890</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span>🏠</span>
+                <span>123 Anywhere St., Any City</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span>✉️</span>
+                <span>hello@reallygreatsite.com</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span>🌐</span>
+                <span>www.reallygreatsite.com</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

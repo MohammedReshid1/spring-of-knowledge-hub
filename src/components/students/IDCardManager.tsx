@@ -18,7 +18,7 @@ export const IDCardManager = () => {
             Generate Student ID Cards
           </CardTitle>
           <CardDescription>
-            Generate and print ID cards for students with customizable templates
+            Generate and print ID cards for students with Spring of Knowledge Academy branding
           </CardDescription>
         </CardHeader>
         <CardContent>

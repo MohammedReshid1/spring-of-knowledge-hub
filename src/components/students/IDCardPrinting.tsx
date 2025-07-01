@@ -10,14 +10,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { StudentIDCard } from './StudentIDCard';
-import { CreditCard, Printer, Download, Search } from 'lucide-react';
+import { CreditCard, Printer, Search } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { getHighlightedText } from '@/utils/searchHighlight';
 
 export const IDCardPrinting = () => {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
-  const [schoolName, setSchoolName] = useState('Mountain View School');
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear().toString());
   const [showPreview, setShowPreview] = useState(false);
 
@@ -76,7 +76,7 @@ export const IDCardPrinting = () => {
       return;
     }
 
-    // Create a new window for printing
+    // Create a new window for printing with both front and back
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -92,145 +92,190 @@ export const IDCardPrinting = () => {
             padding: 20px;
             background: white;
           }
-          .id-card {
+          .id-card-container {
             width: 320px;
-            height: 200px;
-            border: 2px solid #3b82f6;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-            padding: 16px;
             margin: 10px;
             display: inline-block;
             vertical-align: top;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             page-break-inside: avoid;
           }
-          .card-content {
-            display: flex;
-            height: 100%;
+          .id-card {
+            width: 320px;
+            height: 200px;
+            border: 2px solid #1e40af;
+            border-radius: 8px;
+            background: white;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
           }
-          .photo-section {
-            width: 80px;
-            margin-right: 16px;
+          .decorative-pattern {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            height: 60px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'%3E%3Cpath d='M0 10c5.5 0 10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10c0 5.5 4.5 10 10 10s10-4.5 10-10h10v10H0z' fill='%2340E0D0'/%3E%3C/svg%3E") repeat-x;
+            background-size: 100px 20px;
+            opacity: 0.3;
+          }
+          .logo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 40px;
+            height: 40px;
+          }
+          .title {
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #1e40af;
           }
           .photo {
+            position: absolute;
+            top: 40px;
+            right: 20px;
             width: 80px;
-            height: 96px;
+            height: 80px;
+            border: 4px solid #1e40af;
+            border-radius: 50%;
             background: #e5e7eb;
-            border: 2px solid #9ca3af;
-            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 10px;
             color: #6b7280;
+            overflow: hidden;
+          }
+          .photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
           }
           .info-section {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-          }
-          .header {
-            text-align: center;
-            margin-bottom: 8px;
-          }
-          .school-name {
-            font-size: 14px;
-            font-weight: bold;
-            color: #1e40af;
-            margin: 0;
-            line-height: 1.2;
-          }
-          .card-type {
-            font-size: 10px;
-            color: #2563eb;
-            margin: 0;
-          }
-          .student-info {
-            flex: 1;
-          }
-          .student-name {
-            font-size: 12px;
-            font-weight: 600;
-            color: #374151;
-            margin: 0 0 4px 0;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #40E0D0;
+            color: white;
+            padding: 10px;
           }
           .info-row {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
             margin: 2px 0;
-            font-size: 10px;
+            font-size: 11px;
           }
-          .label {
-            color: #4b5563;
+          .info-label {
+            width: 100px;
+            font-weight: 600;
           }
-          .value {
-            font-weight: 500;
+          .info-value {
+            font-weight: bold;
           }
-          .grade-badge {
-            background: #f3f4f6;
-            border: 1px solid #d1d5db;
-            padding: 1px 4px;
-            border-radius: 4px;
-            font-size: 9px;
+          .back-card {
+            background: white;
+            border: 2px solid #1e40af;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
           }
-          .footer {
+          .back-title {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            right: 0;
             text-align: center;
-            padding-top: 8px;
-            border-top: 1px solid #3b82f6;
+            font-size: 16px;
+            font-weight: bold;
+            color: #1e40af;
+          }
+          .back-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #40E0D0;
+            color: white;
+            padding: 15px;
+          }
+          .contact-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
             font-size: 10px;
-            color: #2563eb;
+          }
+          .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
           }
           @media print {
             body { margin: 0; padding: 10px; }
-            .id-card { margin: 5px; }
+            .id-card-container { margin: 5px; }
           }
         </style>
       </head>
       <body>
         ${selectedStudentData.map(student => `
-          <div class="id-card">
-            <div class="card-content">
-              <div class="photo-section">
-                <div class="photo">
-                  ${student.photo_url ? 
-                    `<img src="${student.photo_url}" style="width: 100%; height: 100%; object-fit: cover;" alt="${student.first_name} ${student.last_name}">` : 
-                    'No Photo'
-                  }
-                </div>
+          <div class="id-card-container">
+            <!-- Front Card -->
+            <div class="id-card">
+              <div class="decorative-pattern"></div>
+              <div class="logo">🎓</div>
+              <div class="title">STUDENT ID CARD</div>
+              <div class="photo">
+                ${student.photo_url ? 
+                  `<img src="${student.photo_url}" alt="${student.first_name} ${student.last_name}">` : 
+                  'No Photo'
+                }
               </div>
               <div class="info-section">
-                <div class="header">
-                  <h3 class="school-name">${schoolName}</h3>
-                  <p class="card-type">Student ID Card</p>
+                <div class="info-row">
+                  <span class="info-label">ID Number</span>
+                  <span class="info-value">: ${student.student_id}</span>
                 </div>
-                <div class="student-info">
-                  <p class="student-name">${student.first_name} ${student.last_name}</p>
-                  <div class="info-row">
-                    <span class="label">ID:</span>
-                    <span class="value">${student.student_id}</span>
-                  </div>
-                  <div class="info-row">
-                    <span class="label">Grade:</span>
-                    <span class="grade-badge">${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
-                  </div>
-                  ${student.current_class ? `
-                    <div class="info-row">
-                      <span class="label">Class:</span>
-                      <span class="value">${student.current_class}</span>
-                    </div>
-                  ` : ''}
-                  ${student.current_section ? `
-                    <div class="info-row">
-                      <span class="label">Section:</span>
-                      <span class="value">${student.current_section}</span>
-                    </div>
-                  ` : ''}
+                <div class="info-row">
+                  <span class="info-label">Full Name</span>
+                  <span class="info-value">: ${student.first_name} ${student.last_name}</span>
                 </div>
-                <div class="footer">
-                  Academic Year ${academicYear}
+                <div class="info-row">
+                  <span class="info-label">Grade Level</span>
+                  <span class="info-value">: ${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Emergency Contact</span>
+                  <span class="info-value">: ${student.emergency_contact_phone || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Back Card -->
+            <div class="id-card back-card">
+              <div class="decorative-pattern"></div>
+              <div class="back-title">SPRING OF KNOWLEDGE ACADEMY</div>
+              <div class="back-info">
+                <div class="contact-grid">
+                  <div class="contact-item">
+                    <span>📞</span>
+                    <span>+123-456-7890</span>
+                  </div>
+                  <div class="contact-item">
+                    <span>🏠</span>
+                    <span>123 Anywhere St., Any City</span>
+                  </div>
+                  <div class="contact-item">
+                    <span>✉️</span>
+                    <span>hello@reallygreatsite.com</span>
+                  </div>
+                  <div class="contact-item">
+                    <span>🌐</span>
+                    <span>www.reallygreatsite.com</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -285,9 +330,9 @@ export const IDCardPrinting = () => {
               <Label htmlFor="school-name">School Name</Label>
               <Input
                 id="school-name"
-                value={schoolName}
-                onChange={(e) => setSchoolName(e.target.value)}
-                placeholder="Enter school name"
+                value="Spring of Knowledge Academy"
+                disabled
+                className="bg-gray-100"
               />
             </div>
             <div>
@@ -362,9 +407,9 @@ export const IDCardPrinting = () => {
                   />
                   <Label htmlFor={student.id} className="flex-1 cursor-pointer">
                     <div className="flex justify-between items-center">
-                      <span>{student.first_name} {student.last_name}</span>
+                      <span>{getHighlightedText(`${student.first_name} ${student.last_name}`, searchTerm)}</span>
                       <div className="text-sm text-gray-500">
-                        {student.student_id} | {formatGradeLevel(student.grade_level)}
+                        {getHighlightedText(student.student_id, searchTerm)} | {formatGradeLevel(student.grade_level)}
                       </div>
                     </div>
                   </Label>
@@ -402,18 +447,17 @@ export const IDCardPrinting = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {selectedStudentData.slice(0, 6).map((student) => (
+              {selectedStudentData.slice(0, 3).map((student) => (
                 <StudentIDCard
                   key={student.id}
                   student={student}
-                  schoolName={schoolName}
                   academicYear={academicYear}
                 />
               ))}
             </div>
-            {selectedStudentData.length > 6 && (
+            {selectedStudentData.length > 3 && (
               <p className="text-sm text-gray-500 mt-4 text-center">
-                ... and {selectedStudentData.length - 6} more cards
+                ... and {selectedStudentData.length - 3} more cards
               </p>
             )}
           </CardContent>
