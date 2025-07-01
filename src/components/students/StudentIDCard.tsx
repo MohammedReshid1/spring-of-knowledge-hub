@@ -41,8 +41,8 @@ export const StudentIDCard = ({
             />
           </div>
 
-          {/* Student Photo - Moved to the right */}
-          <div className="absolute top-[65px] right-[20px] z-20">
+          {/* Student Photo - Moved to right-[35px] */}
+          <div className="absolute top-[65px] right-[35px] z-20">
             <div className="w-[120px] h-[120px] rounded-full overflow-hidden bg-white border-2 border-white">
               {student.photo_url ? (
                 <img 
@@ -58,8 +58,8 @@ export const StudentIDCard = ({
             </div>
           </div>
 
-          {/* Student Information - Moved up to top-[135px] */}
-          <div className="absolute top-[135px] left-[140px] z-20 space-y-2 max-w-[140px]">
+          {/* Student Information - Moved to top-[145px] */}
+          <div className="absolute top-[145px] left-[140px] z-20 space-y-2 max-w-[140px]">
             {/* ID Number field - positioned after the colon */}
             <div className="text-white font-semibold text-[8px] leading-tight">
               {student.student_id}
