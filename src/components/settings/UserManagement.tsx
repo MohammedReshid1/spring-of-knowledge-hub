@@ -488,45 +488,6 @@ export const UserManagement = () => {
             </div>
           </div>
         </CardContent>
-      </Dialog>
-
-      {/* Role Descriptions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Info className="h-5 w-5" />
-            User Role Descriptions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge className="bg-red-100 text-red-800" variant="outline">
-                  admin
-                </Badge>
-                <span className="font-semibold">Administrator</span>
-              </div>
-              <p className="text-sm text-gray-600">
-                Full system access. Can create, edit, and delete all records including students, classes, teachers, and users. 
-                Can manage system settings and configurations.
-              </p>
-            </div>
-            
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge className="bg-blue-100 text-blue-800" variant="outline">
-                  registrar
-                </Badge>
-                <span className="font-semibold">Registrar</span>
-              </div>
-              <p className="text-sm text-gray-600">
-                Limited access focused on student management. Can create and view student records, process registrations, 
-                and generate reports. Cannot edit or delete existing records or manage users.
-              </p>
-            </div>
-          </div>
-        </CardContent>
       </Card>
     </div>
   );
