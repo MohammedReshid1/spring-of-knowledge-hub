@@ -41,9 +41,9 @@ export const StudentIDCard = ({
             />
           </div>
 
-          {/* Student Photo - Positioned in the circle */}
-          <div className="absolute top-[45px] left-[40px] z-20">
-            <div className="w-[90px] h-[90px] rounded-full overflow-hidden bg-white">
+          {/* Student Photo - Positioned in the circle on the right */}
+          <div className="absolute top-[40px] right-[30px] z-20">
+            <div className="w-[85px] h-[85px] rounded-full overflow-hidden bg-white border-2 border-white">
               {student.photo_url ? (
                 <img 
                   src={student.photo_url} 
@@ -58,28 +58,26 @@ export const StudentIDCard = ({
             </div>
           </div>
 
-          {/* Student Information - Positioned after the colons in the designated fields */}
-          <div className="absolute top-[50px] left-[160px] z-20">
-            <div className="space-y-3 text-black">
-              {/* ID Number */}
-              <div className="text-sm font-bold">
-                {student.student_id}
-              </div>
-              
-              {/* Name and Father's Name */}
-              <div className="text-sm font-semibold">
-                {student.first_name} {student.last_name} {student.father_name || ''}
-              </div>
-              
-              {/* Grade Level */}
-              <div className="text-sm">
-                {formatGradeLevel(student.grade_level)}
-              </div>
-              
-              {/* Emergency Contact */}
-              <div className="text-sm">
-                {student.emergency_contact_phone || 'N/A'}
-              </div>
+          {/* Student Information - Positioned in the designated fields */}
+          <div className="absolute top-[140px] left-[30px] z-20 space-y-2">
+            {/* ID Number field */}
+            <div className="text-white font-semibold text-sm">
+              {student.student_id}
+            </div>
+            
+            {/* Full Name field */}
+            <div className="text-white font-semibold text-sm">
+              {student.first_name} {student.last_name} {student.father_name || ''}
+            </div>
+            
+            {/* Grade Level field */}
+            <div className="text-white font-semibold text-sm">
+              {formatGradeLevel(student.grade_level)}
+            </div>
+            
+            {/* Emergency Contact field */}
+            <div className="text-white font-semibold text-sm">
+              {student.emergency_contact_phone || 'N/A'}
             </div>
           </div>
         </CardContent>
