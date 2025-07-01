@@ -41,9 +41,9 @@ export const StudentIDCard = ({
             />
           </div>
 
-          {/* Student Photo - Positioned to align with the circle, bigger and moved down-left */}
-          <div className="absolute top-[45px] right-[35px] z-20">
-            <div className="w-[95px] h-[95px] rounded-full overflow-hidden bg-white border-2 border-white">
+          {/* Student Photo - Made bigger and moved further down-left */}
+          <div className="absolute top-[52px] right-[25px] z-20">
+            <div className="w-[105px] h-[105px] rounded-full overflow-hidden bg-white border-2 border-white">
               {student.photo_url ? (
                 <img 
                   src={student.photo_url} 
@@ -58,25 +58,25 @@ export const StudentIDCard = ({
             </div>
           </div>
 
-          {/* Student Information - Positioned after the colons in each field, smaller text, confined to blue area */}
-          <div className="absolute top-[140px] left-[95px] z-20 space-y-3 max-w-[180px]">
+          {/* Student Information - Positioned after the colons in each field, even smaller text */}
+          <div className="absolute top-[140px] left-[95px] z-20 space-y-3 max-w-[170px]">
             {/* ID Number field - positioned after the colon */}
-            <div className="text-white font-semibold text-xs">
+            <div className="text-white font-semibold text-[10px]">
               {student.student_id}
             </div>
             
             {/* Full Name field - positioned after the colon */}
-            <div className="text-white font-semibold text-xs">
+            <div className="text-white font-semibold text-[10px]">
               {student.first_name} {student.last_name} {student.father_name || ''}
             </div>
             
             {/* Grade Level field - positioned after the colon */}
-            <div className="text-white font-semibold text-xs">
+            <div className="text-white font-semibold text-[10px]">
               {formatGradeLevel(student.grade_level)}
             </div>
             
             {/* Emergency Contact field - positioned after the colon */}
-            <div className="text-white font-semibold text-xs">
+            <div className="text-white font-semibold text-[10px]">
               {student.emergency_contact_phone || 'N/A'}
             </div>
           </div>
