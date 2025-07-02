@@ -159,7 +159,9 @@ export const AccountManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="am">Amharic</SelectItem>
+                  <SelectItem value="am" disabled>
+                    Amharic (Coming Soon)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

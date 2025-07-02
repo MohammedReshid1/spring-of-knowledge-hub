@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Footer } from '@/components/layout/Footer';
 import { 
   GraduationCap, 
   Users, 
@@ -67,7 +68,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const displayName = userProfile?.full_name || user?.email || 'User';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -96,9 +97,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         </div>
       </header>
 
-      <div className="flex">
+      <div className="flex flex-1">
         {/* Sidebar */}
-        <nav className="w-64 bg-white shadow-sm h-[calc(100vh-64px)]">
+        <nav className="w-64 bg-white shadow-sm">
           <div className="p-4">
             <ul className="space-y-2">
               {navigation.map((item) => {
@@ -125,12 +126,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           </div>
         </nav>
 
-        {/* Main content */}
-        <main className="flex-1 p-6">
-          <div className="mx-auto max-w-7xl">
-            {children}
-          </div>
-        </main>
+        {/* Main content area with footer */}
+        <div className="flex-1 flex flex-col">
+          <main className="flex-1 p-6">
+            <div className="mx-auto max-w-7xl">
+              {children}
+            </div>
+          </main>
+          <Footer />
+        </div>
       </div>
     </div>
   );
