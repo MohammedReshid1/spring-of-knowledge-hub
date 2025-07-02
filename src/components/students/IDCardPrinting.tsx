@@ -149,7 +149,17 @@ export const IDCardPrinting = () => {
             .id-card-container { margin: 5px; }
             @page { margin: 0.5in; }
             .photo-overlay {
-              top: 55px !important;
+              top: 60px !important;
+              right: 24px !important;
+            }
+            .info-overlay {
+              top: 116px !important;
+              left: 112px !important;
+            }
+            .info-field {
+              color: white !important;
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
             }
           }
         </style>
