@@ -3,11 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen } from 'lucide-react';
+import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen, Search, Filter } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ClassForm } from './ClassForm';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
@@ -15,6 +16,7 @@ import { useRoleAccess } from '@/hooks/useRoleAccess';
 export const ClassManagement = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
 
@@ -198,6 +200,19 @@ export const ClassManagement = () => {
     queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
   };
 
+  // Filter classes based on search term
+  const filteredClasses = classes?.filter(cls => {
+    if (!searchTerm) return true;
+    
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      cls.class_name.toLowerCase().includes(searchLower) ||
+      (cls.grade_levels?.grade && formatGradeLevel(cls.grade_levels.grade).toLowerCase().includes(searchLower)) ||
+      (cls.teacher?.full_name && cls.teacher.full_name.toLowerCase().includes(searchLower)) ||
+      cls.academic_year.toLowerCase().includes(searchLower)
+    );
+  }) || [];
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -298,11 +313,37 @@ export const ClassManagement = () => {
         </CardContent>
       </Card>
 
+      {/* Search and Filter Section */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Search & Filter Classes
+          </CardTitle>
+          <p className="text-sm text-gray-600">Search by class name, grade level, teacher, or academic year</p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by class name, grade level, teacher, or academic year..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Classes Table */}
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">
-            Active Classes ({classes?.length || 0})
+            Classes ({filteredClasses.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -311,15 +352,21 @@ export const ClassManagement = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="text-gray-600 mt-4">Loading classes...</p>
             </div>
-          ) : !classes || classes.length === 0 ? (
+          ) : !filteredClasses || filteredClasses.length === 0 ? (
             <div className="text-center py-12">
               <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">No classes found</p>
-              <p className="text-gray-500 text-sm mb-4">Start by creating your first class</p>
-              <Button onClick={() => setIsFormOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Class
-              </Button>
+              <p className="text-gray-600 font-medium">
+                {searchTerm ? 'No classes found matching your search' : 'No classes found'}
+              </p>
+              <p className="text-gray-500 text-sm mb-4">
+                {searchTerm ? 'Try adjusting your search terms' : 'Start by creating your first class'}
+              </p>
+              {!searchTerm && (
+                <Button onClick={() => setIsFormOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Class
+                </Button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -337,7 +384,7 @@ export const ClassManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {classes.map((cls) => {
+                  {filteredClasses.map((cls) => {
                     const percentage = cls.max_capacity > 0 ? (cls.current_enrollment / cls.max_capacity) * 100 : 0;
                     
                     return (

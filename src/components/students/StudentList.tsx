@@ -519,11 +519,15 @@ export const StudentList = () => {
 
     const searchLower = searchTerm.toLowerCase();
     
-    // Enhanced search: ID, First Name, Mother's Name
+    // Enhanced search: ID, First Name, Mother's Name, Phone Numbers
     const matchesSearch = !searchTerm || 
       student.student_id.toLowerCase().includes(searchLower) ||
       student.first_name.toLowerCase().includes(searchLower) ||
-      (student.mother_name && student.mother_name.toLowerCase().includes(searchLower));
+      student.last_name.toLowerCase().includes(searchLower) ||
+      (student.mother_name && student.mother_name.toLowerCase().includes(searchLower)) ||
+      (student.phone && student.phone.toLowerCase().includes(searchLower)) ||
+      (student.phone_secondary && student.phone_secondary.toLowerCase().includes(searchLower)) ||
+      (student.email && student.email.toLowerCase().includes(searchLower));
     
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
     const matchesGrade = gradeFilter === 'all' || student.grade_level === gradeFilter;
@@ -781,7 +785,7 @@ export const StudentList = () => {
             <Filter className="h-5 w-5" />
             Real-time Search & Filter Students
           </CardTitle>
-          <p className="text-sm text-gray-600">Search by Student ID, First Name, or Mother's Name</p>
+          <p className="text-sm text-gray-600">Search by Student ID, Name, Mother's Name, Phone Numbers, or Email</p>
           {selectedStudents.size > 0 && (
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline" className="bg-blue-50 text-blue-700">
@@ -803,7 +807,7 @@ export const StudentList = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by Student ID, First Name, or Mother's Name..."
+                  placeholder="Search by Student ID, Name, Mother's Name, Phone Numbers, or Email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
