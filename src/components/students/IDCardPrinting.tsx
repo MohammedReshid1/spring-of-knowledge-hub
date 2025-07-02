@@ -149,8 +149,8 @@ export const IDCardPrinting = () => {
             .id-card-container { margin: 5px; }
             @page { margin: 0.5in; }
             .photo-overlay {
-              top: 55px !important;
-              right: 28px !important;
+              top: 53px !important;
+              right: 26px !important;
             }
             .info-overlay {
               top: 116px !important;
