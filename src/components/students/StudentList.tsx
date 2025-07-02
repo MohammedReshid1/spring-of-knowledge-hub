@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown } from 'lucide-react';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
@@ -29,6 +30,7 @@ export const StudentList = () => {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const queryClient = useQueryClient();
+  const { canDelete } = useRoleAccess();
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -474,6 +476,14 @@ export const StudentList = () => {
   };
 
   const handleDelete = (studentId: string) => {
+    if (!canDelete) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to delete students.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (confirm('Are you sure you want to delete this student? This action cannot be undone.')) {
       deleteStudentMutation.mutate(studentId);
     }
@@ -853,7 +863,8 @@ export const StudentList = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleDelete(student.id)}
-                            className="hover:bg-red-50 hover:text-red-600"
+                            className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!canDelete}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

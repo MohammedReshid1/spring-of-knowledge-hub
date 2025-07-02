@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt } from 'lucide-react';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
 import { EnhancedPaymentForm } from './EnhancedPaymentForm';
 import { Link } from 'react-router-dom';
@@ -24,6 +25,7 @@ export const PaymentList = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [cycleFilter, setCycleFilter] = useState('all');
   const queryClient = useQueryClient();
+  const { isRegistrar, canDelete } = useRoleAccess();
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -226,6 +228,14 @@ export const PaymentList = () => {
   };
 
   const handleDelete = (paymentId: string) => {
+    if (!canDelete) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to delete payments.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
       deletePaymentMutation.mutate(paymentId);
     }
@@ -581,7 +591,8 @@ export const PaymentList = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDelete(payment.id)}
-                              className="hover:bg-red-50 hover:text-red-600"
+                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              disabled={!canDelete}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

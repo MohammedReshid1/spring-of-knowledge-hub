@@ -5,9 +5,11 @@ import { UserManagement } from './UserManagement';
 import { AccountManagement } from './AccountManagement';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 export const AccountSettings = () => {
   const [activeTab, setActiveTab] = useState<'account' | 'users'>('account');
+  const { isRegistrar } = useRoleAccess();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -26,20 +28,22 @@ export const AccountSettings = () => {
           <User className="h-4 w-4" />
           Account Management
         </Button>
-        <Button
-          variant={activeTab === 'users' ? 'default' : 'ghost'}
-          onClick={() => setActiveTab('users')}
-          className="flex items-center gap-2"
-        >
-          <Users className="h-4 w-4" />
-          User Management
-        </Button>
+        {!isRegistrar && (
+          <Button
+            variant={activeTab === 'users' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('users')}
+            className="flex items-center gap-2"
+          >
+            <Users className="h-4 w-4" />
+            User Management
+          </Button>
+        )}
       </div>
 
       {/* Tab Content */}
       <div className="space-y-6">
         {activeTab === 'account' && <AccountManagement />}
-        {activeTab === 'users' && <UserManagement />}
+        {activeTab === 'users' && !isRegistrar && <UserManagement />}
       </div>
     </div>
   );

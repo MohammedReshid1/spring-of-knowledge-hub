@@ -59,14 +59,7 @@ export const StudentIDCard = ({
               }}
             />
             
-            {/* Fallback design if SVG fails */}
-            {frontImageLoaded && (
-              <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-blue-500 flex items-start justify-start p-4">
-                <div className="text-white font-bold text-lg">
-                  Spring of Knowledge Academy
-                </div>
-              </div>
-            )}
+            {/* Fallback design if SVG fails - removed gradient background */}
           </div>
 
           {/* Student Photo - Adjusted position: moved slightly down and left */}
@@ -130,11 +123,7 @@ export const StudentIDCard = ({
               }}
             />
             
-            {/* Fallback design for back - clean without text */}
-            {backImageLoaded && (
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-green-400">
-              </div>
-            )}
+            {/* Fallback design for back - removed gradient background */}
           </div>
         </CardContent>
       </Card>

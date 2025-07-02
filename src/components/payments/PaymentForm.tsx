@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, CreditCard, DollarSign } from 'lucide-react';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -38,6 +39,7 @@ interface PaymentFormProps {
 
 export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isRegistrar } = useRoleAccess();
 
   const form = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -350,6 +352,7 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
                           placeholder="0.00"
                           {...field}
                           onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          disabled={payment && isRegistrar}
                         />
                       </FormControl>
                       <FormMessage />
@@ -395,6 +398,7 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
                           <FormControl>
                             <Button
                               variant="outline"
+                              disabled={payment && isRegistrar}
                               className={cn(
                                 "w-full pl-3 text-left font-normal",
                                 !field.value && "text-muted-foreground"
@@ -415,7 +419,7 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
                             selected={field.value}
                             onSelect={field.onChange}
                             disabled={(date) =>
-                              date > new Date() || date < new Date("1900-01-01")
+                              date > new Date() || date < new Date("1900-01-01") || (payment && isRegistrar)
                             }
                             initialFocus
                           />
@@ -432,7 +436,7 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Payment Method *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={payment && isRegistrar}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select method" />
@@ -459,7 +463,7 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
                   <FormItem>
                     <FormLabel>Academic Year *</FormLabel>
                     <FormControl>
-                      <Input placeholder="2024" {...field} />
+                      <Input placeholder="2024" {...field} disabled={payment && isRegistrar} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
