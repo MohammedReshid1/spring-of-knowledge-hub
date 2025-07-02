@@ -8,13 +8,15 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { User } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { User, Upload, Camera } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 const teacherSchema = z.object({
   full_name: z.string().min(1, 'Full name is required'),
-  email: z.string().email('Valid email is required'),
-  phone: z.string().optional(),
+  phone: z.string().min(1, 'Phone number is required'),
+  email: z.string().email('Valid email is required').optional().or(z.literal('')),
+  photo_url: z.string().optional(),
 });
 
 type TeacherFormData = z.infer<typeof teacherSchema>;
@@ -26,23 +28,65 @@ interface TeacherFormProps {
 
 export const TeacherForm = ({ teacher, onSuccess }: TeacherFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string>(teacher?.photo_url || '');
 
   const form = useForm<TeacherFormData>({
     resolver: zodResolver(teacherSchema),
     defaultValues: {
       full_name: teacher?.full_name || '',
-      email: teacher?.email || '',
       phone: teacher?.phone || '',
+      email: teacher?.email || '',
+      photo_url: teacher?.photo_url || '',
     },
   });
 
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setPhotoPreview(result);
+        form.setValue('photo_url', result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadPhoto = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `teacher_${Math.random()}.${fileExt}`;
+    const filePath = fileName;
+
+    const { error: uploadError } = await supabase.storage
+      .from('student-photos')
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('student-photos')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  };
+
   const submitMutation = useMutation({
     mutationFn: async (data: TeacherFormData) => {
+      let photoUrl = data.photo_url;
+
+      if (photoFile) {
+        photoUrl = await uploadPhoto(photoFile);
+      }
+
       const payload = {
         full_name: data.full_name,
-        email: data.email,
-        phone: data.phone || null,
+        phone: data.phone,
+        email: data.email || null,
         role: 'teacher' as const,
+        photo_url: photoUrl || null,
       };
 
       if (teacher) {
@@ -78,6 +122,10 @@ export const TeacherForm = ({ teacher, onSuccess }: TeacherFormProps) => {
     submitMutation.mutate(data);
   };
 
+  const getInitials = (fullName: string) => {
+    return fullName.split(' ').map(n => n.charAt(0)).join('').toUpperCase();
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -89,6 +137,38 @@ export const TeacherForm = ({ teacher, onSuccess }: TeacherFormProps) => {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Photo Upload Section - Optional */}
+            <div className="flex flex-col items-center space-y-4 p-4 border rounded-lg bg-gray-50">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={photoPreview} alt="Teacher photo" />
+                <AvatarFallback className="bg-primary/10 text-primary text-lg">
+                  {form.watch('full_name') 
+                    ? getInitials(form.watch('full_name'))
+                    : <Camera className="h-8 w-8" />
+                  }
+                </AvatarFallback>
+              </Avatar>
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                  id="photo-upload"
+                />
+                <label htmlFor="photo-upload">
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <span className="cursor-pointer">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Photo (Optional)
+                    </span>
+                  </Button>
+                </label>
+              </div>
+              <p className="text-xs text-gray-500">Teacher photo is optional</p>
+            </div>
+
             <FormField
               control={form.control}
               name="full_name"
@@ -105,12 +185,12 @@ export const TeacherForm = ({ teacher, onSuccess }: TeacherFormProps) => {
 
             <FormField
               control={form.control}
-              name="email"
+              name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email *</FormLabel>
+                  <FormLabel>Phone Number *</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="Enter email address" {...field} />
+                    <Input placeholder="Enter phone number" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -119,12 +199,12 @@ export const TeacherForm = ({ teacher, onSuccess }: TeacherFormProps) => {
 
             <FormField
               control={form.control}
-              name="phone"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone</FormLabel>
+                  <FormLabel>Email (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter phone number" {...field} />
+                    <Input type="email" placeholder="Enter email address (optional)" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,11 +16,11 @@ export const AccountManagement = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
-  // System settings
+  // System settings with fixed school name
   const [systemSettings, setSystemSettings] = useState(() => {
     const stored = localStorage.getItem('systemSettings');
     return stored ? JSON.parse(stored) : {
-      schoolName: 'Mountain View School',
+      schoolName: 'Spring of Knowledge Academy', // Fixed value
       currency: 'ETB',
       academicYear: new Date().getFullYear().toString(),
       language: 'en'
@@ -77,6 +76,16 @@ export const AccountManagement = () => {
   };
 
   const handleSystemSettingsChange = (field: string, value: string) => {
+    // Prevent changing school name
+    if (field === 'schoolName') {
+      toast({
+        title: "Notice",
+        description: "School name cannot be changed",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const updated = { ...systemSettings, [field]: value };
     setSystemSettings(updated);
     localStorage.setItem('systemSettings', JSON.stringify(updated));
@@ -104,9 +113,11 @@ export const AccountManagement = () => {
               <Input
                 id="schoolName"
                 value={systemSettings.schoolName}
-                onChange={(e) => handleSystemSettingsChange('schoolName', e.target.value)}
-                placeholder="Enter school name"
+                disabled
+                className="bg-gray-100 cursor-not-allowed"
+                placeholder="Spring of Knowledge Academy"
               />
+              <p className="text-xs text-gray-500">School name is fixed and cannot be changed</p>
             </div>
             
             <div className="space-y-2">
@@ -177,12 +188,13 @@ export const AccountManagement = () => {
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="Enter current password"
+                  className="pr-10"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

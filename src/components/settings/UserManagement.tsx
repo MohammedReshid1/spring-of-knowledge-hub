@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,7 +17,7 @@ import { z } from 'zod';
 import { toast } from '@/hooks/use-toast';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
-// Role options based on user's permissions
+// Role options based on user's permissions (excluding teacher)
 const getUserRoleOptions = (canManageAdmins: boolean) => {
   if (canManageAdmins) {
     return ['admin', 'registrar', 'super_admin'] as const;
@@ -31,13 +30,13 @@ const createUserSchema = (canManageAdmins: boolean) => z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   full_name: z.string().min(1, 'Full name is required'),
   role: z.enum(getUserRoleOptions(canManageAdmins)),
-  phone: z.string().optional(),
+  phone: z.string().min(1, 'Phone number is required'),
 });
 
 const createEditUserSchema = (canManageAdmins: boolean) => z.object({
   full_name: z.string().min(1, 'Full name is required'),
   role: z.enum(getUserRoleOptions(canManageAdmins)),
-  phone: z.string().optional(),
+  phone: z.string().min(1, 'Phone number is required'),
 });
 
 export const UserManagement = () => {
@@ -79,6 +78,7 @@ export const UserManagement = () => {
       const { data, error } = await supabase
         .from('users')
         .select('*')
+        .neq('role', 'teacher') // Exclude teachers from user management
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -303,9 +303,9 @@ export const UserManagement = () => {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Phone</FormLabel>
+                        <FormLabel>Phone *</FormLabel>
                         <FormControl>
-                          <Input placeholder="Enter phone number (optional)" {...field} />
+                          <Input placeholder="Enter phone number" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -444,9 +444,9 @@ export const UserManagement = () => {
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone</FormLabel>
+                    <FormLabel>Phone *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter phone number (optional)" {...field} />
+                      <Input placeholder="Enter phone number" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

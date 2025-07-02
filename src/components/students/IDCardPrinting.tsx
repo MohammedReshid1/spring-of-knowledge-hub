@@ -78,6 +78,7 @@ export const IDCardPrinting = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
+    // Wait for images to load before printing
     const printContent = `
       <!DOCTYPE html>
       <html>
@@ -146,6 +147,7 @@ export const IDCardPrinting = () => {
           @media print {
             body { margin: 0; padding: 10px; }
             .id-card-container { margin: 5px; }
+            @page { margin: 0.5in; }
           }
         </style>
       </head>
@@ -154,10 +156,10 @@ export const IDCardPrinting = () => {
           <div class="id-card-container">
             <!-- Front Card -->
             <div class="id-card">
-              <img src="/Green Blue Modern Student ID Card.svg" alt="ID Card Front" class="svg-background">
+              <img src="${window.location.origin}/Green Blue Modern Student ID Card.svg" alt="ID Card Front" class="svg-background" onload="this.style.opacity=1" style="opacity:0">
               <div class="photo-overlay">
                 ${student.photo_url ? 
-                  `<img src="${student.photo_url}" alt="${student.first_name} ${student.last_name}">` : 
+                  `<img src="${student.photo_url}" alt="${student.first_name} ${student.last_name}" onload="this.style.opacity=1" style="opacity:0">` : 
                   '<div style="width:100%;height:100%;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6b7280;">Photo</div>'
                 }
               </div>
@@ -171,10 +173,45 @@ export const IDCardPrinting = () => {
             
             <!-- Back Card -->
             <div class="id-card">
-              <img src="/2.svg" alt="ID Card Back" class="svg-background">
+              <img src="${window.location.origin}/2.svg" alt="ID Card Back" class="svg-background" onload="this.style.opacity=1" style="opacity:0">
             </div>
           </div>
         `).join('')}
+        
+        <script>
+          // Wait for all images to load before printing
+          let imagesLoaded = 0;
+          const totalImages = document.querySelectorAll('img').length;
+          
+          if (totalImages === 0) {
+            window.print();
+          } else {
+            document.querySelectorAll('img').forEach(img => {
+              if (img.complete) {
+                imagesLoaded++;
+                img.style.opacity = '1';
+              } else {
+                img.onload = () => {
+                  imagesLoaded++;
+                  img.style.opacity = '1';
+                  if (imagesLoaded === totalImages) {
+                    setTimeout(() => window.print(), 500);
+                  }
+                };
+                img.onerror = () => {
+                  imagesLoaded++;
+                  if (imagesLoaded === totalImages) {
+                    setTimeout(() => window.print(), 500);
+                  }
+                };
+              }
+            });
+            
+            if (imagesLoaded === totalImages) {
+              setTimeout(() => window.print(), 500);
+            }
+          }
+        </script>
       </body>
       </html>
     `;
@@ -182,10 +219,6 @@ export const IDCardPrinting = () => {
     printWindow.document.write(printContent);
     printWindow.document.close();
     printWindow.focus();
-    
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
 
     toast({
       title: "Printing initiated",
