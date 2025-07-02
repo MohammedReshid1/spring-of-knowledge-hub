@@ -20,7 +20,8 @@ import {
   CheckCircle,
   Clock,
   PieChart,
-  FileText
+  FileText,
+  Download
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
@@ -28,6 +29,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 export const PaymentDashboard = () => {
   const [reportType, setReportType] = useState('quarterly');
@@ -313,6 +315,54 @@ export const PaymentDashboard = () => {
     });
   };
 
+  const exportToExcel = () => {
+    if (!paymentStats?.allPayments) {
+      toast({
+        title: "Error",
+        description: "No payment data available for export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportData = paymentStats.allPayments.map(payment => ({
+      'Student Name': payment.students ? `${payment.students.first_name} ${payment.students.last_name}` : 'Unknown',
+      'Student ID': payment.students?.id || 'N/A',
+      'Amount Paid': formatCurrency(payment.amount_paid || 0),
+      'Payment Status': payment.payment_status || 'Unknown',
+      'Payment Cycle': payment.payment_cycle || 'N/A',
+      'Academic Year': payment.academic_year || 'N/A',
+      'Payment Date': payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'No date',
+      'Grade Level': payment.students?.grade_level ? formatGradeLevel(payment.students.grade_level) : 'N/A',
+      'Notes': payment.notes || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Payments');
+
+    // Set column widths
+    const colWidths = [
+      { wch: 20 }, // Student Name
+      { wch: 15 }, // Student ID
+      { wch: 12 }, // Amount Paid
+      { wch: 15 }, // Payment Status
+      { wch: 15 }, // Payment Cycle
+      { wch: 12 }, // Academic Year
+      { wch: 12 }, // Payment Date
+      { wch: 12 }, // Grade Level
+      { wch: 30 }  // Notes
+    ];
+    worksheet['!cols'] = colWidths;
+
+    XLSX.writeFile(workbook, `payments_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({
+      title: "Success",
+      description: "Payment data exported successfully",
+    });
+  };
+
   const formatGradeLevel = (grade: string) => {
     return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
@@ -355,6 +405,10 @@ export const PaymentDashboard = () => {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <Button variant="outline" onClick={exportToExcel}>
+            <Download className="h-4 w-4 mr-2" />
+            Export to Excel
+          </Button>
           <Link to="/payments">
             <Button variant="outline">
               <CreditCard className="h-4 w-4 mr-2" />

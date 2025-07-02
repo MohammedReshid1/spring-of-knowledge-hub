@@ -489,6 +489,7 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
                           placeholder="0.00"
                           {...field}
                           onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          disabled={userRole === 'registrar' && !!payment}
                         />
                       </FormControl>
                       <FormMessage />
@@ -529,7 +530,7 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Payment Cycle *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={userRole === 'registrar' && !!payment}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select cycle" />
@@ -555,7 +556,7 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
                     <FormItem>
                       <FormLabel>Academic Year *</FormLabel>
                       <FormControl>
-                        <Input placeholder="2024" {...field} />
+                        <Input placeholder="2024" {...field} disabled={userRole === 'registrar' && !!payment} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -575,6 +576,7 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
                           <FormControl>
                             <Button
                               variant="outline"
+                              disabled={userRole === 'registrar' && !!payment}
                               className={cn(
                                 "w-full pl-3 text-left font-normal",
                                 !field.value && "text-muted-foreground"
@@ -612,7 +614,7 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Payment Method *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={userRole === 'registrar' && !!payment}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select method" />

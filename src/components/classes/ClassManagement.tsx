@@ -10,11 +10,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ClassForm } from './ClassForm';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 export const ClassManagement = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const queryClient = useQueryClient();
+  const { canDelete } = useRoleAccess();
 
   // Real-time subscriptions
   useEffect(() => {
@@ -392,7 +394,8 @@ export const ClassManagement = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDelete(cls.id)}
-                              className="hover:bg-red-50 hover:text-red-600"
+                              disabled={!canDelete}
+                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

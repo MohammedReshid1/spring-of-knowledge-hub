@@ -34,6 +34,7 @@ const studentSchema = z.object({
   medical_info: z.string().optional(),
   previous_school: z.string().min(1, 'Previous school is required'),
   photo_url: z.string().min(1, 'Student photo is required'),
+  birth_certificate_url: z.string().optional(),
 });
 
 type StudentFormData = z.infer<typeof studentSchema>;
@@ -47,6 +48,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>(student?.photo_url || '');
+  const [birthCertFile, setBirthCertFile] = useState<File | null>(null);
 
   const form = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
@@ -68,6 +70,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
       medical_info: student?.medical_info || '',
       previous_school: student?.previous_school || '',
       photo_url: student?.photo_url || '',
+      birth_certificate_url: student?.birth_certificate_url || '',
     },
   });
 
@@ -97,6 +100,13 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
     }
   };
 
+  const handleBirthCertChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setBirthCertFile(file);
+    }
+  };
+
   const uploadPhoto = async (file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${Math.random()}.${fileExt}`;
@@ -115,15 +125,37 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
     return data.publicUrl;
   };
 
+  const uploadBirthCertificate = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `birth_cert_${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('student-photos')
+      .upload(fileName, file);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('student-photos')
+      .getPublicUrl(fileName);
+
+    return data.publicUrl;
+  };
+
   const submitMutation = useMutation({
     mutationFn: async (data: StudentFormData) => {
-      let photoUrl = data.photo_url;
+        let photoUrl = data.photo_url;
+        let birthCertUrl = data.birth_certificate_url;
 
-      if (photoFile) {
-        photoUrl = await uploadPhoto(photoFile);
-      }
+        if (photoFile) {
+          photoUrl = await uploadPhoto(photoFile);
+        }
 
-      const payload = {
+        if (birthCertFile) {
+          birthCertUrl = await uploadBirthCertificate(birthCertFile);
+        }
+
+        const payload = {
         first_name: data.first_name,
         last_name: '', // Remove last name as requested
         mother_name: data.mother_name || null,
@@ -139,10 +171,11 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
         emergency_contact_name: data.emergency_contact_name || null,
         emergency_contact_phone: data.emergency_contact_phone || null,
         medical_info: data.medical_info || null,
-        previous_school: data.previous_school || null,
-        class_id: data.class_id || null,
-        photo_url: photoUrl || null,
-      };
+          previous_school: data.previous_school || null,
+          class_id: data.class_id || null,
+          photo_url: photoUrl || null,
+          birth_certificate_url: birthCertUrl || null,
+        };
 
       if (student) {
         const { error } = await supabase
@@ -513,6 +546,39 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
             </FormItem>
           )}
         />
+
+        {/* Birth Certificate Upload */}
+        <div className="flex flex-col space-y-2 p-4 border rounded-lg bg-gray-50">
+          <FormLabel>Birth Certificate (Optional)</FormLabel>
+          <div className="flex items-center space-x-2">
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={handleBirthCertChange}
+              className="hidden"
+              id="birth-cert-upload"
+            />
+            <label htmlFor="birth-cert-upload">
+              <Button type="button" variant="outline" size="sm" asChild>
+                <span className="cursor-pointer">
+                  <Upload className="h-4 w-4 mr-2" />
+                  {birthCertFile ? 'Change File' : 'Upload Birth Certificate'}
+                </span>
+              </Button>
+            </label>
+            {birthCertFile && (
+              <span className="text-sm text-green-600">
+                {birthCertFile.name}
+              </span>
+            )}
+            {student?.birth_certificate_url && !birthCertFile && (
+              <span className="text-sm text-blue-600">
+                File already uploaded
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">Supported formats: PDF, JPG, PNG</p>
+        </div>
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button

@@ -13,6 +13,7 @@ import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, BookOpen, Filter
 import { toast } from '@/hooks/use-toast';
 import { TeacherForm } from './TeacherForm';
 import { TeacherDetails } from './TeacherDetails';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 export const TeacherManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,6 +22,7 @@ export const TeacherManagement = () => {
   const [editingTeacher, setEditingTeacher] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const queryClient = useQueryClient();
+  const { canDelete } = useRoleAccess();
 
   // Real-time subscription for teachers
   useEffect(() => {
@@ -412,7 +414,8 @@ export const TeacherManagement = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDelete(teacher.id)}
-                              className="hover:bg-red-50 hover:text-red-600"
+                              disabled={!canDelete}
+                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

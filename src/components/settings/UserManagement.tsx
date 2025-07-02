@@ -16,29 +16,42 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from '@/hooks/use-toast';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 
-const userSchema = z.object({
+// Role options based on user's permissions
+const getUserRoleOptions = (canManageAdmins: boolean) => {
+  if (canManageAdmins) {
+    return ['admin', 'registrar', 'super_admin'] as const;
+  }
+  return ['admin', 'registrar'] as const;
+};
+
+const createUserSchema = (canManageAdmins: boolean) => z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   full_name: z.string().min(1, 'Full name is required'),
-  role: z.enum(['admin', 'registrar']),
+  role: z.enum(getUserRoleOptions(canManageAdmins)),
   phone: z.string().optional(),
 });
 
-const editUserSchema = z.object({
+const createEditUserSchema = (canManageAdmins: boolean) => z.object({
   full_name: z.string().min(1, 'Full name is required'),
-  role: z.enum(['admin', 'registrar']),
+  role: z.enum(getUserRoleOptions(canManageAdmins)),
   phone: z.string().optional(),
 });
-
-type UserFormData = z.infer<typeof userSchema>;
-type EditUserFormData = z.infer<typeof editUserSchema>;
 
 export const UserManagement = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const queryClient = useQueryClient();
+  const { canManageAdmins, userRole } = useRoleAccess();
+
+  const userSchema = createUserSchema(canManageAdmins);
+  const editUserSchema = createEditUserSchema(canManageAdmins);
+  
+  type UserFormData = z.infer<typeof userSchema>;
+  type EditUserFormData = z.infer<typeof editUserSchema>;
 
   const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
@@ -183,7 +196,12 @@ export const UserManagement = () => {
   };
 
   const getRoleBadgeColor = (role: string) => {
-    return role === 'admin' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800';
+    switch (role) {
+      case 'super_admin': return 'bg-purple-100 text-purple-800';
+      case 'admin': return 'bg-red-100 text-red-800';
+      case 'registrar': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   };
 
   if (isLoading) {
@@ -272,6 +290,7 @@ export const UserManagement = () => {
                           <SelectContent>
                             <SelectItem value="registrar">Registrar</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
+                            {canManageAdmins && <SelectItem value="super_admin">Super Admin</SelectItem>}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -341,7 +360,12 @@ export const UserManagement = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(user)}>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleEdit(user)}
+                        disabled={user.role === 'admin' && !canManageAdmins}
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button 
@@ -349,6 +373,7 @@ export const UserManagement = () => {
                         size="sm" 
                         className="text-red-600"
                         onClick={() => handleDelete(user.id)}
+                        disabled={user.role === 'admin' && !canManageAdmins}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -403,9 +428,10 @@ export const UserManagement = () => {
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                       <SelectContent>
                         <SelectItem value="registrar">Registrar</SelectItem>
                         <SelectItem value="admin">Admin</SelectItem>
+                        {canManageAdmins && <SelectItem value="super_admin">Super Admin</SelectItem>}
                       </SelectContent>
                     </Select>
                     <FormMessage />

@@ -12,6 +12,7 @@ export const useRoleAccess = () => {
   const canDelete = () => isAdmin() || isSuperAdmin();
   const canCreate = () => isAdmin() || isSuperAdmin() || isRegistrar();
   const canView = () => isAdmin() || isSuperAdmin() || isRegistrar();
+  const canManageAdmins = () => isSuperAdmin();
 
   return {
     isAdmin: isAdmin(),
@@ -21,6 +22,7 @@ export const useRoleAccess = () => {
     canDelete: canDelete(),
     canCreate: canCreate(),
     canView: canView(),
+    canManageAdmins: canManageAdmins(),
     userRole,
   };
 };

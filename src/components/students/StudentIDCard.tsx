@@ -43,7 +43,7 @@ export const StudentIDCard = ({
       <Card className="w-full h-[250px] relative overflow-hidden mb-4">
         <CardContent className="p-0 h-full relative">
           {/* SVG Background with Loading */}
-          <div className="absolute inset-0 bg-white">
+          <div className="absolute inset-0">
             {!frontImageLoaded && <LoadingAnimation />}
             <img 
               src="/Green Blue Modern Student ID Card.svg" 
@@ -55,15 +55,14 @@ export const StudentIDCard = ({
               onError={(e) => {
                 console.log('Front SVG failed to load');
                 setFrontImageLoaded(true);
-                e.currentTarget.style.display = 'none';
+                // Don't hide the image, instead show a fallback
+                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSIjMzB3NCIvPgo8L3N2Zz4K';
               }}
             />
-            
-            {/* Fallback design if SVG fails - removed gradient background */}
           </div>
 
-          {/* Student Photo - Adjusted position: moved slightly down and left */}
-          <div className="absolute top-[75px] right-[30px] z-20">
+          {/* Student Photo - Moved upward and slightly left */}
+          <div className="absolute top-[65px] right-[35px] z-20">
             <div className="w-[130px] h-[130px] rounded-full overflow-hidden bg-white border-2 border-white shadow-lg">
               {student.photo_url ? (
                 <img 
