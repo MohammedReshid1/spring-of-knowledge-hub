@@ -146,12 +146,20 @@ export const UserManagement = () => {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
+      console.log('Attempting to delete user:', userId);
+      const { data: session } = await supabase.auth.getSession();
+      console.log('Current session:', session);
+      
       const { error } = await supabase
         .from('users')
         .delete()
         .eq('id', userId);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        throw error;
+      }
+      console.log('User deleted successfully');
     },
     onSuccess: () => {
       toast({

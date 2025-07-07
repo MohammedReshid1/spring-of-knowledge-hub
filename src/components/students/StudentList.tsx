@@ -251,12 +251,20 @@ export const StudentList = () => {
 
   const deleteStudentMutation = useMutation({
     mutationFn: async (studentId: string) => {
+      console.log('Attempting to delete student:', studentId);
+      const { data: session } = await supabase.auth.getSession();
+      console.log('Current session:', session);
+      
       const { error } = await supabase
         .from('students')
         .delete()
         .eq('id', studentId);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        throw error;
+      }
+      console.log('Student deleted successfully');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
