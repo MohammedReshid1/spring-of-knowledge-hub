@@ -12,7 +12,7 @@ import { PaymentDashboard } from './pages/PaymentDashboard';
 import { AccountSettings } from './pages/AccountSettings';
 import NotFound from './pages/NotFound';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { IDCardManager } from './components/students/IDCardManager';
+import { IDCardManager } from './pages/IDCardManager';
 import { StudentDetailsPage } from '@/pages/StudentDetailsPage';
 
 const queryClient = new QueryClient();

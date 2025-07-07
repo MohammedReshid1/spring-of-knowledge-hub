@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Edit, Trash2, Eye, BookOpenCheck } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, BookOpenCheck, Users, GraduationCap } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDeleteDialog } from '@/components/ui/ConfirmDeleteDialog';
@@ -162,6 +162,47 @@ export const ClassManagement = () => {
           <Plus className="h-4 w-4" />
           <span>Add Class</span>
         </Button>
+      </div>
+
+      {/* Grade Level Capacity Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-600">Total Classes</p>
+                <p className="text-2xl font-bold text-blue-900">{classes?.length || 0}</p>
+              </div>
+              <BookOpenCheck className="h-8 w-8 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-600">Total Enrollment</p>
+                <p className="text-2xl font-bold text-green-900">
+                  {classes?.reduce((sum, cls) => sum + (cls.current_enrollment || 0), 0) || 0}
+                </p>
+              </div>
+              <Users className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-purple-600">Grade Levels</p>
+                <p className="text-2xl font-bold text-purple-900">{gradeLevels?.length || 0}</p>
+              </div>
+              <GraduationCap className="h-8 w-8 text-purple-500" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search and Filters */}
