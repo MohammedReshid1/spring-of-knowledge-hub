@@ -32,16 +32,26 @@ export const StudentIDCard = ({
   };
 
   const formatFullName = (student: Student) => {
-    const parts = [student.first_name, student.last_name];
+    const parts = [];
     
-    // Add father's name if it exists
-    if (student.father_name) {
-      parts.push(student.father_name);
+    // Add first name and last name
+    if (student.first_name) {
+      parts.push(student.first_name.trim());
+    }
+    if (student.last_name) {
+      parts.push(student.last_name.trim());
     }
     
-    // Add grandfather's name only if it exists AND is different from father's name
-    if (student.grandfather_name && student.grandfather_name !== student.father_name) {
-      parts.push(student.grandfather_name);
+    // Add father's name if it exists and is not empty
+    if (student.father_name && student.father_name.trim()) {
+      parts.push(student.father_name.trim());
+    }
+    
+    // Add grandfather's name only if it exists, is not empty, AND is different from father's name
+    if (student.grandfather_name && 
+        student.grandfather_name.trim() && 
+        student.grandfather_name.trim() !== student.father_name?.trim()) {
+      parts.push(student.grandfather_name.trim());
     }
     
     return parts.join(' ');
