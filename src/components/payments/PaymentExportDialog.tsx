@@ -36,11 +36,21 @@ interface PaymentRecord {
   students: Student;
 }
 
-export const PaymentExportDialog = () => {
+interface PaymentExportDialogProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  payments?: PaymentRecord[];
+}
+
+export const PaymentExportDialog = ({ open, onOpenChange, payments: passedPayments }: PaymentExportDialogProps = {}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Use passed props if available, otherwise use internal state
+  const dialogOpen = open !== undefined ? open : isOpen;
+  const setDialogOpen = onOpenChange || setIsOpen;
 
   const { data: students } = useQuery({
     queryKey: ['students-for-payment-export'],
@@ -54,7 +64,7 @@ export const PaymentExportDialog = () => {
       if (error) throw error;
       return data;
     },
-    enabled: isOpen,
+    enabled: dialogOpen,
   });
 
   const filteredStudents = students?.filter(student =>
@@ -81,36 +91,45 @@ export const PaymentExportDialog = () => {
 
   const handleExport = async () => {
     try {
-      const studentIds = selectedStudents.length > 0 ? selectedStudents : students?.map(s => s.id) || [];
-      
-      if (studentIds.length === 0) {
-        toast({
-          title: "No students found",
-          description: "There are no students to export payment records for.",
-          variant: "destructive",
-        });
-        return;
+      let paymentsToExport;
+
+      if (passedPayments && passedPayments.length > 0) {
+        // Use passed payments if available
+        paymentsToExport = passedPayments;
+      } else {
+        // Fetch payments from database
+        const studentIds = selectedStudents.length > 0 ? selectedStudents : students?.map(s => s.id) || [];
+        
+        if (studentIds.length === 0) {
+          toast({
+            title: "No students found",
+            description: "There are no students to export payment records for.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const { data: payments, error } = await supabase
+          .from('registration_payments')
+          .select(`
+            *,
+            students:student_id (
+              id,
+              student_id,
+              first_name,
+              last_name,
+              grade_level,
+              status
+            )
+          `)
+          .in('student_id', studentIds)
+          .order('payment_date', { ascending: false });
+
+        if (error) throw error;
+        paymentsToExport = payments;
       }
 
-      const { data: payments, error } = await supabase
-        .from('registration_payments')
-        .select(`
-          *,
-          students:student_id (
-            id,
-            student_id,
-            first_name,
-            last_name,
-            grade_level,
-            status
-          )
-        `)
-        .in('student_id', studentIds)
-        .order('payment_date', { ascending: false });
-
-      if (error) throw error;
-
-      if (!payments || payments.length === 0) {
+      if (!paymentsToExport || paymentsToExport.length === 0) {
         toast({
           title: "No payment records found",
           description: "There are no payment records for the selected students.",
@@ -119,7 +138,7 @@ export const PaymentExportDialog = () => {
         return;
       }
 
-      const exportData = payments.map(payment => ({
+      const exportData = paymentsToExport.map(payment => ({
         'Student ID': payment.students?.student_id || 'N/A',
         'Student Name': payment.students ? `${payment.students.first_name} ${payment.students.last_name}` : 'Unknown',
         'Grade Level': payment.students?.grade_level?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'N/A',
@@ -161,10 +180,10 @@ export const PaymentExportDialog = () => {
       
       toast({
         title: "Success",
-        description: `Exported ${payments.length} payment records successfully`,
+        description: `Exported ${paymentsToExport.length} payment records successfully`,
       });
 
-      setIsOpen(false);
+      setDialogOpen(false);
       setShowConfirmDialog(false);
       setSelectedStudents([]);
     } catch (error) {
@@ -178,22 +197,40 @@ export const PaymentExportDialog = () => {
   };
 
   const initiateExport = () => {
-    if (selectedStudents.length === 0) {
+    if (selectedStudents.length === 0 && !passedPayments) {
       setShowConfirmDialog(true);
     } else {
       handleExport();
     }
   };
 
-  return (
-    <>
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+  const DialogComponent = ({ children }: { children: React.ReactNode }) => {
+    if (open !== undefined && onOpenChange) {
+      // Controlled mode - don't render DialogTrigger
+      return (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          {children}
+        </Dialog>
+      );
+    }
+
+    // Uncontrolled mode - render with DialogTrigger
+    return (
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogTrigger asChild>
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export Student Payments
           </Button>
         </DialogTrigger>
+        {children}
+      </Dialog>
+    );
+  };
+
+  return (
+    <>
+      <DialogComponent>
         <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Export Student Payment Records</DialogTitle>
@@ -250,7 +287,9 @@ export const PaymentExportDialog = () => {
               <p className="text-sm text-gray-600">
                 {selectedStudents.length > 0 
                   ? `${selectedStudents.length} students selected`
-                  : 'No students selected (will export all)'
+                  : passedPayments 
+                    ? `Will export ${passedPayments.length} payment records`
+                    : 'No students selected (will export all)'
                 }
               </p>
               <Button onClick={initiateExport}>
@@ -260,7 +299,7 @@ export const PaymentExportDialog = () => {
             </div>
           </div>
         </DialogContent>
-      </Dialog>
+      </DialogComponent>
 
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>

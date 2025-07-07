@@ -49,7 +49,6 @@ export const PaymentList = () => {
   const [methodFilter, setMethodFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
   const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
-  const [showExportDialog, setShowExportDialog] = useState(false);
 
   const { data: payments, isLoading, error } = useQuery({
     queryKey: ['payments', searchTerm, statusFilter, methodFilter, yearFilter],
@@ -251,7 +250,7 @@ export const PaymentList = () => {
           <img 
             src="/SPRING_LOGO-removebg-preview.png" 
             alt="School Logo" 
-            className="h-16 w-16 object-contain"
+            className="h-20 w-20 object-contain"
           />
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Payment Records</h2>
@@ -271,10 +270,7 @@ export const PaymentList = () => {
               Export Selected ({selectedPayments.length})
             </Button>
           )}
-          <Button onClick={() => setShowExportDialog(true)}>
-            <Download className="h-4 w-4 mr-2" />
-            Advanced Export
-          </Button>
+          <PaymentExportDialog />
         </div>
       </div>
 
@@ -443,12 +439,6 @@ export const PaymentList = () => {
           )}
         </CardContent>
       </Card>
-
-      <PaymentExportDialog
-        open={showExportDialog}
-        onOpenChange={setShowExportDialog}
-        payments={filteredPayments}
-      />
     </div>
   );
 };
