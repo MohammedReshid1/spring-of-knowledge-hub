@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { PaymentExportDialog } from './PaymentExportDialog';
 
 export const PaymentDashboard = () => {
   const [reportType, setReportType] = useState('quarterly');
@@ -398,16 +399,24 @@ export const PaymentDashboard = () => {
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Payment Dashboard</h2>
-          <p className="text-gray-600 mt-1">
-            Overview of payment activities and financial metrics
-          </p>
+        <div className="flex items-center gap-4">
+          <img 
+            src="/SPRING_LOGO-removebg-preview.png" 
+            alt="School Logo" 
+            className="h-12 w-12 object-contain"
+          />
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Payment Dashboard</h2>
+            <p className="text-gray-600 mt-1">
+              Overview of payment activities and financial metrics
+            </p>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
+          <PaymentExportDialog />
           <Button variant="outline" onClick={exportToExcel}>
             <Download className="h-4 w-4 mr-2" />
-            Export to Excel
+            Export Dashboard Data
           </Button>
           <Link to="/payments">
             <Button variant="outline">
