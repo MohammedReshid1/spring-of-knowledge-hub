@@ -123,24 +123,38 @@ export const IDCardPrinting = () => {
   const formatFullName = (student: any) => {
     const parts = [];
     
-    // Add first name and last name
-    if (student.first_name) {
+    // Add first name
+    if (student.first_name && student.first_name.trim()) {
       parts.push(student.first_name.trim());
     }
-    if (student.last_name) {
-      parts.push(student.last_name.trim());
-    }
     
-    // Add father's name if it exists and is not empty
-    if (student.father_name && student.father_name.trim()) {
-      parts.push(student.father_name.trim());
-    }
+    // Check if last_name contains father's and grandfather's names
+    // If it does, use only last_name; otherwise use the separate fields
+    const lastName = student.last_name?.trim() || '';
+    const fatherName = student.father_name?.trim() || '';
+    const grandfatherName = student.grandfather_name?.trim() || '';
     
-    // Add grandfather's name only if it exists, is not empty, AND is different from father's name
-    if (student.grandfather_name && 
-        student.grandfather_name.trim() && 
-        student.grandfather_name.trim() !== student.father_name?.trim()) {
-      parts.push(student.grandfather_name.trim());
+    // If last_name contains both father and grandfather names, just use it
+    if (lastName && fatherName && grandfatherName && 
+        lastName.includes(fatherName) && lastName.includes(grandfatherName)) {
+      parts.push(lastName);
+    } else {
+      // Otherwise, build the name from individual components
+      if (lastName) {
+        parts.push(lastName);
+      }
+      
+      // Only add father's name if it's not already in the last name
+      if (fatherName && !lastName.includes(fatherName)) {
+        parts.push(fatherName);
+      }
+      
+      // Only add grandfather's name if it's not already in the last name and different from father's name
+      if (grandfatherName && 
+          !lastName.includes(grandfatherName) && 
+          grandfatherName !== fatherName) {
+        parts.push(grandfatherName);
+      }
     }
     
     return parts.join(' ');
