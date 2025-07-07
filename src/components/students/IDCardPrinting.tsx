@@ -296,6 +296,43 @@ export const IDCardPrinting = () => {
     setSelectedStudents(new Set()); // Clear selections when changing pages
   };
 
+  const getPaginationItems = () => {
+    const items = [];
+    const maxVisiblePages = 5;
+    const halfVisible = Math.floor(maxVisiblePages / 2);
+    
+    let startPage = Math.max(1, currentPage - halfVisible);
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    // Adjust start page if we're near the end
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    // Add first page and ellipsis if needed
+    if (startPage > 1) {
+      items.push(1);
+      if (startPage > 2) {
+        items.push('...');
+      }
+    }
+    
+    // Add visible page numbers
+    for (let i = startPage; i <= endPage; i++) {
+      items.push(i);
+    }
+    
+    // Add ellipsis and last page if needed
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        items.push('...');
+      }
+      items.push(totalPages);
+    }
+    
+    return items;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -494,7 +531,7 @@ export const IDCardPrinting = () => {
                 </Table>
               </div>
 
-              {/* Pagination */}
+              {/* Improved Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <div className="flex items-center gap-2">
@@ -517,14 +554,19 @@ export const IDCardPrinting = () => {
                         </Button>
                       </PaginationItem>
                       
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <PaginationItem key={page}>
-                          <PaginationLink
-                            onClick={() => handlePageChange(page)}
-                            isActive={currentPage === page}
-                          >
-                            {page}
-                          </PaginationLink>
+                      {getPaginationItems().map((item, index) => (
+                        <PaginationItem key={index}>
+                          {item === '...' ? (
+                            <span className="px-3 py-2 text-sm text-gray-500">...</span>
+                          ) : (
+                            <PaginationLink
+                              onClick={() => handlePageChange(item as number)}
+                              isActive={currentPage === item}
+                              className="cursor-pointer"
+                            >
+                              {item}
+                            </PaginationLink>
+                          )}
                         </PaginationItem>
                       ))}
                       

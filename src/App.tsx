@@ -1,163 +1,42 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { Index } from './pages/Index';
+import { Overview } from './pages/Overview';
+import { StudentList } from './pages/StudentList';
+import { ClassManagement } from './pages/ClassManagement';
+import { TeacherManagement } from './pages/TeacherManagement';
+import { PaymentList } from './pages/PaymentList';
+import { PaymentDashboard } from './pages/PaymentDashboard';
+import { AccountSettings } from './pages/AccountSettings';
+import { NotFound } from './pages/NotFound';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { QueryClient } from '@tanstack/react-query';
+import { IDCardManager } from './components/students/IDCardManager';
+import { StudentDetailsPage } from '@/pages/StudentDetailsPage';
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { AuthForm } from "./components/auth/AuthForm";
-import { DashboardLayout } from "./components/dashboard/DashboardLayout";
-import { Overview } from "./components/dashboard/Overview";
-import { StudentList } from "./components/students/StudentList";
-import { ClassManagement } from "./components/classes/ClassManagement";
-import { TeacherManagement } from "./components/teachers/TeacherManagement";
-import { PaymentList } from "./components/payments/PaymentList";
-import { PaymentDashboard } from "./components/payments/PaymentDashboard";
-import { AccountSettings } from "./components/settings/AccountSettings";
-import { IDCardManager } from "./components/students/IDCardManager";
-import NotFound from "./pages/NotFound";
-
-const queryClient = new QueryClient();
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  return <>{children}</>;
-}
-
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  return <>{children}</>;
-}
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <QueryClient>
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route
-              path="/auth"
-              element={
-                <PublicRoute>
-                  <AuthForm />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <Overview />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/students"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <StudentList />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/classes"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <ClassManagement />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/teachers"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <TeacherManagement />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/payments"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <PaymentList />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/payment-dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <PaymentDashboard />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/student-id-cards"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <IDCardManager />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <DashboardLayout>
-                    <AccountSettings />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Overview /></ProtectedRoute>} />
+            <Route path="/students" element={<ProtectedRoute><StudentList /></ProtectedRoute>} />
+            <Route path="/students/:id" element={<ProtectedRoute><StudentDetailsPage /></ProtectedRoute>} />
+            <Route path="/classes" element={<ProtectedRoute><ClassManagement /></ProtectedRoute>} />
+            <Route path="/teachers" element={<ProtectedRoute><TeacherManagement /></ProtectedRoute>} />
+            <Route path="/payments" element={<ProtectedRoute><PaymentList /></ProtectedRoute>} />
+            <Route path="/payment-dashboard" element={<ProtectedRoute><PaymentDashboard /></ProtectedRoute>} />
+            <Route path="/student-id-cards" element={<ProtectedRoute><IDCardManager /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+        </QueryClient>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
 
 export default App;

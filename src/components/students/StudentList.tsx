@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,6 +30,7 @@ import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { DuplicateDetection } from './DuplicateDetection';
+import { useNavigate } from 'react-router-dom';
 
 interface Student {
   id: string;
@@ -56,6 +56,7 @@ interface Student {
 }
 
 export const StudentList = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [gradeFilter, setGradeFilter] = useState('all');
   const [classFilter, setClassFilter] = useState('all');
@@ -64,6 +65,11 @@ export const StudentList = () => {
   const [sortBy, setSortBy] = useState<'name' | 'student_id' | 'grade' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [showStudentForm, setShowStudentForm] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const studentsPerPage = 30;
   const queryClient = useQueryClient();
 
@@ -335,8 +341,18 @@ export const StudentList = () => {
     exportToExcel(selectedStudentData);
   };
 
+  const handleViewStudent = (student: any) => {
+    navigate(`/students/${student.id}`);
+  };
+
+  const handleEditStudent = (student: any) => {
+    setSelectedStudent(student);
+    setIsEditMode(true);
+    setShowStudentForm(true);
+  };
+
   return (
-    <div className="space-y-6 p-6">
+    <div className="container mx-auto p-6 space-y-6">
       {/* Header with Logo */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -441,7 +457,7 @@ export const StudentList = () => {
         </CardContent>
       </Card>
 
-      {/* Student Table */}
+      {/* Students Table */}
       <Card>
         <CardHeader>
           <CardTitle>Student List ({sortedStudents.length} total)</CardTitle>
@@ -540,42 +556,33 @@ export const StudentList = () => {
                       <TableCell>{format(new Date(student.created_at), 'MMM dd, yyyy')}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Link to={`/students/${student.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4 mr-2" />
-                              View
-                            </Button>
-                          </Link>
-                          <Link to={`/students/${student.id}/edit`}>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </Button>
-                          </Link>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Student</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete {student.first_name} {student.last_name}? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteStudentMutation.mutate(student.id)}
-                                  className="bg-red-600 hover:bg-red-700"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewStudent(student)}
+                            className="hover:bg-blue-50 hover:text-blue-600"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditStudent(student)}
+                            className="hover:bg-gray-50"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setStudentToDelete(student);
+                              setShowDeleteDialog(true);
+                            }}
+                            className="hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
