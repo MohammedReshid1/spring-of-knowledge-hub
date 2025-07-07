@@ -184,12 +184,12 @@ export const ClassManagement = () => {
   };
 
   const formatGradeLevel = (grade: string) => {
-    // Updated to handle KG and PREP properly
+    // Updated to properly handle all grade levels including prep as separate from pre_k
     const gradeMap: Record<string, string> = {
       'pre_k': 'Pre KG',
       'kg': 'KG',
       'prep': 'Prep',
-      'kindergarten': 'KG', // Fallback if any old data exists
+      'kindergarten': 'Kindergarten', // Keep as fallback
       'grade_1': 'Grade 1',
       'grade_2': 'Grade 2',
       'grade_3': 'Grade 3',
