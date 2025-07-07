@@ -13,6 +13,7 @@ interface Student {
   current_section?: string;
   emergency_contact_phone?: string;
   father_name?: string;
+  grandfather_name?: string;
 }
 
 interface StudentIDCardProps {
@@ -29,6 +30,15 @@ export const StudentIDCard = ({
 
   const formatGradeLevel = (grade: string) => {
     return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const formatFullName = (student: Student) => {
+    const parts = [student.first_name, student.last_name];
+    if (student.father_name) parts.push(student.father_name);
+    if (student.grandfather_name && student.grandfather_name !== student.father_name) {
+      parts.push(student.grandfather_name);
+    }
+    return parts.join(' ');
   };
 
   const LoadingAnimation = () => (
@@ -55,7 +65,6 @@ export const StudentIDCard = ({
               onError={(e) => {
                 console.log('Front SVG failed to load');
                 setFrontImageLoaded(true);
-                // Don't hide the image, instead show a fallback
                 e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSIjMzB3NCIvPgo8L3N2Zz4K';
               }}
             />
@@ -78,16 +87,16 @@ export const StudentIDCard = ({
             </div>
           </div>
 
-          {/* Student Information - Simplified without labels */}
+          {/* Student Information - Fixed name formatting */}
           <div className="absolute top-[145px] left-[140px] z-20 space-y-2 max-w-[140px]">
             {/* Student ID */}
             <div className="text-white font-semibold text-[8px] leading-tight">
               {student.student_id}
             </div>
             
-            {/* Full Name */}
+            {/* Full Name - Properly formatted */}
             <div className="text-white font-semibold text-[8px] leading-tight">
-              {student.first_name} {student.last_name} {student.father_name || ''}
+              {formatFullName(student)}
             </div>
             
             {/* Grade Level */}
@@ -121,8 +130,6 @@ export const StudentIDCard = ({
                 e.currentTarget.style.display = 'none';
               }}
             />
-            
-            {/* Fallback design for back - removed gradient background */}
           </div>
         </CardContent>
       </Card>

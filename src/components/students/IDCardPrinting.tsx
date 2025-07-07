@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,8 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StudentIDCard } from './StudentIDCard';
-import { CreditCard, Printer, Search } from 'lucide-react';
+import { StudentDetails } from './StudentDetails';
+import { CreditCard, Printer, Search, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getHighlightedText } from '@/utils/searchHighlight';
 
@@ -17,16 +21,27 @@ export const IDCardPrinting = () => {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('Active');
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear().toString());
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
   const { data: students, isLoading } = useQuery({
     queryKey: ['students-for-id-cards'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('students')
-        .select('*')
-        .eq('status', 'Active')
+        .select(`
+          *,
+          classes:class_id (
+            id,
+            class_name,
+            grade_levels:grade_level_id (
+              grade
+            )
+          )
+        `)
         .order('grade_level')
         .order('first_name');
       
@@ -35,12 +50,37 @@ export const IDCardPrinting = () => {
     }
   });
 
+  const { data: classes } = useQuery({
+    queryKey: ['classes-for-id-printing'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('class_name');
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const filteredStudents = students?.filter(student => {
-    const matchesSearch = `${student.first_name} ${student.last_name} ${student.student_id}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
+    const searchLower = searchTerm.toLowerCase();
+    
+    const matchesSearch = !searchTerm || 
+      student.student_id.toLowerCase().includes(searchLower) ||
+      student.first_name.toLowerCase().includes(searchLower) ||
+      student.last_name.toLowerCase().includes(searchLower) ||
+      (student.mother_name && student.mother_name.toLowerCase().includes(searchLower)) ||
+      (student.father_name && student.father_name.toLowerCase().includes(searchLower)) ||
+      (student.phone && student.phone.toLowerCase().includes(searchLower)) ||
+      (student.email && student.email.toLowerCase().includes(searchLower)) ||
+      (student.classes?.class_name && student.classes.class_name.toLowerCase().includes(searchLower));
+    
     const matchesGrade = selectedGrade === 'all' || student.grade_level === selectedGrade;
-    return matchesSearch && matchesGrade;
+    const matchesClass = selectedClass === 'all' || student.class_id === selectedClass;
+    const matchesStatus = student.status === statusFilter;
+    
+    return matchesSearch && matchesGrade && matchesClass && matchesStatus;
   }) || [];
 
   const selectedStudentData = students?.filter(student => 
@@ -63,6 +103,15 @@ export const IDCardPrinting = () => {
     } else {
       setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
     }
+  };
+
+  const formatFullName = (student: any) => {
+    const parts = [student.first_name, student.last_name];
+    if (student.father_name) parts.push(student.father_name);
+    if (student.grandfather_name && student.grandfather_name !== student.father_name) {
+      parts.push(student.grandfather_name);
+    }
+    return parts.join(' ');
   };
 
   const handlePrint = () => {
@@ -178,7 +227,7 @@ export const IDCardPrinting = () => {
               </div>
               <div class="info-overlay">
                 <div class="info-field">${student.student_id}</div>
-                <div class="info-field">${student.first_name} ${student.last_name} ${student.father_name || ''}</div>
+                <div class="info-field">${formatFullName(student)}</div>
                 <div class="info-field">${student.grade_level.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
                 <div class="info-field">${student.emergency_contact_phone || 'N/A'}</div>
               </div>
@@ -192,7 +241,6 @@ export const IDCardPrinting = () => {
         `).join('')}
         
         <script>
-          // Simple delay to ensure content loads before printing
           setTimeout(() => {
             window.print();
             window.onafterprint = () => {
@@ -215,6 +263,10 @@ export const IDCardPrinting = () => {
 
   const formatGradeLevel = (grade: string) => {
     return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
   const gradeOptions = [...new Set(students?.map(s => s.grade_level) || [])];
@@ -263,24 +315,26 @@ export const IDCardPrinting = () => {
         </CardContent>
       </Card>
 
-      {/* Student Selection */}
+      {/* Enhanced Search and Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Select Students</CardTitle>
-          <div className="flex gap-4">
-            <div className="flex-1">
+          <CardTitle>Search & Filter Students</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-2">
               <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search students..."
+                  placeholder="Search by Student ID, Name, Phone, Email, or Class..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
+                  className="pl-10"
                 />
               </div>
             </div>
             <Select value={selectedGrade} onValueChange={setSelectedGrade}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger>
                 <SelectValue placeholder="Filter by grade" />
               </SelectTrigger>
               <SelectContent>
@@ -292,46 +346,128 @@ export const IDCardPrinting = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={selectedClass} onValueChange={setSelectedClass}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classes?.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.class_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="select-all"
-                  checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
-                  onCheckedChange={handleSelectAll}
-                />
-                <Label htmlFor="select-all">
-                  Select All ({filteredStudents.length} students)
-                </Label>
-              </div>
+        </CardContent>
+      </Card>
+
+      {/* Students Table */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg">
+              Students ({filteredStudents.length})
+            </CardTitle>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="select-all"
+                checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
+                onCheckedChange={handleSelectAll}
+              />
+              <Label htmlFor="select-all">
+                Select All
+              </Label>
               <Badge variant="outline">
                 {selectedStudents.size} selected
               </Badge>
             </div>
-
-            <div className="max-h-64 overflow-y-auto space-y-2">
-              {filteredStudents.map((student) => (
-                <div key={student.id} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
-                  <Checkbox
-                    id={student.id}
-                    checked={selectedStudents.has(student.id)}
-                    onCheckedChange={() => handleStudentToggle(student.id)}
-                  />
-                  <Label htmlFor={student.id} className="flex-1 cursor-pointer">
-                    <div className="flex justify-between items-center">
-                      <span>{getHighlightedText(`${student.first_name} ${student.last_name}`, searchTerm)}</span>
-                      <div className="text-sm text-gray-500">
-                        {getHighlightedText(student.student_id, searchTerm)} | {formatGradeLevel(student.grade_level)}
-                      </div>
-                    </div>
-                  </Label>
-                </div>
-              ))}
-            </div>
           </div>
+        </CardHeader>
+        <CardContent>
+          {filteredStudents.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-600 font-medium">No students found</p>
+              <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="w-12">Select</TableHead>
+                    <TableHead className="font-semibold">Student</TableHead>
+                    <TableHead className="font-semibold">Student ID</TableHead>
+                    <TableHead className="font-semibold">Grade</TableHead>
+                    <TableHead className="font-semibold">Class</TableHead>
+                    <TableHead className="font-semibold">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.map((student) => (
+                    <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedStudents.has(student.id)}
+                          onCheckedChange={() => handleStudentToggle(student.id)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage 
+                              src={student.photo_url} 
+                              alt={`${student.first_name} ${student.last_name}`}
+                              className="object-cover"
+                            />
+                            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                              {getInitials(student.first_name, student.last_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {getHighlightedText(`${student.first_name} ${student.last_name}`, searchTerm)}
+                            </div>
+                            {student.mother_name && (
+                              <div className="text-sm text-gray-500">
+                                Mother: {getHighlightedText(student.mother_name, searchTerm)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                          {getHighlightedText(student.student_id, searchTerm)}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-medium">
+                          {formatGradeLevel(student.grade_level)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-gray-600">
+                          {student.classes?.class_name ? getHighlightedText(student.classes.class_name, searchTerm) : 'Not assigned'}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedStudent(student)}
+                          className="hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -377,6 +513,14 @@ export const IDCardPrinting = () => {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* Student Details Modal */}
+      {selectedStudent && (
+        <StudentDetails
+          student={selectedStudent}
+          onClose={() => setSelectedStudent(null)}
+        />
       )}
     </div>
   );

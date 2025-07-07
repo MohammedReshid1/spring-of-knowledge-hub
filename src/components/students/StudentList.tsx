@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +44,8 @@ export const StudentList = () => {
   const [selectAll, setSelectAll] = useState(false);
   const [showImportCard, setShowImportCard] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<'name' | 'id' | 'grade' | 'date'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
 
@@ -396,6 +397,28 @@ export const StudentList = () => {
     const matchesClass = classFilter === 'all' || student.class_id === classFilter;
     
     return matchesSearch && matchesStatus && matchesGrade && matchesClass;
+  }).sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortBy) {
+      case 'name':
+        comparison = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+        break;
+      case 'id':
+        comparison = a.student_id.localeCompare(b.student_id);
+        break;
+      case 'grade':
+        const gradeOrder = ['pre_k', 'kg', 'prep', 'kindergarten', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
+        comparison = gradeOrder.indexOf(a.grade_level) - gradeOrder.indexOf(b.grade_level);
+        break;
+      case 'date':
+        comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        break;
+      default:
+        comparison = 0;
+    }
+    
+    return sortOrder === 'asc' ? comparison : -comparison;
   }) || [];
 
   // Pagination calculations
@@ -612,12 +635,12 @@ export const StudentList = () => {
         </Card>
       </div>
 
-      {/* Enhanced Search and Filters */}
+      {/* Enhanced Search and Filters with Sorting */}
       <Card className="shadow-sm">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Real-time Search & Filter Students
+            Real-time Search, Filter & Sort Students
           </CardTitle>
           <p className="text-sm text-gray-600">Search by Student ID, Name, Mother's Name, Phone Numbers, Email, or Class Name</p>
           {selectedStudents.size > 0 && (
@@ -677,9 +700,9 @@ export const StudentList = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="mt-4">
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className="w-full md:w-64">
+              <SelectTrigger>
                 <SelectValue placeholder="Filter by class" />
               </SelectTrigger>
               <SelectContent>
@@ -689,6 +712,26 @@ export const StudentList = () => {
                     {cls.class_name}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Sort by Name</SelectItem>
+                <SelectItem value="id">Sort by Student ID</SelectItem>
+                <SelectItem value="grade">Sort by Grade</SelectItem>
+                <SelectItem value="date">Sort by Registration Date</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as typeof sortOrder)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Ascending (A-Z, 1-9)</SelectItem>
+                <SelectItem value="desc">Descending (Z-A, 9-1)</SelectItem>
               </SelectContent>
             </Select>
           </div>
