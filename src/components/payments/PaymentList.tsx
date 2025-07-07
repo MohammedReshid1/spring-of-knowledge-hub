@@ -727,34 +727,37 @@ export const PaymentList = () => {
 
       {/* Export Confirmation Dialog */}
       <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Export All Payments?</DialogTitle>
-            <DialogDescription className="space-y-2">
-              <p>No payments are currently selected. This will export all <strong>{filteredPayments.length}</strong> payment records.</p>
-              <p>Would you like to proceed with exporting all payments, or go back and select specific payments?</p>
+            <DialogDescription className="space-y-3 text-sm leading-relaxed">
+              <p>No payments are currently selected.</p>
+              <p>This will export all <strong>{filteredPayments.length}</strong> payment records from the current filtered list.</p>
+              <p>Choose your preferred export format or cancel to select specific payments first.</p>
             </DialogDescription>
           </DialogHeader>
-          <div className="flex justify-end space-x-2 mt-6">
+          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 mt-6">
             <Button 
               variant="outline" 
               onClick={() => setIsExportDialogOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button 
               onClick={() => exportData('excel')}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Export All as Excel
+              Excel
             </Button>
             <Button 
               onClick={() => exportData('csv')}
               variant="outline"
+              className="w-full sm:w-auto"
             >
               <FileText className="h-4 w-4 mr-2" />
-              Export All as CSV
+              CSV
             </Button>
           </div>
         </DialogContent>
