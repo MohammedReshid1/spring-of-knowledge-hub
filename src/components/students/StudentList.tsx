@@ -12,11 +12,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
+import { BulkStudentImport } from './BulkStudentImport';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -30,257 +30,9 @@ export const StudentList = () => {
   const [gradeFilter, setGradeFilter] = useState('all');
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
-  const [importProgress, setImportProgress] = useState(0);
-  const [isImporting, setIsImporting] = useState(false);
+  const [showImportCard, setShowImportCard] = useState(false);
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
-
-  // Student import functionality
-  const processImportData = async (jsonData: any[]) => {
-    if (!jsonData || jsonData.length === 0) {
-      toast({
-        title: "No Data",
-        description: "The import file is empty or invalid",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsImporting(true);
-    setImportProgress(0);
-    let successCount = 0;
-    let errorCount = 0;
-    const errors: string[] = [];
-
-    console.log("Starting import process with data:", jsonData);
-    console.log("First row sample:", jsonData[0]);
-
-    toast({
-      title: "Import Started",
-      description: `Processing ${jsonData.length} records...`,
-    });
-
-    // Helper function to parse name field
-    const parseName = (nameString: string) => {
-      const parts = nameString.trim().split(' ').filter(part => part.length > 0);
-      return {
-        first_name: parts[0] || '',
-        father_name: parts[1] || '',
-        grandfather_name: parts[2] || ''
-      };
-    };
-
-    // Helper function to parse grade and class
-    const parseGradeClass = (gradeClassString: string) => {
-      const normalized = gradeClassString.toLowerCase().trim();
-      
-      // Map grade names to database enum values
-      const gradeMapping: Record<string, string> = {
-        'pre kg': 'pre_k',
-        'pre k': 'pre_k',
-        'pre-k': 'pre_k',
-        'kindergarten': 'kindergarten',
-        'kg': 'kindergarten',
-        'class 1': 'grade_1',
-        'grade 1': 'grade_1',
-        '1st': 'grade_1',
-        'class 2': 'grade_2',
-        'grade 2': 'grade_2',
-        '2nd': 'grade_2',
-        'class 3': 'grade_3',
-        'grade 3': 'grade_3',
-        '3rd': 'grade_3',
-        'class 4': 'grade_4',
-        'grade 4': 'grade_4',
-        '4th': 'grade_4',
-        'class 5': 'grade_5',
-        'grade 5': 'grade_5',
-        '5th': 'grade_5',
-        'class 6': 'grade_6',
-        'grade 6': 'grade_6',
-        '6th': 'grade_6',
-        'class 7': 'grade_7',
-        'grade 7': 'grade_7',
-        '7th': 'grade_7',
-        'class 8': 'grade_8',
-        'grade 8': 'grade_8',
-        '8th': 'grade_8',
-        'class 9': 'grade_9',
-        'grade 9': 'grade_9',
-        '9th': 'grade_9',
-        'class 10': 'grade_10',
-        'grade 10': 'grade_10',
-        '10th': 'grade_10',
-        'class 11': 'grade_11',
-        'grade 11': 'grade_11',
-        '11th': 'grade_11',
-        'class 12': 'grade_12',
-        'grade 12': 'grade_12',
-        '12th': 'grade_12'
-      };
-
-      // Try to find matching grade
-      for (const [key, value] of Object.entries(gradeMapping)) {
-        if (normalized.includes(key)) {
-          return value;
-        }
-      }
-      
-      return null;
-    };
-
-    // Helper function to convert gender
-    const convertGender = (genderString: string) => {
-      const normalized = genderString.trim().toLowerCase();
-      if (normalized === 'm' || normalized === 'male') return 'Male';
-      if (normalized === 'f' || normalized === 'female') return 'Female';
-      return null;
-    };
-
-    for (const [index, row] of jsonData.entries()) {
-      try {
-        // Update progress
-        const progress = Math.round(((index + 1) / jsonData.length) * 100);
-        setImportProgress(progress);
-
-        console.log(`Processing row ${index + 1}:`, row);
-        // Parse name field (handle both formats)
-        let first_name = '';
-        let father_name = '';
-        let grandfather_name = '';
-        
-        if (row.name) {
-          const parsed = parseName(row.name);
-          first_name = parsed.first_name;
-          father_name = parsed.father_name;
-          grandfather_name = parsed.grandfather_name;
-        } else {
-          // Fallback to individual fields
-          first_name = row.first_name?.trim() || '';
-          father_name = row.father_name?.trim() || '';
-          grandfather_name = row.grandfather_name?.trim() || '';
-        }
-
-        // Parse grade/class field
-        let grade_level = '';
-        if (row.grade_class || row.class || row.grade || row.grade_level) {
-          const gradeClassField = row.grade_class || row.class || row.grade || row.grade_level;
-          grade_level = parseGradeClass(gradeClassField) || '';
-        }
-
-        // Convert gender
-        const gender = row.gender ? convertGender(row.gender) : null;
-
-        // Validate required fields
-        if (!first_name || !row.date_of_birth || !grade_level) {
-          errors.push(`Row ${index + 1}: Missing required fields (name/first_name, date_of_birth, grade_class/grade_level)`);
-          errorCount++;
-          continue;
-        }
-
-        // Validate date format (try multiple formats)
-        let dateOfBirth = row.date_of_birth;
-        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        
-        if (!dateRegex.test(dateOfBirth)) {
-          // Try to parse different date formats
-          const date = new Date(dateOfBirth);
-          if (isNaN(date.getTime())) {
-            errors.push(`Row ${index + 1}: Invalid date format for date_of_birth. Use YYYY-MM-DD format`);
-            errorCount++;
-            continue;
-          }
-          dateOfBirth = date.toISOString().split('T')[0];
-        }
-
-        // Validate grade level
-        const validGrades = [
-          'pre_k', 'kindergarten', 'grade_1', 'grade_2', 'grade_3', 'grade_4',
-          'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10',
-          'grade_11', 'grade_12'
-        ];
-        if (!validGrades.includes(grade_level)) {
-          errors.push(`Row ${index + 1}: Invalid grade_level "${grade_level}". Could not parse from "${row.grade_class || row.class || row.grade || row.grade_level}"`);
-          errorCount++;
-          continue;
-        }
-
-        // Prepare student data (student_id will be auto-generated by database trigger)
-        const studentData = {
-          student_id: '', // Will be auto-generated by database trigger
-          first_name: first_name,
-          last_name: '', // Not provided in your format, using empty string
-          date_of_birth: dateOfBirth,
-          grade_level: grade_level as any,
-          mother_name: row.mother_name?.trim() || null,
-          father_name: father_name || null,
-          grandfather_name: grandfather_name || null,
-          gender: gender,
-          address: row.address?.trim() || null,
-          phone: row.phone?.trim() || null,
-          email: row.email?.trim() || null,
-          emergency_contact_name: row.emergency_contact_name?.trim() || null,
-          emergency_contact_phone: row.emergency_contact_phone?.trim() || null,
-          medical_info: row.medical_info?.trim() || null,
-          previous_school: row.previous_school?.trim() || null,
-          status: 'Active' as const,
-          admission_date: new Date().toISOString().split('T')[0]
-        };
-
-        // Insert student into database
-        const { error } = await supabase
-          .from('students')
-          .insert(studentData);
-
-        if (error) {
-          console.error(`Database error for row ${index + 1}:`, error);
-          errors.push(`Row ${index + 1}: Database error - ${error.message}`);
-          errorCount++;
-        } else {
-          console.log(`Successfully inserted row ${index + 1}`);
-          successCount++;
-        }
-      } catch (error) {
-        console.error(`Unexpected error for row ${index + 1}:`, error);
-        errors.push(`Row ${index + 1}: Unexpected error - ${error instanceof Error ? error.message : 'Unknown error'}`);
-        errorCount++;
-      }
-    }
-
-    // Refresh data
-    queryClient.invalidateQueries({ queryKey: ['students'] });
-    queryClient.invalidateQueries({ queryKey: ['student-stats'] });
-
-    setIsImporting(false);
-    setImportProgress(0);
-
-    console.log(`Import completed: ${successCount} successful, ${errorCount} failed`);
-    if (errors.length > 0) {
-      console.log("Import errors:", errors);
-    }
-
-    // Show results
-    if (successCount > 0 && errorCount === 0) {
-      toast({
-        title: "Import Successful",
-        description: `Successfully imported ${successCount} students`,
-      });
-    } else if (successCount > 0 && errorCount > 0) {
-      toast({
-        title: "Import Partially Successful",
-        description: `Imported ${successCount} students successfully, ${errorCount} failed. Check console for details.`,
-        variant: "destructive",
-      });
-      console.error("Import errors:", errors);
-    } else {
-      toast({
-        title: "Import Failed",
-        description: `Failed to import any students. ${errorCount} errors occurred.`,
-        variant: "destructive",
-      });
-      console.error("Import errors:", errors);
-    }
-  };
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -578,109 +330,6 @@ export const StudentList = () => {
     });
   };
 
-  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      console.log("No file selected");
-      return;
-    }
-    
-    console.log("Excel file selected:", file.name, "Size:", file.size, "Type:", file.type);
-    setIsImporting(true);
-    setImportProgress(5);
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        console.log("Reading Excel file...", e.target?.result);
-        setImportProgress(10);
-        
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        console.log("Data array created, length:", data.length);
-        
-        const workbook = XLSX.read(data, { type: 'array' });
-        console.log("Workbook read, sheet names:", workbook.SheetNames);
-        setImportProgress(20);
-        
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-        
-        console.log("Excel data parsed:", jsonData.length, "rows");
-        console.log("First row sample:", jsonData[0]);
-        setImportProgress(30);
-        
-        await processImportData(jsonData);
-      } catch (error) {
-        console.error("Excel import error:", error);
-        setIsImporting(false);
-        setImportProgress(0);
-        toast({
-          title: "Import Error",
-          description: "Failed to process Excel file: " + (error instanceof Error ? error.message : 'Unknown error'),
-          variant: "destructive",
-        });
-      }
-    };
-    
-    reader.onerror = (error) => {
-      console.error("FileReader error:", error);
-      setIsImporting(false);
-      setImportProgress(0);
-      toast({
-        title: "File Read Error",
-        description: "Failed to read the selected file",
-        variant: "destructive",
-      });
-    };
-    
-    reader.readAsArrayBuffer(file);
-    // Reset the input
-    event.target.value = '';
-  };
-
-  const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    console.log("CSV file selected:", file.name);
-    setIsImporting(true);
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        console.log("Reading CSV file...");
-        const text = e.target?.result as string;
-        const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-        
-        const jsonData = lines.slice(1).filter(line => line.trim()).map(line => {
-          const values = line.split(',').map(v => v.replace(/"/g, '').trim());
-          const obj: any = {};
-          headers.forEach((header, index) => {
-            obj[header] = values[index] || '';
-          });
-          return obj;
-        });
-        
-        console.log("CSV data parsed:", jsonData);
-        await processImportData(jsonData);
-      } catch (error) {
-        console.error("CSV import error:", error);
-        setIsImporting(false);
-        setImportProgress(0);
-        toast({
-          title: "Import Error",
-          description: "Failed to process CSV file: " + (error instanceof Error ? error.message : 'Unknown error'),
-          variant: "destructive",
-        });
-      }
-    };
-    reader.readAsText(file);
-    // Reset the input
-    event.target.value = '';
-  };
-
   // Enhanced search function with highlighting
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm || !text) return text;
@@ -785,6 +434,12 @@ export const StudentList = () => {
     }
   };
 
+  const handleImportComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['students'] });
+    queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+    setShowImportCard(false);
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -816,81 +471,14 @@ export const StudentList = () => {
           <p className="text-gray-600 mt-1">Manage student registrations and information</p>
         </div>
         <div className="flex items-center space-x-2">
-          {/* Import/Export Dropdown */}
-          <div className="flex items-center space-x-2">
-            {/* Import Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={isImporting}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  {isImporting ? 'Importing...' : 'Import'}
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = '/student-import-template.csv';
-                  link.download = 'student-import-template.csv';
-                  link.click();
-                }}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Template
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={handleImportExcel}
-                      className="hidden"
-                      disabled={isImporting}
-                    />
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Import Excel
-                  </label>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept=".csv"
-                      onChange={handleImportCSV}
-                      className="hidden"
-                      disabled={isImporting}
-                    />
-                    <FileText className="h-4 w-4 mr-2" />
-                    Import CSV
-                  </label>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Export Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={exportToCSV}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Export CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportToExcel}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Export Excel
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={exportToPDF}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Export PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowImportCard(!showImportCard)}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {showImportCard ? 'Hide Import' : 'Bulk Import'}
+          </Button>
           
           <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
             <SheetTrigger asChild>
@@ -920,6 +508,11 @@ export const StudentList = () => {
           </Sheet>
         </div>
       </div>
+
+      {/* Bulk Import Card */}
+      {showImportCard && (
+        <BulkStudentImport onImportComplete={handleImportComplete} />
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -994,16 +587,6 @@ export const StudentList = () => {
               >
                 Clear Selection
               </Button>
-            </div>
-          )}
-          {/* Import Progress Bar */}
-          {isImporting && (
-            <div className="mt-4 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>Importing students...</span>
-                <span>{importProgress}%</span>
-              </div>
-              <Progress value={importProgress} className="w-full" />
             </div>
           )}
         </CardHeader>
