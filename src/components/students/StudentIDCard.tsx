@@ -34,11 +34,19 @@ export const StudentIDCard = ({
   const formatFullName = (student: Student) => {
     const parts = [];
     
+    // Debug logging
+    console.log('Student data for name formatting:', {
+      first_name: student.first_name,
+      last_name: student.last_name,
+      father_name: student.father_name,
+      grandfather_name: student.grandfather_name
+    });
+    
     // Add first name and last name
-    if (student.first_name) {
+    if (student.first_name && student.first_name.trim()) {
       parts.push(student.first_name.trim());
     }
-    if (student.last_name) {
+    if (student.last_name && student.last_name.trim()) {
       parts.push(student.last_name.trim());
     }
     
@@ -54,7 +62,9 @@ export const StudentIDCard = ({
       parts.push(student.grandfather_name.trim());
     }
     
-    return parts.join(' ');
+    const fullName = parts.join(' ');
+    console.log('Formatted full name:', fullName);
+    return fullName;
   };
 
   const LoadingAnimation = () => (

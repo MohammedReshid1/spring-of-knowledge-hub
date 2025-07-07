@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { 
   Pagination,
@@ -48,6 +49,7 @@ export const StudentList = () => {
   const [sortBy, setSortBy] = useState<'name' | 'id' | 'grade' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isDuplicateCheckerOpen, setIsDuplicateCheckerOpen] = useState(false);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { canDelete, isSuperAdmin } = useRoleAccess();
 
@@ -292,6 +294,16 @@ export const StudentList = () => {
     });
   };
 
+  const handleExport = (format: 'excel' | 'csv' | 'pdf') => {
+    if (selectedStudents.size === 0) {
+      setIsExportDialogOpen(true);
+    } else {
+      if (format === 'excel') exportToExcel();
+      else if (format === 'csv') exportToCSV();
+      else exportToPDF();
+    }
+  };
+
   const exportToExcel = () => {
     const studentsToExport = getStudentsToExport();
     
@@ -309,18 +321,14 @@ export const StudentList = () => {
       'First Name': student.first_name,
       'Last Name': student.last_name,
       'Mother Name': student.mother_name || '',
-      'Father Name': student.father_name || '',
-      'Grandfather Name': student.grandfather_name || '',
       'Grade Level': student.grade_level,
       'Class': student.classes?.class_name || '',
-      'Email': student.email || '',
-      'Phone': student.phone || '',
-      'Status': student.status,
-      'Date of Birth': student.date_of_birth,
       'Gender': student.gender || '',
-      'Address': student.address || '',
+      'Date of Birth': student.date_of_birth,
       'Emergency Contact Name': student.emergency_contact_name || '',
       'Emergency Contact Phone': student.emergency_contact_phone || '',
+      'Status': student.status,
+      'Admission Date': student.admission_date || '',
       'Created At': new Date(student.created_at).toLocaleDateString()
     }));
 
@@ -328,12 +336,18 @@ export const StudentList = () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
 
-    XLSX.writeFile(workbook, `students_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const fileName = selectedStudents.size > 0 
+      ? `students_selected_${new Date().toISOString().split('T')[0]}.xlsx`
+      : `students_all_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
 
     toast({
       title: "Success",
       description: `${studentsToExport.length} students exported to Excel successfully`,
     });
+
+    setIsExportDialogOpen(false);
   };
 
   const exportToPDF = () => {
@@ -569,6 +583,24 @@ export const StudentList = () => {
           <p className="text-gray-600 mt-1">Manage student registrations and information</p>
         </div>
         <div className="flex items-center space-x-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export ({selectedStudents.size > 0 ? selectedStudents.size : filteredStudents.length})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="bg-background border shadow-md">
+              <DropdownMenuItem onClick={() => handleExport('excel')} className="cursor-pointer">
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export as Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+                <FileText className="h-4 w-4 mr-2" />
+                Export as CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             size="sm"
@@ -1032,6 +1064,44 @@ export const StudentList = () => {
         isOpen={isDuplicateCheckerOpen}
         onClose={() => setIsDuplicateCheckerOpen(false)}
       />
+
+      {/* Export Confirmation Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Export All Students?</DialogTitle>
+            <DialogDescription className="space-y-3 text-sm leading-relaxed">
+              <p>No students are currently selected.</p>
+              <p>This will export all <strong>{filteredStudents.length}</strong> student records from the current filtered list.</p>
+              <p>Choose your preferred export format or cancel to select specific students first.</p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsExportDialogOpen(false)}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => { exportToExcel(); setIsExportDialogOpen(false); }}
+              className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Excel
+            </Button>
+            <Button 
+              onClick={() => { exportToCSV(); setIsExportDialogOpen(false); }}
+              variant="outline"
+              className="w-full sm:w-auto"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
