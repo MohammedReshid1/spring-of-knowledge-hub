@@ -64,6 +64,51 @@ export type Database = {
           },
         ]
       }
+      backup_logs: {
+        Row: {
+          backup_method: string
+          backup_type: string
+          completed_at: string | null
+          error_message: string | null
+          file_path: string | null
+          file_size: number | null
+          id: string
+          performed_by: string | null
+          records_count: number | null
+          started_at: string
+          status: string
+          tables_backed_up: string[] | null
+        }
+        Insert: {
+          backup_method: string
+          backup_type: string
+          completed_at?: string | null
+          error_message?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          performed_by?: string | null
+          records_count?: number | null
+          started_at?: string
+          status?: string
+          tables_backed_up?: string[] | null
+        }
+        Update: {
+          backup_method?: string
+          backup_type?: string
+          completed_at?: string | null
+          error_message?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          performed_by?: string | null
+          records_count?: number | null
+          started_at?: string
+          status?: string
+          tables_backed_up?: string[] | null
+        }
+        Relationships: []
+      }
       classes: {
         Row: {
           academic_year: string
@@ -369,6 +414,7 @@ export type Database = {
         Row: {
           address: string | null
           admission_date: string | null
+          birth_certificate_url: string | null
           class_id: string | null
           created_at: string
           current_class: string | null
@@ -398,6 +444,7 @@ export type Database = {
         Insert: {
           address?: string | null
           admission_date?: string | null
+          birth_certificate_url?: string | null
           class_id?: string | null
           created_at?: string
           current_class?: string | null
@@ -427,6 +474,7 @@ export type Database = {
         Update: {
           address?: string | null
           admission_date?: string | null
+          birth_certificate_url?: string | null
           class_id?: string | null
           created_at?: string
           current_class?: string | null
@@ -546,6 +594,10 @@ export type Database = {
         }
         Returns: Json
       }
+      create_database_backup: {
+        Args: { backup_type?: string; backup_method?: string }
+        Returns: string
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -572,6 +624,10 @@ export type Database = {
           next_grade: Database["public"]["Enums"]["grade_level"]
           action: string
         }[]
+      }
+      should_create_automatic_backup: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
       }
       should_perform_grade_transition: {
         Args: Record<PropertyKey, never>

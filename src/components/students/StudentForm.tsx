@@ -130,16 +130,14 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
     const fileName = `birth_cert_${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
-      .from('student-photos')
+      .from('birth-certificates')
       .upload(fileName, file);
 
     if (uploadError) throw uploadError;
 
-    const { data } = supabase.storage
-      .from('student-photos')
-      .getPublicUrl(fileName);
-
-    return data.publicUrl;
+    // For birth certificates, we don't use public URL since it's private
+    // Return the path instead
+    return fileName;
   };
 
   const submitMutation = useMutation({
@@ -220,6 +218,17 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
       });
       return;
     }
+    
+    // Check if birth certificate is required
+    if (!birthCertFile && !student?.birth_certificate_url) {
+      toast({
+        title: "Error",
+        description: "Birth certificate is required for all students",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     submitMutation.mutate(data);
   };
 
@@ -283,6 +292,42 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
             </label>
           </div>
           <p className="text-xs text-gray-500">Student photo is required</p>
+        </div>
+
+        {/* Birth Certificate Upload Section - Required */}
+        <div className="flex flex-col items-center space-y-4 p-4 border rounded-lg bg-red-50">
+          <div className="text-center">
+            <h3 className="font-semibold text-red-800 mb-2">Birth Certificate (Required)</h3>
+            <div className="flex items-center justify-center space-x-2">
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleBirthCertChange}
+                className="hidden"
+                id="birth-cert-upload"
+                required={!student?.birth_certificate_url}
+              />
+              <label htmlFor="birth-cert-upload">
+                <Button type="button" variant="outline" size="sm" asChild className="border-red-300 text-red-700 hover:bg-red-100">
+                  <span className="cursor-pointer">
+                    <Upload className="h-4 w-4 mr-2" />
+                    {student?.birth_certificate_url ? 'Replace' : 'Upload'} Birth Certificate *
+                  </span>
+                </Button>
+              </label>
+            </div>
+            {birthCertFile && (
+              <p className="text-sm text-green-600 mt-2">
+                Birth certificate selected: {birthCertFile.name}
+              </p>
+            )}
+            {student?.birth_certificate_url && !birthCertFile && (
+              <p className="text-sm text-green-600 mt-2">
+                Birth certificate already uploaded
+              </p>
+            )}
+            <p className="text-xs text-red-600 mt-2">* Birth certificate is required for all students</p>
+          </div>
         </div>
 
         {/* First Name - Required */}
@@ -546,39 +591,6 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
             </FormItem>
           )}
         />
-
-        {/* Birth Certificate Upload */}
-        <div className="flex flex-col space-y-2 p-4 border rounded-lg bg-gray-50">
-          <FormLabel>Birth Certificate (Optional)</FormLabel>
-          <div className="flex items-center space-x-2">
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={handleBirthCertChange}
-              className="hidden"
-              id="birth-cert-upload"
-            />
-            <label htmlFor="birth-cert-upload">
-              <Button type="button" variant="outline" size="sm" asChild>
-                <span className="cursor-pointer">
-                  <Upload className="h-4 w-4 mr-2" />
-                  {birthCertFile ? 'Change File' : 'Upload Birth Certificate'}
-                </span>
-              </Button>
-            </label>
-            {birthCertFile && (
-              <span className="text-sm text-green-600">
-                {birthCertFile.name}
-              </span>
-            )}
-            {student?.birth_certificate_url && !birthCertFile && (
-              <span className="text-sm text-blue-600">
-                File already uploaded
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-500">Supported formats: PDF, JPG, PNG</p>
-        </div>
 
         <div className="flex justify-end space-x-2 pt-4">
           <Button

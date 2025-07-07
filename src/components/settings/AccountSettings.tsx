@@ -1,15 +1,16 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Users, User, Database } from 'lucide-react';
+import { Settings, Users, User, Database, Shield } from 'lucide-react';
 import { UserManagement } from './UserManagement';
 import { AccountManagement } from './AccountManagement';
 import { DatabaseCleanup } from './DatabaseCleanup';
+import { BackupManagement } from './BackupManagement';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 export const AccountSettings = () => {
-  const [activeTab, setActiveTab] = useState<'account' | 'users' | 'cleanup'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'users' | 'cleanup' | 'backup'>('account');
   const { isRegistrar, isSuperAdmin } = useRoleAccess();
 
   return (
@@ -39,6 +40,16 @@ export const AccountSettings = () => {
             User Management
           </Button>
         )}
+        {!isRegistrar && (
+          <Button
+            variant={activeTab === 'backup' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('backup')}
+            className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
+          >
+            <Shield className="h-4 w-4" />
+            Backup Management
+          </Button>
+        )}
         {isSuperAdmin && (
           <Button
             variant={activeTab === 'cleanup' ? 'default' : 'ghost'}
@@ -55,6 +66,7 @@ export const AccountSettings = () => {
       <div className="space-y-6">
         {activeTab === 'account' && <AccountManagement />}
         {activeTab === 'users' && !isRegistrar && <UserManagement />}
+        {activeTab === 'backup' && !isRegistrar && <BackupManagement />}
         {activeTab === 'cleanup' && isSuperAdmin && <DatabaseCleanup />}
       </div>
     </div>
