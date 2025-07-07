@@ -157,6 +157,50 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
     }
   };
 
+  const handleAutoDeleteDuplicates = () => {
+    if (duplicateGroups.length === 0) {
+      toast({
+        title: "No duplicates found",
+        description: "Please analyze for duplicates first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // For each duplicate group, select all but the first student for deletion
+    const studentsToDelete = new Set<string>();
+    let groupsProcessed = 0;
+    let studentsToDeleteCount = 0;
+
+    duplicateGroups.forEach(group => {
+      if (group.students.length > 1) {
+        // Keep the first student (oldest by creation date), delete the rest
+        const sortedStudents = group.students.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+        
+        sortedStudents.slice(1).forEach(student => {
+          studentsToDelete.add(student.id);
+          studentsToDeleteCount++;
+        });
+        groupsProcessed++;
+      }
+    });
+
+    if (studentsToDelete.size === 0) {
+      toast({
+        title: "No duplicates to delete",
+        description: "All duplicate groups already have only one student",
+      });
+      return;
+    }
+
+    if (confirm(`Auto-delete duplicates will remove ${studentsToDeleteCount} duplicate students from ${groupsProcessed} duplicate groups, keeping the oldest record from each group. This action cannot be undone. Continue?`)) {
+      setSelectedForDeletion(studentsToDelete);
+      deleteStudentsMutation.mutate(Array.from(studentsToDelete));
+    }
+  };
+
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
   };
@@ -226,11 +270,22 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
 
           {duplicateGroups.length > 0 && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                <h3 className="text-lg font-medium">
-                  Found {duplicateGroups.length} group(s) with potential duplicates
-                </h3>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <h3 className="text-lg font-medium">
+                    Found {duplicateGroups.length} group(s) with potential duplicates
+                  </h3>
+                </div>
+                <Button
+                  onClick={handleAutoDeleteDuplicates}
+                  disabled={deleteStudentsMutation.isPending}
+                  variant="destructive"
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Auto-Delete Duplicates
+                </Button>
               </div>
 
               {duplicateGroups.map((group, groupIndex) => (

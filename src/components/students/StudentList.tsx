@@ -49,7 +49,35 @@ export const StudentList = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isDuplicateCheckerOpen, setIsDuplicateCheckerOpen] = useState(false);
   const queryClient = useQueryClient();
-  const { canDelete } = useRoleAccess();
+  const { canDelete, isSuperAdmin } = useRoleAccess();
+
+  // Bulk delete mutation for super admin
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (studentIds: string[]) => {
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .in('id', studentIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, studentIds) => {
+      toast({
+        title: "Success",
+        description: `${studentIds.length} students deleted successfully`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      setSelectedStudents(new Set());
+      setSelectAll(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete students: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -659,13 +687,30 @@ export const StudentList = () => {
               <Badge variant="outline" className="bg-blue-50 text-blue-700">
                 {selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected
               </Badge>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setSelectedStudents(new Set())}
-              >
-                Clear Selection
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setSelectedStudents(new Set())}
+                >
+                  Clear Selection
+                </Button>
+                {isSuperAdmin && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to delete ${selectedStudents.size} selected students? This action cannot be undone.`)) {
+                        bulkDeleteMutation.mutate(Array.from(selectedStudents));
+                      }
+                    }}
+                    disabled={bulkDeleteMutation.isPending}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Selected ({selectedStudents.size})
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </CardHeader>
