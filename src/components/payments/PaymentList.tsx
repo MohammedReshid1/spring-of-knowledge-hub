@@ -9,13 +9,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt, Download, FileSpreadsheet, FileText } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
 import { EnhancedPaymentForm } from './EnhancedPaymentForm';
 import { Link } from 'react-router-dom';
 import { getHighlightedText } from '@/utils/searchHighlight';
+import * as XLSX from 'xlsx';
 
 export const PaymentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,6 +27,8 @@ export const PaymentList = () => {
   const [editingPayment, setEditingPayment] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [cycleFilter, setCycleFilter] = useState('all');
+  const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { isRegistrar, canDelete } = useRoleAccess();
 
@@ -241,6 +246,92 @@ export const PaymentList = () => {
     }
   };
 
+  const handleSelectPayment = (paymentId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedPayments(prev => [...prev, paymentId]);
+    } else {
+      setSelectedPayments(prev => prev.filter(id => id !== paymentId));
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedPayments(filteredPayments.map(p => p.id));
+    } else {
+      setSelectedPayments([]);
+    }
+  };
+
+  const exportData = (format: 'excel' | 'csv') => {
+    const dataToExport = selectedPayments.length > 0 
+      ? filteredPayments.filter(p => selectedPayments.includes(p.id))
+      : filteredPayments;
+
+    const exportData = dataToExport.map(payment => ({
+      'Student Name': `${payment.students?.first_name || ''} ${payment.students?.last_name || ''}`.trim(),
+      'Student ID': payment.students?.student_id || '',
+      'Mother Name': payment.students?.mother_name || '',
+      'Grade Level': payment.students?.grade_level || '',
+      'Payment Cycle': formatCycle(payment.payment_cycle),
+      'Amount Paid': payment.amount_paid || 0,
+      'Payment Status': payment.payment_status || '',
+      'Payment Method': (payment as any).payment_method || 'Cash',
+      'Payment Date': payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : '',
+      'Academic Year': payment.academic_year || '',
+      'Notes': payment.notes || ''
+    }));
+
+    if (format === 'excel') {
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Payments');
+      
+      const fileName = selectedPayments.length > 0 
+        ? `payments_selected_${new Date().toISOString().split('T')[0]}.xlsx`
+        : `payments_all_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      XLSX.writeFile(wb, fileName);
+    } else {
+      // Convert to CSV format manually
+      const headers = Object.keys(exportData[0] || {});
+      const csvContent = [
+        headers.join(','),
+        ...exportData.map(row => 
+          headers.map(header => {
+            const value = row[header as keyof typeof row];
+            return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
+          }).join(',')
+        )
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      
+      const fileName = selectedPayments.length > 0 
+        ? `payments_selected_${new Date().toISOString().split('T')[0]}.csv`
+        : `payments_all_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+    }
+
+    toast({
+      title: "Export Successful",
+      description: `${dataToExport.length} payment records exported as ${format.toUpperCase()}`,
+    });
+
+    setIsExportDialogOpen(false);
+  };
+
+  const handleExport = (format: 'excel' | 'csv') => {
+    if (selectedPayments.length === 0) {
+      setIsExportDialogOpen(true);
+    } else {
+      exportData(format);
+    }
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -272,12 +363,24 @@ export const PaymentList = () => {
           <p className="text-gray-600 mt-1">Track and manage student payment records</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Link to="/dashboard">
-            <Button variant="outline">
-              <Receipt className="h-4 w-4 mr-2" />
-              Dashboard
-            </Button>
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export ({selectedPayments.length > 0 ? selectedPayments.length : filteredPayments.length})
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="bg-background border shadow-md">
+              <DropdownMenuItem onClick={() => handleExport('excel')} className="cursor-pointer">
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export as Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+                <FileText className="h-4 w-4 mr-2" />
+                Export as CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
             <SheetTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 shadow-sm">
@@ -438,6 +541,13 @@ export const PaymentList = () => {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
+                    <TableHead className="font-semibold w-12">
+                      <Checkbox
+                        checked={selectedPayments.length === filteredPayments.length && filteredPayments.length > 0}
+                        onCheckedChange={handleSelectAll}
+                        className="border-gray-400"
+                      />
+                    </TableHead>
                     <TableHead className="font-semibold">Student</TableHead>
                     <TableHead className="font-semibold">Payment Cycle</TableHead>
                     <TableHead className="font-semibold">Amount</TableHead>
@@ -452,6 +562,13 @@ export const PaymentList = () => {
                     const paymentDetails = formatPaymentDetails((payment as any).payment_details || (payment as any).transaction_data);
                     return (
                       <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedPayments.includes(payment.id)}
+                            onCheckedChange={(checked) => handleSelectPayment(payment.id, checked as boolean)}
+                            className="border-gray-400"
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-3">
                             <Avatar className="h-10 w-10">
@@ -607,6 +724,41 @@ export const PaymentList = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Export Confirmation Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export All Payments?</DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>No payments are currently selected. This will export all <strong>{filteredPayments.length}</strong> payment records.</p>
+              <p>Would you like to proceed with exporting all payments, or go back and select specific payments?</p>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsExportDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => exportData('excel')}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export All as Excel
+            </Button>
+            <Button 
+              onClick={() => exportData('csv')}
+              variant="outline"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Export All as CSV
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
