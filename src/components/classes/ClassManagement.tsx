@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,16 +91,16 @@ export const ClassManagement = () => {
     }
   });
 
-  // Updated grade stats query to show all grade levels from grade_levels table
+  // Fixed grade stats query to properly calculate enrollment from students table
   const { data: gradeStats } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
       console.log('Fetching grade stats...');
       
-      // Get all grade levels from the grade_levels table
+      // Get all grade levels
       const { data: gradeLevelsData, error: gradeLevelsError } = await supabase
         .from('grade_levels')
-        .select('id, grade, max_capacity, current_enrollment, academic_year, created_at, updated_at')
+        .select('id, grade, max_capacity, academic_year, created_at, updated_at')
         .order('grade');
       
       if (gradeLevelsError) {
@@ -109,8 +108,32 @@ export const ClassManagement = () => {
         throw gradeLevelsError;
       }
 
-      console.log('Grade stats fetched successfully:', gradeLevelsData?.length);
-      return gradeLevelsData || [];
+      // Get actual student counts per grade level
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('grade_level, status')
+        .eq('status', 'Active');
+
+      if (studentsError) {
+        console.error('Error fetching students for enrollment count:', studentsError);
+        throw studentsError;
+      }
+
+      // Count students per grade level
+      const studentCounts = studentsData?.reduce((acc, student) => {
+        const grade = student.grade_level;
+        acc[grade] = (acc[grade] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      // Combine grade levels with actual student counts
+      const enhancedGradeStats = gradeLevelsData?.map(grade => ({
+        ...grade,
+        current_enrollment: studentCounts[grade.grade] || 0
+      })) || [];
+
+      console.log('Grade stats calculated successfully:', enhancedGradeStats.length);
+      return enhancedGradeStats;
     }
   });
 
