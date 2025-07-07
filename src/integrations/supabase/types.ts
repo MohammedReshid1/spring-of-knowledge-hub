@@ -532,6 +532,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_cleanup_table: {
+        Args: { table_name: string }
+        Returns: number
+      }
       create_auth_user_and_profile: {
         Args: {
           user_email: string
