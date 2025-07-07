@@ -22,7 +22,6 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { PaymentExportDialog } from './PaymentExportDialog';
 
 interface Payment {
   id: string;
@@ -49,6 +48,8 @@ export const PaymentList = () => {
   const [methodFilter, setMethodFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
   const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const paymentsPerPage = 15;
 
   const { data: payments, isLoading, error } = useQuery({
     queryKey: ['payments', searchTerm, statusFilter, methodFilter, yearFilter],
@@ -104,6 +105,22 @@ export const PaymentList = () => {
     });
   }, [payments, searchTerm]);
 
+  const paginatedPayments = useMemo(() => {
+    if (!filteredPayments) return [];
+    const startIndex = (currentPage - 1) * paymentsPerPage;
+    const endIndex = startIndex + paymentsPerPage;
+    return filteredPayments.slice(startIndex, endIndex);
+  }, [filteredPayments, currentPage, paymentsPerPage]);
+
+  const totalPages = useMemo(() => {
+    if (!filteredPayments) return 0;
+    return Math.ceil(filteredPayments.length / paymentsPerPage);
+  }, [filteredPayments, paymentsPerPage]);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
   const formatGradeLevel = (grade: string) => {
     const gradeMap: Record<string, string> = {
       'pre_k': 'Pre KG',
@@ -136,10 +153,10 @@ export const PaymentList = () => {
   };
 
   const toggleSelectAll = () => {
-    if (selectedPayments.length === filteredPayments.length) {
+    if (selectedPayments.length === paginatedPayments.length) {
       setSelectedPayments([]);
     } else {
-      setSelectedPayments(filteredPayments.map(p => p.id));
+      setSelectedPayments(paginatedPayments.map(p => p.id));
     }
   };
 
@@ -270,7 +287,6 @@ export const PaymentList = () => {
               Export Selected ({selectedPayments.length})
             </Button>
           )}
-          <PaymentExportDialog />
         </div>
       </div>
 
@@ -398,7 +414,7 @@ export const PaymentList = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Payment Records ({filteredPayments.length})
+            Payment Records ({filteredPayments.length} total, showing {paginatedPayments.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -413,86 +429,111 @@ export const PaymentList = () => {
               <p className="text-red-600 font-medium">Error loading payment records</p>
               <p className="text-red-500 text-sm">{error.message}</p>
             </div>
-          ) : filteredPayments.length === 0 ? (
+          ) : paginatedPayments.length === 0 ? (
             <div className="text-center py-8">
               <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">No payment records found</p>
               <p className="text-gray-500 text-sm">Adjust the filters or add new payment records</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">
-                      <Checkbox
-                        checked={selectedPayments.length === filteredPayments.length}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Grade</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Payment Date</TableHead>
-                    <TableHead>Academic Year</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPayments.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell className="w-[50px]">
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]">
                         <Checkbox
-                          checked={selectedPayments.includes(payment.id)}
-                          onCheckedChange={() => toggleSelectPayment(payment.id)}
+                          checked={selectedPayments.length === paginatedPayments.length}
+                          onCheckedChange={toggleSelectAll}
                         />
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">
-                            {payment.students 
-                              ? `${payment.students.first_name} ${payment.students.last_name}`
-                              : 'N/A'
-                            }
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            {payment.students?.student_id || 'N/A'}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {payment.students?.grade_level 
-                          ? formatGradeLevel(payment.students.grade_level)
-                          : 'N/A'
-                        }
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusBadgeColor(payment.payment_status)} variant="outline">
-                          {payment.payment_status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{payment.payment_method || 'N/A'}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">${payment.amount_paid || 0}</p>
-                          <p className="text-sm text-gray-500">
-                            of ${payment.total_amount || 0}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {payment.payment_date 
-                          ? format(new Date(payment.payment_date), 'MMM dd, yyyy')
-                          : 'N/A'
-                        }
-                      </TableCell>
-                      <TableCell>{payment.academic_year}</TableCell>
+                      </TableHead>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Grade</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Payment Date</TableHead>
+                      <TableHead>Academic Year</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedPayments.map((payment) => (
+                      <TableRow key={payment.id}>
+                        <TableCell className="w-[50px]">
+                          <Checkbox
+                            checked={selectedPayments.includes(payment.id)}
+                            onCheckedChange={() => toggleSelectPayment(payment.id)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">
+                              {payment.students 
+                                ? `${payment.students.first_name} ${payment.students.last_name}`
+                                : 'N/A'
+                              }
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              {payment.students?.student_id || 'N/A'}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {payment.students?.grade_level 
+                            ? formatGradeLevel(payment.students.grade_level)
+                            : 'N/A'
+                          }
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusBadgeColor(payment.payment_status)} variant="outline">
+                            {payment.payment_status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{payment.payment_method || 'N/A'}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">${payment.amount_paid || 0}</p>
+                            <p className="text-sm text-gray-500">
+                              of ${payment.total_amount || 0}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {payment.payment_date 
+                            ? format(new Date(payment.payment_date), 'MMM dd, yyyy')
+                            : 'N/A'
+                          }
+                        </TableCell>
+                        <TableCell>{payment.academic_year}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center space-x-2 mt-4">
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === totalPages}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

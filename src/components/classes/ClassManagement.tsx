@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -96,6 +97,15 @@ export const ClassManagement = () => {
 
   const classStudents = students?.filter(student => student.class_id === selectedClass?.id) || [];
 
+  // Grade Level Capacity Overview calculations
+  const gradeLevelStats = gradeLevels?.map(level => {
+    const studentsInGrade = students?.filter(s => s.grade_level === level.grade) || [];
+    return {
+      ...level,
+      current_enrollment: studentsInGrade.length,
+    };
+  }) || [];
+
   const handleOpenForm = () => {
     setSelectedClass(null);
     setIsEditMode(false);
@@ -140,7 +150,26 @@ export const ClassManagement = () => {
   };
 
   const formatGradeLevel = (grade: string) => {
-    return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const gradeMap: Record<string, string> = {
+      'pre_k': 'Pre KG',
+      'kg': 'KG',
+      'prep': 'Prep',
+      'kindergarten': 'KG',
+      'grade_1': 'Grade 1',
+      'grade_2': 'Grade 2',
+      'grade_3': 'Grade 3',
+      'grade_4': 'Grade 4',
+      'grade_5': 'Grade 5',
+      'grade_6': 'Grade 6',
+      'grade_7': 'Grade 7',
+      'grade_8': 'Grade 8',
+      'grade_9': 'Grade 9',
+      'grade_10': 'Grade 10',
+      'grade_11': 'Grade 11',
+      'grade_12': 'Grade 12',
+    };
+
+    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   if (isLoading) {
@@ -164,7 +193,7 @@ export const ClassManagement = () => {
         </Button>
       </div>
 
-      {/* Grade Level Capacity Overview */}
+      {/* General Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
           <CardContent className="p-6">
@@ -204,6 +233,75 @@ export const ClassManagement = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Grade Level Capacity Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <GraduationCap className="h-5 w-5" />
+            Grade Level Capacity Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {gradeLevelStats.map((level) => {
+              const utilizationPercent = level.max_capacity > 0 
+                ? Math.round((level.current_enrollment / level.max_capacity) * 100) 
+                : 0;
+              
+              const getCardColor = (percent: number) => {
+                if (percent >= 90) return 'from-red-50 to-red-100 border-red-200';
+                if (percent >= 75) return 'from-yellow-50 to-yellow-100 border-yellow-200';
+                return 'from-green-50 to-green-100 border-green-200';
+              };
+
+              const getTextColor = (percent: number) => {
+                if (percent >= 90) return 'text-red-600';
+                if (percent >= 75) return 'text-yellow-600';
+                return 'text-green-600';
+              };
+
+              const getBoldTextColor = (percent: number) => {
+                if (percent >= 90) return 'text-red-900';
+                if (percent >= 75) return 'text-yellow-900';
+                return 'text-green-900';
+              };
+
+              return (
+                <Card key={level.id} className={`bg-gradient-to-br ${getCardColor(utilizationPercent)}`}>
+                  <CardContent className="p-4">
+                    <div className="space-y-2">
+                      <p className={`text-sm font-medium ${getTextColor(utilizationPercent)}`}>
+                        {formatGradeLevel(level.grade)}
+                      </p>
+                      <div className="flex items-baseline space-x-2">
+                        <span className={`text-2xl font-bold ${getBoldTextColor(utilizationPercent)}`}>
+                          {level.current_enrollment}
+                        </span>
+                        <span className={`text-sm ${getTextColor(utilizationPercent)}`}>
+                          / {level.max_capacity}
+                        </span>
+                      </div>
+                      <div className="w-full bg-white/50 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            utilizationPercent >= 90 ? 'bg-red-500' :
+                            utilizationPercent >= 75 ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${Math.min(utilizationPercent, 100)}%` }}
+                        />
+                      </div>
+                      <p className={`text-xs ${getTextColor(utilizationPercent)}`}>
+                        {utilizationPercent}% capacity
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Search and Filters */}
       <Card>

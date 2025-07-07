@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,7 +24,8 @@ import {
   ArrowUp,
   ArrowDown,
   Users,
-  AlertTriangle
+  AlertTriangle,
+  GraduationCap
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
@@ -40,7 +42,6 @@ interface Student {
   grade_level: string;
   status: string;
   current_class?: string;
-  current_section?: string;
   phone?: string;
   email?: string;
   date_of_birth: string;
@@ -65,9 +66,6 @@ export const StudentList = () => {
   const [sortBy, setSortBy] = useState<'name' | 'student_id' | 'grade' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [showStudentForm, setShowStudentForm] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const studentsPerPage = 30;
@@ -119,6 +117,8 @@ export const StudentList = () => {
         description: "Student record deleted successfully.",
       });
       refetch();
+      setShowDeleteDialog(false);
+      setStudentToDelete(null);
     },
     onError: (error: any) => {
       toast({
@@ -281,7 +281,6 @@ export const StudentList = () => {
       'Grade Level': formatGradeLevel(student.grade_level),
       'Status': student.status,
       'Class': student.classes?.class_name || '',
-      'Section': student.current_section || '',
       'Phone': student.phone || '',
       'Email': student.email || '',
       'Date of Birth': student.date_of_birth ? format(new Date(student.date_of_birth), 'yyyy-MM-dd') : '',
@@ -303,7 +302,6 @@ export const StudentList = () => {
       { wch: 12 }, // Grade Level
       { wch: 10 }, // Status
       { wch: 15 }, // Class
-      { wch: 10 }, // Section
       { wch: 15 }, // Phone
       { wch: 20 }, // Email
       { wch: 12 }, // Date of Birth
@@ -346,9 +344,18 @@ export const StudentList = () => {
   };
 
   const handleEditStudent = (student: any) => {
-    setSelectedStudent(student);
-    setIsEditMode(true);
-    setShowStudentForm(true);
+    navigate(`/students/${student.id}/edit`);
+  };
+
+  const handleDeleteStudent = (student: Student) => {
+    setStudentToDelete(student);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = () => {
+    if (studentToDelete) {
+      deleteStudentMutation.mutate(studentToDelete.id);
+    }
   };
 
   return (
@@ -430,7 +437,7 @@ export const StudentList = () => {
                 <p className="text-sm font-medium text-purple-600">Grade Levels</p>
                 <p className="text-2xl font-bold text-purple-900">{gradeLevels?.length || 0}</p>
               </div>
-              <Users className="h-8 w-8 text-purple-500" />
+              <GraduationCap className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
@@ -573,7 +580,6 @@ export const StudentList = () => {
                     </TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Class</TableHead>
-                    <TableHead>Section</TableHead>
                     <TableHead>Registration Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -605,7 +611,6 @@ export const StudentList = () => {
                         <Badge variant="secondary">{student.status}</Badge>
                       </TableCell>
                       <TableCell>{student.classes?.class_name || 'Not Assigned'}</TableCell>
-                      <TableCell>{student.current_section || 'N/A'}</TableCell>
                       <TableCell>{format(new Date(student.created_at), 'MMM dd, yyyy')}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -628,10 +633,7 @@ export const StudentList = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => {
-                              setStudentToDelete(student);
-                              setShowDeleteDialog(true);
-                            }}
+                            onClick={() => handleDeleteStudent(student)}
                             className="hover:bg-red-50 hover:text-red-600"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -667,6 +669,24 @@ export const StudentList = () => {
           </Button>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Student</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the student record for {studentToDelete?.first_name} {studentToDelete?.last_name}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
