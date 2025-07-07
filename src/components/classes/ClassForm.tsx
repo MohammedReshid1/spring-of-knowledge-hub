@@ -151,7 +151,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
     const gradeMap: Record<string, string> = {
       'pre_k': 'Pre KG',
       'kg': 'KG',
-      'prep': 'Prep',
+      'prep': 'PREP',
       'kindergarten': 'KG', // Fallback if any old data exists
       'grade_1': 'Grade 1',
       'grade_2': 'Grade 2',

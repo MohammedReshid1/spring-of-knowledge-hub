@@ -8,15 +8,23 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen, Search, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen, Search, Filter, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ClassForm } from './ClassForm';
+import { ClassStudentsPopup } from './ClassStudentsPopup';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { getHighlightedText } from '@/utils/searchHighlight';
 
 export const ClassManagement = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [gradeFilter, setGradeFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [viewStudentsClass, setViewStudentsClass] = useState(null);
+  const [isStudentsPopupOpen, setIsStudentsPopupOpen] = useState(false);
+  const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
 
@@ -184,11 +192,11 @@ export const ClassManagement = () => {
   };
 
   const formatGradeLevel = (grade: string) => {
-    // Updated to handle KG and PREP properly
+    // Updated to handle KG and PREP properly  
     const gradeMap: Record<string, string> = {
       'pre_k': 'Pre KG',
-      'kg': 'KG',
-      'prep': 'Prep',
+      'kg': 'KG', 
+      'prep': 'PREP',
       'kindergarten': 'KG', // Fallback if any old data exists
       'grade_1': 'Grade 1',
       'grade_2': 'Grade 2',
@@ -207,6 +215,11 @@ export const ClassManagement = () => {
     return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  const handleViewStudents = (classData: any) => {
+    setViewStudentsClass(classData);
+    setIsStudentsPopupOpen(true);
+  };
+
   const handleDelete = (classId: string) => {
     if (confirm('Are you sure you want to delete this class? This action cannot be undone.')) {
       deleteClassMutation.mutate(classId);
@@ -220,18 +233,32 @@ export const ClassManagement = () => {
     queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
   };
 
-  // Filter classes based on search term
+  // Filter classes based on search term and grade level
   const filteredClasses = classes?.filter(cls => {
-    if (!searchTerm) return true;
-    
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      cls.class_name.toLowerCase().includes(searchLower) ||
-      (cls.grade_levels?.grade && formatGradeLevel(cls.grade_levels.grade).toLowerCase().includes(searchLower)) ||
-      (cls.teacher?.full_name && cls.teacher.full_name.toLowerCase().includes(searchLower)) ||
-      cls.academic_year.toLowerCase().includes(searchLower)
+    const matchesSearch = !searchTerm || (
+      cls.class_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (cls.grade_levels?.grade && formatGradeLevel(cls.grade_levels.grade).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (cls.teacher?.full_name && cls.teacher.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      cls.academic_year.toLowerCase().includes(searchTerm.toLowerCase())
     );
+    
+    const matchesGrade = !gradeFilter || cls.grade_levels?.grade === gradeFilter;
+    
+    return matchesSearch && matchesGrade;
   }) || [];
+
+  // Pagination
+  const totalPages = Math.ceil(filteredClasses.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedClasses = filteredClasses.slice(startIndex, startIndex + itemsPerPage);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, gradeFilter]);
+
+  // Get unique grade levels for filter
+  const gradeOptions = Array.from(new Set(classes?.map(cls => cls.grade_levels?.grade).filter(Boolean))) || [];
 
   return (
     <div className="space-y-6 p-6">
@@ -355,16 +382,54 @@ export const ClassManagement = () => {
                 />
               </div>
             </div>
+            <div className="sm:w-48">
+              <Select value={gradeFilter} onValueChange={setGradeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by grade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Grades</SelectItem>
+                  {gradeOptions.map((grade) => (
+                    <SelectItem key={grade} value={grade}>
+                      {formatGradeLevel(grade)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Classes Table */}
       <Card className="shadow-sm">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">
             Classes ({filteredClasses.length})
           </CardTitle>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -376,12 +441,12 @@ export const ClassManagement = () => {
             <div className="text-center py-12">
               <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">
-                {searchTerm ? 'No classes found matching your search' : 'No classes found'}
+                {searchTerm || gradeFilter ? 'No classes found matching your filters' : 'No classes found'}
               </p>
               <p className="text-gray-500 text-sm mb-4">
-                {searchTerm ? 'Try adjusting your search terms' : 'Start by creating your first class'}
+                {searchTerm || gradeFilter ? 'Try adjusting your search terms or filters' : 'Start by creating your first class'}
               </p>
-              {!searchTerm && (
+              {!searchTerm && !gradeFilter && (
                 <Button onClick={() => setIsFormOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create Class
@@ -389,94 +454,153 @@ export const ClassManagement = () => {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="font-semibold">Class Name</TableHead>
-                    <TableHead className="font-semibold">Grade Level</TableHead>
-                    <TableHead className="font-semibold">Teacher</TableHead>
-                    <TableHead className="font-semibold">Enrollment</TableHead>
-                    <TableHead className="font-semibold">Capacity</TableHead>
-                    <TableHead className="font-semibold">Utilization</TableHead>
-                    <TableHead className="font-semibold">Academic Year</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredClasses.map((cls) => {
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold">Class Name</TableHead>
+                      <TableHead className="font-semibold">Grade Level</TableHead>
+                      <TableHead className="font-semibold">Teacher</TableHead>
+                      <TableHead className="font-semibold">Enrollment</TableHead>
+                      <TableHead className="font-semibold">Capacity</TableHead>
+                      <TableHead className="font-semibold">Utilization</TableHead>
+                      <TableHead className="font-semibold">Academic Year</TableHead>
+                      <TableHead className="font-semibold">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedClasses.map((cls) => {
                     const percentage = cls.max_capacity > 0 ? (cls.current_enrollment / cls.max_capacity) * 100 : 0;
                     
-                    return (
-                      <TableRow key={cls.id} className="hover:bg-gray-50 transition-colors">
-                        <TableCell className="font-medium text-gray-900">{cls.class_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-medium">
-                            {cls.grade_levels ? formatGradeLevel(cls.grade_levels.grade) : 'Not assigned'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-500" />
-                            <span className="text-gray-700">
-                              {cls.teacher?.full_name || 'Not assigned'}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`font-medium ${getCapacityColor(cls.current_enrollment, cls.max_capacity)}`}>
-                            {cls.current_enrollment}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-gray-600">{cls.max_capacity}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16">
-                              <Progress value={percentage} className="h-2" />
-                            </div>
-                            <Badge className={getCapacityBadgeColor(cls.current_enrollment, cls.max_capacity)} variant="outline">
-                              {Math.round(percentage)}%
+                      return (
+                        <TableRow key={cls.id} className="hover:bg-gray-50 transition-colors">
+                          <TableCell className="font-medium text-gray-900">
+                            {getHighlightedText(cls.class_name, searchTerm)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-medium">
+                              {cls.grade_levels ? formatGradeLevel(cls.grade_levels.grade) : 'Not assigned'}
                             </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-gray-600">{cls.academic_year}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingClass(cls);
-                                setIsFormOpen(true);
-                              }}
-                              className="hover:bg-blue-50 hover:text-blue-600"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(cls.id)}
-                              disabled={!canDelete}
-                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-gray-500" />
+                              <span className="text-gray-700">
+                                {cls.teacher?.full_name ? getHighlightedText(cls.teacher.full_name, searchTerm) : 'Not assigned'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`font-medium ${getCapacityColor(cls.current_enrollment, cls.max_capacity)}`}>
+                              {cls.current_enrollment}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-gray-600">{cls.max_capacity}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16">
+                                <Progress value={percentage} className="h-2" />
+                              </div>
+                              <Badge className={getCapacityBadgeColor(cls.current_enrollment, cls.max_capacity)} variant="outline">
+                                {Math.round(percentage)}%
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-gray-600">
+                              {getHighlightedText(cls.academic_year, searchTerm)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewStudents(cls)}
+                                className="hover:bg-green-50 hover:text-green-600"
+                                title="View Students"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingClass(cls);
+                                  setIsFormOpen(true);
+                                }}
+                                className="hover:bg-blue-50 hover:text-blue-600"
+                                title="Edit Class"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(cls.id)}
+                                disabled={!canDelete}
+                                className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                title="Delete Class"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Pagination Info */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredClasses.length)} of {filteredClasses.length} results
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Class Students Popup */}
+      <ClassStudentsPopup
+        classData={viewStudentsClass}
+        isOpen={isStudentsPopupOpen}
+        onClose={() => {
+          setIsStudentsPopupOpen(false);
+          setViewStudentsClass(null);
+        }}
+      />
     </div>
   );
 };
