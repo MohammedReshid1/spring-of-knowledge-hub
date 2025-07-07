@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -147,7 +148,7 @@ export const Overview = () => {
       'pre_k': 'Pre KG',
       'kg': 'KG',
       'prep': 'Prep',
-      'kindergarten': 'Kindergarten',
+      'kindergarten': 'KG',
       'grade_1': 'Grade 1',
       'grade_2': 'Grade 2',
       'grade_3': 'Grade 3',
@@ -195,11 +196,18 @@ export const Overview = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h2>
-        <p className="text-gray-600 mt-1">
-          Welcome to the Spring of Knowledge Academy Registration Management System
-        </p>
+      <div className="flex items-center gap-4">
+        <img 
+          src="/SPRING_LOGO-removebg-preview.png" 
+          alt="School Logo" 
+          className="h-16 w-16 object-contain"
+        />
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h2>
+          <p className="text-gray-600 mt-1">
+            Welcome to the Spring of Knowledge Academy Registration Management System
+          </p>
+        </div>
       </div>
 
       {/* Main Statistics Cards */}

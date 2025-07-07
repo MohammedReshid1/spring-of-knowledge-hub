@@ -1,5 +1,6 @@
+
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,12 +49,10 @@ interface Student {
   father_name?: string;
   mother_name?: string;
   address?: string;
-}
-
-interface DuplicateGroup {
-  key: string;
-  students: Student[];
-  count: number;
+  class_id?: string;
+  classes?: {
+    class_name: string;
+  };
 }
 
 export const StudentList = () => {
@@ -65,46 +64,23 @@ export const StudentList = () => {
   const [sortBy, setSortBy] = useState<'name' | 'student_id' | 'grade' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [showDuplicates, setShowDuplicates] = useState(false);
   const studentsPerPage = 30;
+  const queryClient = useQueryClient();
 
   const { data: students, isLoading, error, refetch } = useQuery({
-    queryKey: ['students', searchTerm, gradeFilter, classFilter, statusFilter, sortBy, sortOrder],
+    queryKey: ['students'],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('students')
-        .select('*');
+        .select(`
+          *,
+          classes:class_id (
+            class_name
+          )
+        `)
+        .order('first_name', { ascending: true });
 
-      if (searchTerm) {
-        query = query.ilike('first_name', `%${searchTerm}%`);
-      }
-
-      if (gradeFilter !== 'all') {
-        query = query.eq('grade_level', gradeFilter as any);
-      }
-
-      if (classFilter !== 'all') {
-        query = query.eq('current_class', classFilter);
-      }
-
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter as any);
-      }
-
-      if (sortBy === 'name') {
-        query = query.order('first_name', { ascending: sortOrder === 'asc' });
-      } else if (sortBy === 'student_id') {
-        query = query.order('student_id', { ascending: sortOrder === 'asc' });
-      } else if (sortBy === 'grade') {
-        query = query.order('grade_level', { ascending: sortOrder === 'asc' });
-      } else if (sortBy === 'date') {
-        query = query.order('created_at', { ascending: sortOrder === 'asc' });
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       return data;
     },
     staleTime: 30000,
@@ -116,10 +92,8 @@ export const StudentList = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('classes')
-        .select('class_name');
-      if (error) {
-        throw error;
-      }
+        .select('id, class_name');
+      if (error) throw error;
       return data;
     },
   });
@@ -172,8 +146,20 @@ export const StudentList = () => {
       );
     }
 
+    if (gradeFilter !== 'all') {
+      filtered = filtered.filter(student => student.grade_level === gradeFilter);
+    }
+
+    if (classFilter !== 'all') {
+      filtered = filtered.filter(student => student.classes?.class_name === classFilter);
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(student => student.status === statusFilter);
+    }
+
     return filtered;
-  }, [students, searchTerm]);
+  }, [students, searchTerm, gradeFilter, classFilter, statusFilter]);
 
   const sortedStudents = useMemo(() => {
     if (!filteredStudents) return [];
@@ -246,7 +232,26 @@ export const StudentList = () => {
   };
 
   const formatGradeLevel = (grade: string) => {
-    return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const gradeMap: Record<string, string> = {
+      'pre_k': 'Pre KG',
+      'kg': 'KG',
+      'prep': 'Prep',
+      'kindergarten': 'KG',
+      'grade_1': 'Grade 1',
+      'grade_2': 'Grade 2',
+      'grade_3': 'Grade 3',
+      'grade_4': 'Grade 4',
+      'grade_5': 'Grade 5',
+      'grade_6': 'Grade 6',
+      'grade_7': 'Grade 7',
+      'grade_8': 'Grade 8',
+      'grade_9': 'Grade 9',
+      'grade_10': 'Grade 10',
+      'grade_11': 'Grade 11',
+      'grade_12': 'Grade 12',
+    };
+
+    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const exportToExcel = (studentsToExport?: Student[]) => {
@@ -269,7 +274,7 @@ export const StudentList = () => {
       'Mother Name': student.mother_name || '',
       'Grade Level': formatGradeLevel(student.grade_level),
       'Status': student.status,
-      'Class': student.current_class || '',
+      'Class': student.classes?.class_name || '',
       'Section': student.current_section || '',
       'Phone': student.phone || '',
       'Email': student.email || '',
@@ -291,7 +296,7 @@ export const StudentList = () => {
       { wch: 15 }, // Mother Name
       { wch: 12 }, // Grade Level
       { wch: 10 }, // Status
-      { wch: 10 }, // Class
+      { wch: 15 }, // Class
       { wch: 10 }, // Section
       { wch: 15 }, // Phone
       { wch: 20 }, // Email
@@ -330,10 +335,6 @@ export const StudentList = () => {
     exportToExcel(selectedStudentData);
   };
 
-  const detectDuplicateStudents = async () => {
-    setShowDuplicates(true);
-  };
-
   return (
     <div className="space-y-6 p-6">
       {/* Header with Logo */}
@@ -342,7 +343,7 @@ export const StudentList = () => {
           <img 
             src="/SPRING_LOGO-removebg-preview.png" 
             alt="School Logo" 
-            className="h-12 w-12 object-contain"
+            className="h-16 w-16 object-contain"
           />
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Students</h2>
@@ -443,7 +444,7 @@ export const StudentList = () => {
       {/* Student Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Student List</CardTitle>
+          <CardTitle>Student List ({sortedStudents.length} total)</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -534,7 +535,7 @@ export const StudentList = () => {
                       <TableCell>
                         <Badge variant="secondary">{student.status}</Badge>
                       </TableCell>
-                      <TableCell>{student.current_class || 'N/A'}</TableCell>
+                      <TableCell>{student.classes?.class_name || 'Not Assigned'}</TableCell>
                       <TableCell>{student.current_section || 'N/A'}</TableCell>
                       <TableCell>{format(new Date(student.created_at), 'MMM dd, yyyy')}</TableCell>
                       <TableCell className="text-right">

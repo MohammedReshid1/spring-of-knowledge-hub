@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,15 +9,20 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen, Search, Filter } from 'lucide-react';
+import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen, Search, Filter, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ClassForm } from './ClassForm';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { ClassStudentManagement } from './ClassStudentManagement';
 
 export const ClassManagement = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClass, setEditingClass] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedClass, setSelectedClass] = useState(null);
+  const [showStudentManagement, setShowStudentManagement] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const classesPerPage = 10;
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
 
@@ -72,7 +78,8 @@ export const ClassManagement = () => {
             full_name
           )
         `)
-        .order('academic_year', { ascending: false });
+        .order('academic_year', { ascending: false })
+        .order('class_name', { ascending: true });
       
       if (error) {
         console.error('Error fetching classes:', error);
@@ -189,7 +196,7 @@ export const ClassManagement = () => {
       'pre_k': 'Pre KG',
       'kg': 'KG',
       'prep': 'Prep',
-      'kindergarten': 'Kindergarten', // Keep as fallback
+      'kindergarten': 'KG', // Keep as fallback
       'grade_1': 'Grade 1',
       'grade_2': 'Grade 2',
       'grade_3': 'Grade 3',
@@ -233,13 +240,32 @@ export const ClassManagement = () => {
     );
   }) || [];
 
+  // Paginate classes
+  const totalPages = Math.ceil(filteredClasses.length / classesPerPage);
+  const paginatedClasses = filteredClasses.slice(
+    (currentPage - 1) * classesPerPage,
+    currentPage * classesPerPage
+  );
+
+  const handleViewStudents = (classData: any) => {
+    setSelectedClass(classData);
+    setShowStudentManagement(true);
+  };
+
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Class Management</h1>
-          <p className="text-gray-600 mt-1">Manage classes and grade level capacity</p>
+        <div className="flex items-center gap-4">
+          <img 
+            src="/SPRING_LOGO-removebg-preview.png" 
+            alt="School Logo" 
+            className="h-16 w-16 object-contain"
+          />
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Class Management</h1>
+            <p className="text-gray-600 mt-1">Manage classes and grade level capacity</p>
+          </div>
         </div>
         <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
           <SheetTrigger asChild>
@@ -363,7 +389,7 @@ export const ClassManagement = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">
-            Classes ({filteredClasses.length})
+            Classes ({filteredClasses.length} total, showing {paginatedClasses.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -372,7 +398,7 @@ export const ClassManagement = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="text-gray-600 mt-4">Loading classes...</p>
             </div>
-          ) : !filteredClasses || filteredClasses.length === 0 ? (
+          ) : !paginatedClasses || paginatedClasses.length === 0 ? (
             <div className="text-center py-12">
               <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">
@@ -389,94 +415,146 @@ export const ClassManagement = () => {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="font-semibold">Class Name</TableHead>
-                    <TableHead className="font-semibold">Grade Level</TableHead>
-                    <TableHead className="font-semibold">Teacher</TableHead>
-                    <TableHead className="font-semibold">Enrollment</TableHead>
-                    <TableHead className="font-semibold">Capacity</TableHead>
-                    <TableHead className="font-semibold">Utilization</TableHead>
-                    <TableHead className="font-semibold">Academic Year</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredClasses.map((cls) => {
-                    const percentage = cls.max_capacity > 0 ? (cls.current_enrollment / cls.max_capacity) * 100 : 0;
-                    
-                    return (
-                      <TableRow key={cls.id} className="hover:bg-gray-50 transition-colors">
-                        <TableCell className="font-medium text-gray-900">{cls.class_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-medium">
-                            {cls.grade_levels ? formatGradeLevel(cls.grade_levels.grade) : 'Not assigned'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-500" />
-                            <span className="text-gray-700">
-                              {cls.teacher?.full_name || 'Not assigned'}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`font-medium ${getCapacityColor(cls.current_enrollment, cls.max_capacity)}`}>
-                            {cls.current_enrollment}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-gray-600">{cls.max_capacity}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16">
-                              <Progress value={percentage} className="h-2" />
-                            </div>
-                            <Badge className={getCapacityBadgeColor(cls.current_enrollment, cls.max_capacity)} variant="outline">
-                              {Math.round(percentage)}%
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold">Class Name</TableHead>
+                      <TableHead className="font-semibold">Grade Level</TableHead>
+                      <TableHead className="font-semibold">Teacher</TableHead>
+                      <TableHead className="font-semibold">Enrollment</TableHead>
+                      <TableHead className="font-semibold">Capacity</TableHead>
+                      <TableHead className="font-semibold">Utilization</TableHead>
+                      <TableHead className="font-semibold">Academic Year</TableHead>
+                      <TableHead className="font-semibold">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedClasses.map((cls) => {
+                      const percentage = cls.max_capacity > 0 ? (cls.current_enrollment / cls.max_capacity) * 100 : 0;
+                      
+                      return (
+                        <TableRow key={cls.id} className="hover:bg-gray-50 transition-colors">
+                          <TableCell className="font-medium text-gray-900">{cls.class_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-medium">
+                              {cls.grade_levels ? formatGradeLevel(cls.grade_levels.grade) : 'Not assigned'}
                             </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-gray-600">{cls.academic_year}</span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingClass(cls);
-                                setIsFormOpen(true);
-                              }}
-                              className="hover:bg-blue-50 hover:text-blue-600"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(cls.id)}
-                              disabled={!canDelete}
-                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-gray-500" />
+                              <span className="text-gray-700">
+                                {cls.teacher?.full_name || 'Not assigned'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`font-medium ${getCapacityColor(cls.current_enrollment, cls.max_capacity)}`}>
+                              {cls.current_enrollment}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-gray-600">{cls.max_capacity}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16">
+                                <Progress value={percentage} className="h-2" />
+                              </div>
+                              <Badge className={getCapacityBadgeColor(cls.current_enrollment, cls.max_capacity)} variant="outline">
+                                {Math.round(percentage)}%
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-gray-600">{cls.academic_year}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewStudents(cls)}
+                                className="hover:bg-purple-50 hover:text-purple-600"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingClass(cls);
+                                  setIsFormOpen(true);
+                                }}
+                                className="hover:bg-blue-50 hover:text-blue-600"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(cls.id)}
+                                disabled={!canDelete}
+                                className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center space-x-2 mt-6">
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-gray-600">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+
+      {/* Class Student Management Modal */}
+      <Sheet open={showStudentManagement} onOpenChange={setShowStudentManagement}>
+        <SheetContent className="overflow-y-auto w-full max-w-4xl">
+          <SheetHeader>
+            <SheetTitle className="text-xl">
+              Manage Students - {selectedClass?.class_name}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-6">
+            {selectedClass && (
+              <ClassStudentManagement 
+                classData={selectedClass}
+                onClose={() => setShowStudentManagement(false)}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
