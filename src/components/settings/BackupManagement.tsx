@@ -3,16 +3,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, RefreshCw, Database, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Download, RefreshCw, Database, Clock, CheckCircle, XCircle, AlertCircle, Eye, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
 export const BackupManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [selectedBackup, setSelectedBackup] = useState<any>(null);
+  const [showViewDetails, setShowViewDetails] = useState(false);
 
   // Fetch backup logs
   const { data: backupLogs, isLoading } = useQuery({
@@ -28,6 +31,93 @@ export const BackupManagement = () => {
       return data;
     },
   });
+
+  // Restore backup mutation
+  const restoreBackupMutation = useMutation({
+    mutationFn: async (backupId: string) => {
+      // For now, we'll show a message that restore is not yet implemented
+      // In a real implementation, you'd need a restore function
+      throw new Error('Restore functionality is not yet implemented. Please contact system administrator.');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // View backup details
+  const viewBackupDetails = async (backup: any) => {
+    if (!backup.file_path) {
+      toast({
+        title: "Error",
+        description: "Backup file not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Fetch backup file details from storage
+      const { data, error } = await supabase.storage
+        .from('system-backups')
+        .download(backup.file_path);
+
+      if (error) throw error;
+
+      const backupData = JSON.parse(await data.text());
+      setSelectedBackup({ ...backup, backupData });
+      setShowViewDetails(true);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to load backup details: " + error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Download backup file
+  const downloadBackup = async (backup: any) => {
+    if (!backup.file_path) {
+      toast({
+        title: "Error",
+        description: "Backup file not available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('system-backups')
+        .download(backup.file_path);
+
+      if (error) throw error;
+
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = backup.file_path;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: "Backup file downloaded successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to download backup: " + error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   // Create manual backup
   const createBackupMutation = useMutation({
@@ -96,7 +186,7 @@ export const BackupManagement = () => {
         <div>
           <h2 className="text-2xl font-bold text-red-600">Database Backup Management</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Create manual backups and view backup history. Automatic backups run every 2 weeks.
+            Create manual backups and view backup history. Automatic backups run every week.
           </p>
         </div>
         
@@ -182,9 +272,56 @@ export const BackupManagement = () => {
                       </span>
                     )}
                     {backup.status === 'completed' && backup.file_path && (
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
+                      <>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => viewBackupDetails(backup)}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => downloadBackup(backup)}
+                          title="Download Backup"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="text-orange-600 hover:text-orange-700"
+                              title="Restore Backup"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Restore Database Backup</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                <strong>WARNING:</strong> This will completely replace all current data with the backup data from{' '}
+                                {format(new Date(backup.started_at), 'PPp')}. This action cannot be undone.
+                                <br /><br />
+                                Are you absolutely sure you want to proceed?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => restoreBackupMutation.mutate(backup.id)}
+                                className="bg-red-600 hover:bg-red-700"
+                              >
+                                Restore Backup
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </>
                     )}
                   </div>
                 </div>
@@ -207,18 +344,85 @@ export const BackupManagement = () => {
             Automatic Backup Schedule
           </CardTitle>
           <CardDescription className="text-yellow-700">
-            Automatic backups are configured to run every 2 weeks to ensure your data is always protected.
+            Automatic backups are configured to run every week to ensure your data is always protected.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm text-yellow-800">
-            <p>• Frequency: Every 14 days</p>
+            <p>• Frequency: Every 7 days</p>
             <p>• Backup Type: Incremental (saves space while maintaining data integrity)</p>
             <p>• Storage: Secure encrypted storage</p>
             <p>• Retention: 6 months of backup history</p>
           </div>
         </CardContent>
       </Card>
+
+      {/* View Backup Details Dialog */}
+      <Dialog open={showViewDetails} onOpenChange={setShowViewDetails}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Backup Details</DialogTitle>
+            <DialogDescription>
+              Detailed information about the backup created on{' '}
+              {selectedBackup && format(new Date(selectedBackup.started_at), 'PPp')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedBackup && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600">Backup Type</h4>
+                  <p className="text-sm">{selectedBackup.backup_type}</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600">Backup Method</h4>
+                  <p className="text-sm">{selectedBackup.backup_method}</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600">Total Records</h4>
+                  <p className="text-sm">{selectedBackup.records_count?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600">File Size</h4>
+                  <p className="text-sm">
+                    {selectedBackup.file_size ? (selectedBackup.file_size / 1024 / 1024).toFixed(2) + ' MB' : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {selectedBackup.backupData && (
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600 mb-2">Tables Backed Up</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(selectedBackup.backupData.tables || {}).map(([tableName, tableData]: [string, any]) => (
+                      <div key={tableName} className="p-2 bg-gray-50 rounded">
+                        <span className="font-medium text-sm">{tableName}</span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          ({Array.isArray(tableData) ? tableData.length : 0} records)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedBackup.tables_backed_up && (
+                <div>
+                  <h4 className="font-medium text-sm text-gray-600 mb-2">Tables Included</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedBackup.tables_backed_up.map((table: string) => (
+                      <Badge key={table} variant="outline" className="text-xs">
+                        {table}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

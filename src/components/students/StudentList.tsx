@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
@@ -29,6 +30,8 @@ export const StudentList = () => {
   const [gradeFilter, setGradeFilter] = useState('all');
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [isImporting, setIsImporting] = useState(false);
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
 
@@ -43,6 +46,8 @@ export const StudentList = () => {
       return;
     }
 
+    setIsImporting(true);
+    setImportProgress(0);
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
@@ -134,6 +139,11 @@ export const StudentList = () => {
 
     for (const [index, row] of jsonData.entries()) {
       try {
+        // Update progress
+        const progress = Math.round(((index + 1) / jsonData.length) * 100);
+        setImportProgress(progress);
+
+        console.log(`Processing row ${index + 1}:`, row);
         // Parse name field (handle both formats)
         let first_name = '';
         let father_name = '';
@@ -223,12 +233,15 @@ export const StudentList = () => {
           .insert(studentData);
 
         if (error) {
+          console.error(`Database error for row ${index + 1}:`, error);
           errors.push(`Row ${index + 1}: Database error - ${error.message}`);
           errorCount++;
         } else {
+          console.log(`Successfully inserted row ${index + 1}`);
           successCount++;
         }
       } catch (error) {
+        console.error(`Unexpected error for row ${index + 1}:`, error);
         errors.push(`Row ${index + 1}: Unexpected error - ${error instanceof Error ? error.message : 'Unknown error'}`);
         errorCount++;
       }
@@ -237,6 +250,14 @@ export const StudentList = () => {
     // Refresh data
     queryClient.invalidateQueries({ queryKey: ['students'] });
     queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+
+    setIsImporting(false);
+    setImportProgress(0);
+
+    console.log(`Import completed: ${successCount} successful, ${errorCount} failed`);
+    if (errors.length > 0) {
+      console.log("Import errors:", errors);
+    }
 
     // Show results
     if (successCount > 0 && errorCount === 0) {
@@ -920,6 +941,16 @@ export const StudentList = () => {
               >
                 Clear Selection
               </Button>
+            </div>
+          )}
+          {/* Import Progress Bar */}
+          {isImporting && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Importing students...</span>
+                <span>{importProgress}%</span>
+              </div>
+              <Progress value={importProgress} className="w-full" />
             </div>
           )}
         </CardHeader>
