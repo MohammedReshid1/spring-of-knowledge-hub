@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,6 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { 
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
@@ -21,6 +31,8 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+const STUDENTS_PER_PAGE = 30;
+
 export const StudentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -28,9 +40,11 @@ export const StudentList = () => {
   const [editingStudent, setEditingStudent] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [gradeFilter, setGradeFilter] = useState('all');
+  const [classFilter, setClassFilter] = useState('all');
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [showImportCard, setShowImportCard] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
 
@@ -107,6 +121,19 @@ export const StudentList = () => {
         throw error;
       }
       console.log('Students fetched successfully:', data?.length);
+      return data;
+    }
+  });
+
+  const { data: classes } = useQuery({
+    queryKey: ['classes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('class_name');
+      
+      if (error) throw error;
       return data;
     }
   });
@@ -347,13 +374,13 @@ export const StudentList = () => {
   };
 
   const filteredStudents = students?.filter(student => {
-    if (!searchTerm && statusFilter === 'all' && gradeFilter === 'all') {
+    if (!searchTerm && statusFilter === 'all' && gradeFilter === 'all' && classFilter === 'all') {
       return true;
     }
 
     const searchLower = searchTerm.toLowerCase();
     
-    // Enhanced search: ID, First Name, Mother's Name, Phone Numbers
+    // Enhanced search: ID, First Name, Mother's Name, Phone Numbers, Class Name
     const matchesSearch = !searchTerm || 
       student.student_id.toLowerCase().includes(searchLower) ||
       student.first_name.toLowerCase().includes(searchLower) ||
@@ -361,19 +388,32 @@ export const StudentList = () => {
       (student.mother_name && student.mother_name.toLowerCase().includes(searchLower)) ||
       (student.phone && student.phone.toLowerCase().includes(searchLower)) ||
       (student.phone_secondary && student.phone_secondary.toLowerCase().includes(searchLower)) ||
-      (student.email && student.email.toLowerCase().includes(searchLower));
+      (student.email && student.email.toLowerCase().includes(searchLower)) ||
+      (student.classes?.class_name && student.classes.class_name.toLowerCase().includes(searchLower));
     
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
     const matchesGrade = gradeFilter === 'all' || student.grade_level === gradeFilter;
+    const matchesClass = classFilter === 'all' || student.class_id === classFilter;
     
-    return matchesSearch && matchesStatus && matchesGrade;
+    return matchesSearch && matchesStatus && matchesGrade && matchesClass;
   }) || [];
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
+  const startIndex = (currentPage - 1) * STUDENTS_PER_PAGE;
+  const endIndex = startIndex + STUDENTS_PER_PAGE;
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, gradeFilter, classFilter]);
 
   // Selection handlers
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked);
     if (checked) {
-      setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
+      setSelectedStudents(new Set(paginatedStudents.map(s => s.id)));
     } else {
       setSelectedStudents(new Set());
     }
@@ -387,7 +427,7 @@ export const StudentList = () => {
       newSelected.delete(studentId);
     }
     setSelectedStudents(newSelected);
-    setSelectAll(newSelected.size === filteredStudents.length);
+    setSelectAll(newSelected.size === paginatedStudents.length);
   };
 
   const getStatusColor = (status: string) => {
@@ -438,6 +478,11 @@ export const StudentList = () => {
     queryClient.invalidateQueries({ queryKey: ['students'] });
     queryClient.invalidateQueries({ queryKey: ['student-stats'] });
     setShowImportCard(false);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (error) {
@@ -574,7 +619,7 @@ export const StudentList = () => {
             <Filter className="h-5 w-5" />
             Real-time Search & Filter Students
           </CardTitle>
-          <p className="text-sm text-gray-600">Search by Student ID, Name, Mother's Name, Phone Numbers, or Email</p>
+          <p className="text-sm text-gray-600">Search by Student ID, Name, Mother's Name, Phone Numbers, Email, or Class Name</p>
           {selectedStudents.size > 0 && (
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline" className="bg-blue-50 text-blue-700">
@@ -591,12 +636,12 @@ export const StudentList = () => {
           )}
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by Student ID, Name, Mother's Name, Phone Numbers, or Email..."
+                  placeholder="Search by Student ID, Name, Mother's Name, Phone, Email, or Class..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -604,7 +649,7 @@ export const StudentList = () => {
               </div>
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48">
+              <SelectTrigger>
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
@@ -617,7 +662,7 @@ export const StudentList = () => {
               </SelectContent>
             </Select>
             <Select value={gradeFilter} onValueChange={setGradeFilter}>
-              <SelectTrigger className="w-full sm:w-48">
+              <SelectTrigger>
                 <SelectValue placeholder="Filter by grade" />
               </SelectTrigger>
               <SelectContent>
@@ -632,15 +677,35 @@ export const StudentList = () => {
               </SelectContent>
             </Select>
           </div>
+          <div className="mt-4">
+            <Select value={classFilter} onValueChange={setClassFilter}>
+              <SelectTrigger className="w-full md:w-64">
+                <SelectValue placeholder="Filter by class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classes?.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.class_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
       {/* Students Table */}
       <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">
-            Students ({filteredStudents.length})
-          </CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg">
+              Students ({filteredStudents.length})
+            </CardTitle>
+            <div className="text-sm text-gray-600">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length} students
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -655,128 +720,203 @@ export const StudentList = () => {
               <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectAll}
-                        onCheckedChange={handleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead className="font-semibold">Student</TableHead>
-                    <TableHead className="font-semibold">Student ID</TableHead>
-                    <TableHead className="font-semibold">Mother's Name</TableHead>
-                    <TableHead className="font-semibold">Grade</TableHead>
-                    <TableHead className="font-semibold">Class</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold">Payment</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => (
-                    <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
-                      <TableCell>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-12">
                         <Checkbox
-                          checked={selectedStudents.has(student.id)}
-                          onCheckedChange={(checked) => handleSelectStudent(student.id, checked as boolean)}
+                          checked={selectAll}
+                          onCheckedChange={handleSelectAll}
                         />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage 
-                              src={student.photo_url} 
-                              alt={`${student.first_name} ${student.last_name}`}
-                              className="object-cover"
-                            />
-                            <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                              {getInitials(student.first_name, student.last_name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {highlightSearchTerm(`${student.first_name} ${student.last_name}`, searchTerm)}
-                            </div>
-                            <div className="text-sm text-gray-500">{student.email}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                          {highlightSearchTerm(student.student_id, searchTerm)}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-600">
-                          {student.mother_name ? highlightSearchTerm(student.mother_name, searchTerm) : 'Not provided'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-medium">
-                          {formatGradeLevel(student.grade_level)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-600">
-                          {student.classes?.class_name || 'Not assigned'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(student.status)} variant="outline">
-                          {student.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {student.registration_payments?.[0] ? (
-                          <Badge className={getPaymentStatusColor(student.registration_payments[0].payment_status)} variant="outline">
-                            {student.registration_payments[0].payment_status}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-gray-100 text-gray-600">
-                            No Record
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedStudent(student)}
-                            className="hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingStudent(student);
-                              setIsFormOpen(true);
-                            }}
-                            className="hover:bg-green-50 hover:text-green-600"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(student.id)}
-                            className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            disabled={!canDelete}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead className="font-semibold">Student</TableHead>
+                      <TableHead className="font-semibold">Student ID</TableHead>
+                      <TableHead className="font-semibold">Mother's Name</TableHead>
+                      <TableHead className="font-semibold">Grade</TableHead>
+                      <TableHead className="font-semibold">Class</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">Payment</TableHead>
+                      <TableHead className="font-semibold">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedStudents.map((student) => (
+                      <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedStudents.has(student.id)}
+                            onCheckedChange={(checked) => handleSelectStudent(student.id, checked as boolean)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage 
+                                src={student.photo_url} 
+                                alt={`${student.first_name} ${student.last_name}`}
+                                className="object-cover"
+                              />
+                              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                                {getInitials(student.first_name, student.last_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {highlightSearchTerm(`${student.first_name} ${student.last_name}`, searchTerm)}
+                              </div>
+                              <div className="text-sm text-gray-500">{student.email}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                            {highlightSearchTerm(student.student_id, searchTerm)}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-gray-600">
+                            {student.mother_name ? highlightSearchTerm(student.mother_name, searchTerm) : 'Not provided'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-medium">
+                            {formatGradeLevel(student.grade_level)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-gray-600">
+                            {student.classes?.class_name ? highlightSearchTerm(student.classes.class_name, searchTerm) : 'Not assigned'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(student.status)} variant="outline">
+                            {student.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {student.registration_payments?.[0] ? (
+                            <Badge className={getPaymentStatusColor(student.registration_payments[0].payment_status)} variant="outline">
+                              {student.registration_payments[0].payment_status}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-100 text-gray-600">
+                              No Record
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedStudent(student)}
+                              className="hover:bg-blue-50 hover:text-blue-600"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingStudent(student);
+                                setIsFormOpen(true);
+                              }}
+                              className="hover:bg-green-50 hover:text-green-600"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(student.id)}
+                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              disabled={!canDelete}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-6 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
+                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                      
+                      {/* Show first page */}
+                      {currentPage > 3 && (
+                        <>
+                          <PaginationItem>
+                            <PaginationLink onClick={() => handlePageChange(1)} className="cursor-pointer">
+                              1
+                            </PaginationLink>
+                          </PaginationItem>
+                          {currentPage > 4 && (
+                            <PaginationItem>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )}
+                        </>
+                      )}
+                      
+                      {/* Show pages around current page */}
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                        if (pageNumber > totalPages) return null;
+                        
+                        return (
+                          <PaginationItem key={pageNumber}>
+                            <PaginationLink
+                              onClick={() => handlePageChange(pageNumber)}
+                              isActive={currentPage === pageNumber}
+                              className="cursor-pointer"
+                            >
+                              {pageNumber}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      })}
+                      
+                      {/* Show last page */}
+                      {currentPage < totalPages - 2 && (
+                        <>
+                          {currentPage < totalPages - 3 && (
+                            <PaginationItem>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )}
+                          <PaginationItem>
+                            <PaginationLink onClick={() => handlePageChange(totalPages)} className="cursor-pointer">
+                              {totalPages}
+                            </PaginationLink>
+                          </PaginationItem>
+                        </>
+                      )}
+                      
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
+                          className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
