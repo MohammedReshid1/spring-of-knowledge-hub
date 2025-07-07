@@ -274,12 +274,12 @@ export const BackupManagement = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {backup.file_size && (
-                      <span className="text-sm text-gray-500">
-                        {(backup.file_size / 1024 / 1024).toFixed(2)} MB
-                      </span>
-                    )}
-                    {backup.status === 'completed' && backup.file_path && (
+                     {backup.file_size && (
+                       <span className="text-sm text-gray-500">
+                         {(backup.file_size / 1024 / 1024).toFixed(2)} MB
+                       </span>
+                     )}
+                     {backup.status === 'completed' && (
                       <>
                         <Button 
                           variant="ghost" 

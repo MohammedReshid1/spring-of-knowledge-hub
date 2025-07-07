@@ -580,22 +580,36 @@ export const StudentList = () => {
 
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log("No file selected");
+      return;
+    }
     
-    console.log("Excel file selected:", file.name);
+    console.log("Excel file selected:", file.name, "Size:", file.size, "Type:", file.type);
     setIsImporting(true);
+    setImportProgress(5);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        console.log("Reading Excel file...");
+        console.log("Reading Excel file...", e.target?.result);
+        setImportProgress(10);
+        
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        console.log("Data array created, length:", data.length);
+        
         const workbook = XLSX.read(data, { type: 'array' });
+        console.log("Workbook read, sheet names:", workbook.SheetNames);
+        setImportProgress(20);
+        
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
-        console.log("Excel data parsed:", jsonData);
+        console.log("Excel data parsed:", jsonData.length, "rows");
+        console.log("First row sample:", jsonData[0]);
+        setImportProgress(30);
+        
         await processImportData(jsonData);
       } catch (error) {
         console.error("Excel import error:", error);
@@ -608,6 +622,18 @@ export const StudentList = () => {
         });
       }
     };
+    
+    reader.onerror = (error) => {
+      console.error("FileReader error:", error);
+      setIsImporting(false);
+      setImportProgress(0);
+      toast({
+        title: "File Read Error",
+        description: "Failed to read the selected file",
+        variant: "destructive",
+      });
+    };
+    
     reader.readAsArrayBuffer(file);
     // Reset the input
     event.target.value = '';
