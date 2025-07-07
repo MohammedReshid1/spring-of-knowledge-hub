@@ -192,43 +192,60 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     if (!headerText || typeof headerText !== 'string') return null;
     
     const text = headerText.toString().trim();
+    console.log(`Checking header text: "${text}"`);
     
-    // Enhanced patterns to handle various class formats including spaces and dashes
+    // Enhanced patterns to handle Excel format like "Grade : _PRE KG - A_______________"
     const classPatterns = [
-      // PRE KG variations
+      // Handle Excel format with underscores and extra text
+      /Grade\s*:\s*_*(PRE\s*KG)\s*-\s*([A-E])_*.*$/i,
+      /Grade\s*:\s*_*(KG)\s*-\s*([A-E])_*.*$/i,
+      /Grade\s*:\s*_*(PREP)\s*-\s*([A-E])_*.*$/i,
+      /Grade\s*:\s*_*(GRADE|CLASS)\s*(\d+)\s*-\s*([A-E])_*.*$/i,
+      
+      // Original patterns for direct class names
       /^(PRE\s*KG)[\s\-]*([A-E])$/i,
       /^(PREKG)[\s\-]*([A-E])$/i,
       /^(PRE\s*K)[\s\-]*([A-E])$/i,
-      // KG variations  
       /^(KG)[\s\-]*([A-E])$/i,
       /^(KINDERGARTEN)[\s\-]*([A-E])$/i,
-      // PREP variations
       /^(PREP)[\s\-]*([A-E])$/i,
       /^(PREPARATORY)[\s\-]*([A-E])$/i,
-      // Grade variations
       /^(GRADE|CLASS)[\s\-]*(\d+)[\s\-]*([A-E])$/i,
     ];
 
     for (const pattern of classPatterns) {
       const match = text.match(pattern);
       if (match) {
+        console.log(`Pattern matched:`, match);
+        
         let gradeLevel: GradeLevel = 'pre_k';
         let section = match[match.length - 1]; // Last capture group is the section
+        let gradePart = match[1];
         
-        const gradeText = match[1].toLowerCase();
-        if (gradeText.includes('pre')) {
-          gradeLevel = 'pre_k';
-        } else if (gradeText.includes('kg') || gradeText.includes('kindergarten')) {
-          gradeLevel = 'kg';
-        } else if (gradeText.includes('prep')) {
-          gradeLevel = 'prep';
-        } else if (match[2]) { // Grade number
+        // Handle grade number patterns (for GRADE 1 - A format)
+        if (match.length > 3 && match[2] && /^\d+$/.test(match[2])) {
           const gradeNum = match[2];
           gradeLevel = `grade_${gradeNum}` as GradeLevel;
+          section = match[3];
+        } else {
+          // Handle text-based grades
+          const gradeText = gradePart.toLowerCase();
+          if (gradeText.includes('pre')) {
+            gradeLevel = 'pre_k';
+          } else if (gradeText.includes('kg') || gradeText.includes('kindergarten')) {
+            gradeLevel = 'kg';
+          } else if (gradeText.includes('prep')) {
+            gradeLevel = 'prep';
+          }
         }
-
+        
+        // Create clean class name
+        const className = `${gradePart.toUpperCase().replace(/\s+/g, ' ')} - ${section.toUpperCase()}`;
+        
+        console.log(`Extracted class: ${className}, grade: ${gradeLevel}`);
+        
         return {
-          className: text,
+          className,
           gradeLevel
         };
       }
@@ -312,43 +329,69 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
 
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
-      const firstValue = Object.values(row)[0]?.toString().trim() || '';
-
-      // Check if this row contains a class header
-      const classInfo = extractClassFromHeader(firstValue);
-      if (classInfo) {
-        console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
-        currentClass = {
-          name: classInfo.className,
-          gradeLevel: classInfo.gradeLevel,
-          students: []
-        };
-        classes.set(classInfo.className, currentClass);
-        continue;
+      
+      // Check all values in the row for class headers
+      const allValues = Object.values(row);
+      let classFound = false;
+      
+      for (const value of allValues) {
+        if (value && typeof value === 'string') {
+          const classInfo = extractClassFromHeader(value.toString());
+          if (classInfo) {
+            console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
+            currentClass = {
+              name: classInfo.className,
+              gradeLevel: classInfo.gradeLevel,
+              students: []
+            };
+            classes.set(classInfo.className, currentClass);
+            classFound = true;
+            break;
+          }
+        }
       }
+      
+      if (classFound) continue;
 
-      // Skip empty rows or instruction rows
-      if (!firstValue || 
-          firstValue.toLowerCase().includes('grade') || 
-          firstValue.toLowerCase().includes('character') || 
-          firstValue.toLowerCase().includes('homeroom') || 
-          firstValue.toLowerCase().includes('teacher') ||
-          firstValue === 'no' ||
-          firstValue === 'm' ||
-          firstValue === 'key' ||
-          firstValue.toLowerCase().includes('n.b.') ||
-          firstValue.toLowerCase().includes('when students')) {
-        continue;
-      }
+      // Look for student data - check for student name in the row
+      const studentName = row['__EMPTY'] || row['Student\'s Name'] || Object.values(row).find(val => 
+        val && typeof val === 'string' && 
+        val.trim().length > 5 && 
+        /^[a-zA-Z\s]+$/.test(val.trim()) && 
+        val.split(' ').length >= 2 &&
+        !val.toLowerCase().includes('grade') &&
+        !val.toLowerCase().includes('character') &&
+        !val.toLowerCase().includes('homeroom') &&
+        !val.toLowerCase().includes('teacher') &&
+        !val.toLowerCase().includes('semester') &&
+        !val.toLowerCase().includes('absent') &&
+        !val.toLowerCase().includes('present') &&
+        !val.toLowerCase().includes('when students')
+      );
 
-      // Check if this looks like a student name
-      if (currentClass && /^[a-zA-Z\s]+$/.test(firstValue) && firstValue.split(' ').length >= 2) {
-        console.log(`Adding student ${firstValue} to class ${currentClass.name}`);
-        currentClass.students.push(row);
+      if (currentClass && studentName && typeof studentName === 'string') {
+        const cleanName = studentName.toString().trim();
+        if (cleanName.length > 2) {
+          console.log(`Adding student ${cleanName} to class ${currentClass.name}`);
+          currentClass.students.push({
+            name: cleanName,
+            gender: row['__EMPTY_1'] || row['Gen.'] || 'M', // Default gender from Excel or fallback
+            ...row
+          });
+        }
       }
     }
 
     console.log('Classes found:', Array.from(classes.keys()));
+    console.log('Class details:', Array.from(classes.entries()).map(([name, info]) => ({
+      name,
+      gradeLevel: info.gradeLevel,
+      studentCount: info.students.length
+    })));
+
+    if (classes.size === 0) {
+      throw new Error('No class headers found in the Excel file. Please ensure your Excel file has class headers like "Grade : _PRE KG - A___" or "PRE KG - A"');
+    }
 
     updateProgress(25, 100, 'Creating classes in database...');
 
