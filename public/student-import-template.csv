@@ -1,4 +1,5 @@
 
-name,date_of_birth,grade_class,gender,mother_name,address,phone,email,emergency_contact_name,emergency_contact_phone
-"John Smith Mohammed","2015-05-15","Pre KG A","M","Mary Smith","123 Main St","555-0123","john@example.com","Mary Smith","555-0123"
-"Jane Doe Ahmed","2014-08-20","Pre KG B","F","Sarah Doe","456 Oak Ave","555-0124","jane@example.com","Sarah Doe","555-0124"
+Student Name,Date of Birth,Grade/Class,Gender,Mother Name,Father Name,Address,Phone,Email,Emergency Contact Name,Emergency Contact Phone
+Ahmed Mohammed Ali,2015-05-15,Pre KG A,Male,Fatima Ahmed,Mohammed Ali,"123 Main Street, Addis Ababa",+251911123456,ahmed@example.com,Fatima Ahmed,+251911123456
+Aisha Hassan Ibrahim,2014-08-20,Pre KG B,Female,Maryam Hassan,Hassan Ibrahim,"456 Oak Avenue, Addis Ababa",+251911654321,aisha@example.com,Maryam Hassan,+251911654321
+Omar Yusuf Mohammed,2016-03-10,Kindergarten,Male,Sara Yusuf,Yusuf Mohammed,"789 Pine Road, Addis Ababa",+251922123789,omar@example.com,Sara Yusuf,+251922123789

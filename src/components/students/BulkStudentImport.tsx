@@ -92,11 +92,59 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     return 'pre_k';
   };
 
-  const normalizeGender = (genderInput: string): string => {
-    const normalized = genderInput?.toLowerCase().trim();
-    if (['m', 'male', 'boy'].includes(normalized)) return 'Male';
-    if (['f', 'female', 'girl'].includes(normalized)) return 'Female';
-    return 'Male'; // Default
+  const detectGenderFromName = (firstName: string): string => {
+    const name = firstName.toLowerCase().trim();
+    
+    // Common female names that appear in the data
+    const femaleNames = [
+      'aisha', 'ameera', 'arwa', 'asma', 'fatima', 'hanan', 'hiba', 'jana', 'layla', 'maryam',
+      'nour', 'rania', 'sara', 'sarah', 'yasmin', 'zahra', 'zara', 'amina', 'dina', 'lina',
+      'maya', 'nada', 'reem', 'salma', 'tala', 'yara', 'zeina', 'alia', 'aya', 'dana',
+      'farah', 'ghada', 'iman', 'laith', 'nora', 'rama', 'salam', 'wafa', 'yusra', 'zaina',
+      'rena', 'rinad', 'rezan', 'rumeysa', 'yemariam'
+    ];
+
+    const maleNames = [
+      'ahmed', 'mohammed', 'omar', 'ali', 'hassan', 'ibrahim', 'khalid', 'saad', 'tariq', 'yusuf',
+      'abdel', 'abdul', 'adnan', 'amjad', 'bashar', 'fadi', 'hadi', 'jamal', 'karim', 'majid',
+      'nasser', 'qasim', 'rami', 'sami', 'walid', 'zaid', 'abdurahman', 'abubeker', 'amar',
+      'siyam', 'yasir'
+    ];
+
+    // Check if name starts with or contains female name patterns
+    for (const femaleName of femaleNames) {
+      if (name.includes(femaleName)) {
+        return 'Female';
+      }
+    }
+
+    // Check if name starts with or contains male name patterns
+    for (const maleName of maleNames) {
+      if (name.includes(maleName)) {
+        return 'Male';
+      }
+    }
+
+    // Default based on common patterns
+    if (name.endsWith('a') || name.endsWith('ah') || name.endsWith('ia')) {
+      return 'Female';
+    }
+
+    return 'Male'; // Default fallback
+  };
+
+  const normalizeGender = (genderInput: string, firstName: string = ''): string => {
+    if (!genderInput || genderInput.trim() === '') {
+      // Try to detect from name if gender is not provided
+      return detectGenderFromName(firstName);
+    }
+
+    const normalized = genderInput.toLowerCase().trim();
+    if (['m', 'male', 'boy', '1'].includes(normalized)) return 'Male';
+    if (['f', 'female', 'girl', '2'].includes(normalized)) return 'Female';
+    
+    // Try to detect from name if gender input is unclear
+    return detectGenderFromName(firstName);
   };
 
   const parseName = (fullName: string) => {
@@ -155,21 +203,45 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
 
     updateProgress(0, jsonData.length, 'Processing student data...');
 
-    for (let i = 0; i < jsonData.length; i++) {
-      const row = jsonData[i];
+    // Filter out header rows and invalid data
+    const validRows = jsonData.filter((row, index) => {
+      // Skip rows that look like headers or instructions
+      const firstValue = Object.values(row)[0]?.toString().toLowerCase() || '';
+      if (firstValue.includes('grade') || 
+          firstValue.includes('character') || 
+          firstValue.includes('homeroom') || 
+          firstValue.includes('teacher') ||
+          firstValue === 'no' ||
+          firstValue === 'm' ||
+          firstValue === 'key' ||
+          firstValue.includes('n.b.') ||
+          firstValue.includes('when students')) {
+        console.log(`Skipping header/instruction row ${index + 1}:`, firstValue);
+        return false;
+      }
+      
+      // Skip empty rows
+      if (!row || Object.values(row).every(val => !val || val.toString().trim() === '')) {
+        console.log(`Skipping empty row ${index + 1}`);
+        return false;
+      }
+
+      return true;
+    });
+
+    console.log(`Processing ${validRows.length} valid rows out of ${jsonData.length} total rows`);
+
+    for (let i = 0; i < validRows.length; i++) {
+      const row = validRows[i];
       
       try {
-        updateProgress(i + 1, jsonData.length, `Processing student ${i + 1} of ${jsonData.length}`);
-
-        // Skip empty rows
-        if (!row || Object.values(row).every(val => !val || val.toString().trim() === '')) {
-          console.log(`Skipping empty row ${i + 1}`);
-          continue;
-        }
+        updateProgress(i + 1, validRows.length, `Processing student ${i + 1} of ${validRows.length}`);
 
         // Try to find the name field (could be various column names)
         let studentName = '';
         const nameFields = ['name', 'student_name', 'full_name', 'Name', 'Student Name', 'Full Name'];
+        
+        // First try the defined name fields
         for (const field of nameFields) {
           if (row[field]) {
             studentName = row[field].toString().trim();
@@ -177,12 +249,25 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           }
         }
 
+        // If no name field found, try the first text field that looks like a name
         if (!studentName) {
-          // Try to construct name from first available text field
-          const firstTextField = Object.values(row).find(val => 
-            val && typeof val === 'string' && val.trim().length > 0
-          );
-          studentName = firstTextField?.toString().trim() || `Student ${i + 1}`;
+          for (const [key, value] of Object.entries(row)) {
+            if (value && typeof value === 'string' && value.trim().length > 2) {
+              const trimmedValue = value.toString().trim();
+              // Check if it looks like a name (contains letters and spaces, not numbers or special chars)
+              if (/^[a-zA-Z\s]+$/.test(trimmedValue) && trimmedValue.split(' ').length >= 2) {
+                studentName = trimmedValue;
+                console.log(`Using "${key}" field as name: ${studentName}`);
+                break;
+              }
+            }
+          }
+        }
+
+        if (!studentName) {
+          results.errors.push(`Row ${i + 1}: No valid name found`);
+          results.failed++;
+          continue;
         }
 
         const parsedName = parseName(studentName);
@@ -200,12 +285,14 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         // Try to find gender field
         let gender = 'Male';
         const genderFields = ['gender', 'sex', 'Gender', 'Sex'];
+        let genderInput = '';
         for (const field of genderFields) {
           if (row[field]) {
-            gender = normalizeGender(row[field].toString());
+            genderInput = row[field].toString();
             break;
           }
         }
+        gender = normalizeGender(genderInput, parsedName.first_name);
 
         // Try to find date of birth
         let dateOfBirth = new Date().toISOString().split('T')[0];
@@ -319,11 +406,55 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     event.target.value = '';
   };
 
-  const downloadTemplate = () => {
+  const downloadExcelTemplate = () => {
+    // Create sample data
+    const templateData = [
+      {
+        'Student Name': 'Ahmed Mohammed Ali',
+        'Date of Birth': '2015-05-15',
+        'Grade/Class': 'Pre KG A',
+        'Gender': 'Male',
+        'Mother Name': 'Fatima Ahmed',
+        'Father Name': 'Mohammed Ali',
+        'Address': '123 Main Street, Addis Ababa',
+        'Phone': '+251911123456',
+        'Email': 'ahmed@example.com',
+        'Emergency Contact Name': 'Fatima Ahmed',
+        'Emergency Contact Phone': '+251911123456'
+      },
+      {
+        'Student Name': 'Aisha Hassan Ibrahim',
+        'Date of Birth': '2014-08-20',
+        'Grade/Class': 'Pre KG B',
+        'Gender': 'Female',
+        'Mother Name': 'Maryam Hassan',
+        'Father Name': 'Hassan Ibrahim',
+        'Address': '456 Oak Avenue, Addis Ababa',
+        'Phone': '+251911654321',
+        'Email': 'aisha@example.com',
+        'Emergency Contact Name': 'Maryam Hassan',
+        'Emergency Contact Phone': '+251911654321'
+      }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
+    XLSX.writeFile(wb, 'student-import-template.xlsx');
+  };
+
+  const downloadCsvTemplate = () => {
+    const csvContent = `Student Name,Date of Birth,Grade/Class,Gender,Mother Name,Father Name,Address,Phone,Email,Emergency Contact Name,Emergency Contact Phone
+Ahmed Mohammed Ali,2015-05-15,Pre KG A,Male,Fatima Ahmed,Mohammed Ali,"123 Main Street, Addis Ababa",+251911123456,ahmed@example.com,Fatima Ahmed,+251911123456
+Aisha Hassan Ibrahim,2014-08-20,Pre KG B,Female,Maryam Hassan,Hassan Ibrahim,"456 Oak Avenue, Addis Ababa",+251911654321,aisha@example.com,Maryam Hassan,+251911654321`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = '/student-import-template.csv';
+    link.href = url;
     link.download = 'student-import-template.csv';
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -336,9 +467,14 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-2">
-          <Button onClick={downloadTemplate} variant="outline" size="sm">
+          <Button onClick={downloadExcelTemplate} variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
-            Download Template
+            Download Excel Template
+          </Button>
+          
+          <Button onClick={downloadCsvTemplate} variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            Download CSV Template
           </Button>
           
           <label className="cursor-pointer">
