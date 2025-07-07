@@ -51,12 +51,13 @@ export const BackupManagement = () => {
     }
   });
 
-  // Delete backup mutation
+  // Delete backup mutation - using direct SQL delete instead of RPC function for now
   const deleteBackupMutation = useMutation({
     mutationFn: async (backupId: string) => {
-      const { data, error } = await supabase.rpc('delete_backup_log', {
-        backup_log_id: backupId
-      });
+      const { data, error } = await supabase
+        .from('backup_logs')
+        .delete()
+        .eq('id', backupId);
       
       if (error) throw error;
       return data;
@@ -77,7 +78,6 @@ export const BackupManagement = () => {
     }
   });
 
-  // View backup details - simplified since we're not actually storing files
   const viewBackupDetails = async (backup: any) => {
     if (!backup.file_path) {
       toast({
@@ -103,7 +103,6 @@ export const BackupManagement = () => {
     setShowViewDetails(true);
   };
 
-  // Download backup file - simplified notification
   const downloadBackup = async (backup: any) => {
     if (!backup.file_path) {
       toast({
@@ -120,7 +119,6 @@ export const BackupManagement = () => {
     });
   };
 
-  // Create manual backup
   const createBackupMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.rpc('create_database_backup', {

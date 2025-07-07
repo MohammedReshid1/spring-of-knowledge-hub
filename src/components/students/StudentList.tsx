@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,7 +80,7 @@ export const StudentList = () => {
       }
 
       if (gradeFilter !== 'all') {
-        query = query.eq('grade_level', gradeFilter);
+        query = query.eq('grade_level', gradeFilter as any);
       }
 
       if (classFilter !== 'all') {
@@ -88,7 +88,7 @@ export const StudentList = () => {
       }
 
       if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
+        query = query.eq('status', statusFilter as any);
       }
 
       if (sortBy === 'name') {
@@ -116,7 +116,7 @@ export const StudentList = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('classes')
-        .select('name');
+        .select('class_name');
       if (error) {
         throw error;
       }
@@ -157,7 +157,7 @@ export const StudentList = () => {
 
   const classNames = useMemo(() => {
     const uniqueClassNames = new Set<string>();
-    classes?.forEach(cls => uniqueClassNames.add(cls.name));
+    classes?.forEach(cls => uniqueClassNames.add(cls.class_name));
     return Array.from(uniqueClassNames);
   }, [classes]);
 
