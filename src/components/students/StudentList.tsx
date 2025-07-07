@@ -47,6 +47,9 @@ export const StudentList = () => {
     let errorCount = 0;
     const errors: string[] = [];
 
+    console.log("Starting import process with data:", jsonData);
+    console.log("First row sample:", jsonData[0]);
+
     toast({
       title: "Import Started",
       description: `Processing ${jsonData.length} records...`,
