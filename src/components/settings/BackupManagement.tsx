@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Download, RefreshCw, Database, Clock, CheckCircle, XCircle, AlertCircle, Eye, RotateCcw, Trash2 } from 'lucide-react';
+import { Download, RefreshCw, Database, Clock, CheckCircle, XCircle, AlertCircle, Eye, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { useRoleAccess } from '@/hooks/useRoleAccess';
@@ -51,33 +51,7 @@ export const BackupManagement = () => {
     }
   });
 
-  // Delete backup mutation - using direct SQL delete instead of RPC function for now
-  const deleteBackupMutation = useMutation({
-    mutationFn: async (backupId: string) => {
-      const { data, error } = await supabase
-        .from('backup_logs')
-        .delete()
-        .eq('id', backupId);
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Backup deleted successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['backup-logs'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete backup.",
-        variant: "destructive",
-      });
-    }
-  });
-
+  // View backup details - simplified since we're not actually storing files
   const viewBackupDetails = async (backup: any) => {
     if (!backup.file_path) {
       toast({
@@ -103,6 +77,7 @@ export const BackupManagement = () => {
     setShowViewDetails(true);
   };
 
+  // Download backup file - simplified notification
   const downloadBackup = async (backup: any) => {
     if (!backup.file_path) {
       toast({
@@ -119,6 +94,7 @@ export const BackupManagement = () => {
     });
   };
 
+  // Create manual backup
   const createBackupMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.rpc('create_database_backup', {
@@ -181,25 +157,17 @@ export const BackupManagement = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Logo */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <img 
-            src="/SPRING_LOGO-removebg-preview.png" 
-            alt="School Logo" 
-            className="h-12 w-12 object-contain"
-          />
-          <div>
-            <h2 className="text-2xl font-bold text-red-600">Database Backup Management</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Create manual backups and view backup history. Automatic backups run every week.
-              {!isSuperAdmin && (
-                <span className="block text-yellow-600 text-xs mt-1">
-                  Note: Only Super Admins can create manual backups and restore data.
-                </span>
-              )}
-            </p>
-          </div>
+        <div>
+          <h2 className="text-2xl font-bold text-red-600">Database Backup Management</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Create manual backups and view backup history. Automatic backups run every week.
+            {!isSuperAdmin && (
+              <span className="block text-yellow-600 text-xs mt-1">
+                Note: Only Super Admins can create manual backups and restore data.
+              </span>
+            )}
+          </p>
         </div>
         
         <AlertDialog>
@@ -302,71 +270,38 @@ export const BackupManagement = () => {
                           <Download className="h-4 w-4" />
                         </Button>
                         {isSuperAdmin && (
-                          <>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  className="text-orange-600 hover:text-orange-700"
-                                  title="Restore Backup"
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="text-orange-600 hover:text-orange-700"
+                                title="Restore Backup"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Restore Database Backup</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  <strong>WARNING:</strong> This will completely replace all current data with the backup data from{' '}
+                                  {format(new Date(backup.started_at), 'PPp')}. This action cannot be undone.
+                                  <br /><br />
+                                  Are you absolutely sure you want to proceed?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => restoreBackupMutation.mutate(backup.id)}
+                                  className="bg-red-600 hover:bg-red-700"
                                 >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Restore Database Backup</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    <strong>WARNING:</strong> This will completely replace all current data with the backup data from{' '}
-                                    {format(new Date(backup.started_at), 'PPp')}. This action cannot be undone.
-                                    <br /><br />
-                                    Are you absolutely sure you want to proceed?
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => restoreBackupMutation.mutate(backup.id)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Restore Backup
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                            
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm"
-                                  className="text-red-600 hover:text-red-700"
-                                  title="Delete Backup"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Backup</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete this backup from{' '}
-                                    {format(new Date(backup.started_at), 'PPp')}? This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => deleteBackupMutation.mutate(backup.id)}
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete Backup
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </>
+                                  Restore Backup
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         )}
                       </>
                     )}

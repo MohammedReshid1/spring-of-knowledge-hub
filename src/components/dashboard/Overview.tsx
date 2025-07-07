@@ -117,9 +117,9 @@ export const Overview = () => {
         return acc;
       }, {} as Record<string, number>);
 
-      // Updated grade level utilization with proper formatting
+      // Grade level utilization
       const gradeUtilization = gradeLevels.map(grade => ({
-        grade: formatGradeLevel(grade.grade),
+        grade: grade.grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
         utilization: grade.max_capacity > 0 ? Math.round((grade.current_enrollment / grade.max_capacity) * 100) : 0,
         enrolled: grade.current_enrollment,
         capacity: grade.max_capacity
@@ -141,30 +141,6 @@ export const Overview = () => {
     staleTime: 30000, // 30 seconds
     refetchInterval: 60000, // Refetch every minute
   });
-
-  // Helper function to format grade levels consistently
-  const formatGradeLevel = (grade: string) => {
-    const gradeMap: Record<string, string> = {
-      'pre_k': 'Pre KG',
-      'kg': 'KG',
-      'prep': 'Prep',
-      'kindergarten': 'KG',
-      'grade_1': 'Grade 1',
-      'grade_2': 'Grade 2',
-      'grade_3': 'Grade 3',
-      'grade_4': 'Grade 4',
-      'grade_5': 'Grade 5',
-      'grade_6': 'Grade 6',
-      'grade_7': 'Grade 7',
-      'grade_8': 'Grade 8',
-      'grade_9': 'Grade 9',
-      'grade_10': 'Grade 10',
-      'grade_11': 'Grade 11',
-      'grade_12': 'Grade 12',
-    };
-
-    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
 
   if (isLoading) {
     return (
@@ -196,18 +172,11 @@ export const Overview = () => {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center gap-4">
-        <img 
-          src="/SPRING_LOGO-removebg-preview.png" 
-          alt="School Logo" 
-          className="h-16 w-16 object-contain"
-        />
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h2>
-          <p className="text-gray-600 mt-1">
-            Welcome to the Spring of Knowledge Academy Registration Management System
-          </p>
-        </div>
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h2>
+        <p className="text-gray-600 mt-1">
+          Welcome to the Spring of Knowledge Academy Registration Management System
+        </p>
       </div>
 
       {/* Main Statistics Cards */}

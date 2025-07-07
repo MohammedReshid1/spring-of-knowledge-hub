@@ -1,94 +1,129 @@
-
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { 
-  Search, 
-  Filter, 
-  UserPlus, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  Download,
-  Upload,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Users,
-  AlertTriangle,
-  GraduationCap
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
+import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown } from 'lucide-react';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { StudentForm } from './StudentForm';
+import { StudentDetails } from './StudentDetails';
+import { BulkStudentImport } from './BulkStudentImport';
 import * as XLSX from 'xlsx';
-import { DuplicateDetection } from './DuplicateDetection';
-import { useNavigate } from 'react-router-dom';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
-interface Student {
-  id: string;
-  student_id: string;
-  first_name: string;
-  last_name: string;
-  grade_level: string;
-  status: string;
-  current_class?: string;
-  phone?: string;
-  email?: string;
-  date_of_birth: string;
-  created_at: string;
-  photo_url?: string;
-  father_name?: string;
-  mother_name?: string;
-  address?: string;
-  class_id?: string;
-  classes?: {
-    class_name: string;
-  };
-}
+const STUDENTS_PER_PAGE = 30;
 
 export const StudentList = () => {
-  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [gradeFilter, setGradeFilter] = useState('all');
   const [classFilter, setClassFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+  const [showImportCard, setShowImportCard] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [sortBy, setSortBy] = useState<'name' | 'student_id' | 'grade' | 'date'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'id' | 'grade' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-  const studentsPerPage = 30;
   const queryClient = useQueryClient();
+  const { canDelete } = useRoleAccess();
 
-  const { data: students, isLoading, error, refetch } = useQuery({
+  // Get currency from system settings
+  const getCurrency = () => {
+    const settings = localStorage.getItem('systemSettings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.currency || 'ETB';
+    }
+    return 'ETB';
+  };
+
+  const formatCurrency = (amount: number) => {
+    const currency = getCurrency();
+    const symbols = {
+      'ETB': 'ETB',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£'
+    };
+    return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
+  };
+
+  // Real-time subscription for students
+  useEffect(() => {
+    const channel = supabase
+      .channel('students-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'students'
+        },
+        () => {
+          console.log('Students table changed, refetching...');
+          queryClient.invalidateQueries({ queryKey: ['students'] });
+          queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const { data: students, isLoading, error } = useQuery({
     queryKey: ['students'],
     queryFn: async () => {
+      console.log('Fetching students...');
       const { data, error } = await supabase
         .from('students')
         .select(`
           *,
           classes:class_id (
-            class_name
+            id,
+            class_name,
+            grade_levels:grade_level_id (
+              grade
+            )
+          ),
+          registration_payments (
+            payment_status,
+            amount_paid,
+            payment_date
           )
         `)
-        .order('first_name', { ascending: true });
-
-      if (error) throw error;
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching students:', error);
+        throw error;
+      }
+      console.log('Students fetched successfully:', data?.length);
       return data;
-    },
-    staleTime: 30000,
-    refetchInterval: 60000,
+    }
   });
 
   const { data: classes } = useQuery({
@@ -96,311 +131,456 @@ export const StudentList = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('classes')
-        .select('id, class_name');
+        .select('*')
+        .order('class_name');
+      
       if (error) throw error;
       return data;
-    },
+    }
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ['student-stats'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('students')
+        .select('status, grade_level');
+      
+      if (error) throw error;
+      
+      const totalStudents = data.length;
+      const activeStudents = data.filter(s => s.status === 'Active').length;
+      const statusCounts: Record<string, number> = data.reduce((acc, student) => {
+        const status = student.status || 'Unknown';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return {
+        totalStudents,
+        activeStudents,
+        statusCounts
+      };
+    }
   });
 
   const deleteStudentMutation = useMutation({
     mutationFn: async (studentId: string) => {
+      console.log('Attempting to delete student:', studentId);
+      const { data: session } = await supabase.auth.getSession();
+      console.log('Current session:', session);
+      
       const { error } = await supabase
         .from('students')
         .delete()
         .eq('id', studentId);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        throw error;
+      }
+      console.log('Student deleted successfully');
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['student-stats'] });
       toast({
         title: "Success",
-        description: "Student record deleted successfully.",
+        description: "Student deleted successfully",
       });
-      refetch();
-      setShowDeleteDialog(false);
-      setStudentToDelete(null);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete student record.",
+        description: "Failed to delete student: " + error.message,
         variant: "destructive",
       });
     }
   });
 
-  const gradeLevels = useMemo(() => {
-    const uniqueGradeLevels = new Set<string>();
-    students?.forEach(student => uniqueGradeLevels.add(student.grade_level));
-    return Array.from(uniqueGradeLevels);
-  }, [students]);
-
-  const classNames = useMemo(() => {
-    const uniqueClassNames = new Set<string>();
-    classes?.forEach(cls => uniqueClassNames.add(cls.class_name));
-    return Array.from(uniqueClassNames);
-  }, [classes]);
-
-  const filteredStudents = useMemo(() => {
-    let filtered = students || [];
-
-    if (searchTerm) {
-      filtered = filtered.filter(student =>
-        student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.student_id.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+  // Enhanced export functions with selection support
+  const getStudentsToExport = () => {
+    if (selectedStudents.size > 0) {
+      return filteredStudents.filter(student => selectedStudents.has(student.id));
     }
-
-    if (gradeFilter !== 'all') {
-      filtered = filtered.filter(student => student.grade_level === gradeFilter);
-    }
-
-    if (classFilter !== 'all') {
-      filtered = filtered.filter(student => student.classes?.class_name === classFilter);
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(student => student.status === statusFilter);
-    }
-
-    return filtered;
-  }, [students, searchTerm, gradeFilter, classFilter, statusFilter]);
-
-  const sortedStudents = useMemo(() => {
-    if (!filteredStudents) return [];
-
-    const sorted = [...filteredStudents];
-
-    if (sortBy === 'name') {
-      sorted.sort((a, b) => {
-        const nameA = a.first_name.toLowerCase();
-        const nameB = b.first_name.toLowerCase();
-        return sortOrder === 'asc' ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
-      });
-    } else if (sortBy === 'student_id') {
-      sorted.sort((a, b) => {
-        const idA = a.student_id.toLowerCase();
-        const idB = b.student_id.toLowerCase();
-        return sortOrder === 'asc' ? idA.localeCompare(idB) : idB.localeCompare(idA);
-      });
-    } else if (sortBy === 'grade') {
-      sorted.sort((a, b) => {
-        const gradeA = a.grade_level.toLowerCase();
-        const gradeB = b.grade_level.toLowerCase();
-        return sortOrder === 'asc' ? gradeA.localeCompare(gradeB) : gradeB.localeCompare(gradeA);
-      });
-    } else if (sortBy === 'date') {
-      sorted.sort((a, b) => {
-        const dateA = new Date(a.created_at).getTime();
-        const dateB = new Date(b.created_at).getTime();
-        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-      });
-    }
-
-    return sorted;
-  }, [filteredStudents, sortBy, sortOrder]);
-
-  const paginatedStudents = useMemo(() => {
-    if (!sortedStudents) return [];
-    const startIndex = (currentPage - 1) * studentsPerPage;
-    const endIndex = startIndex + studentsPerPage;
-    return sortedStudents.slice(startIndex, endIndex);
-  }, [sortedStudents, currentPage, studentsPerPage]);
-
-  const totalPages = useMemo(() => {
-    if (!sortedStudents) return 0;
-    return Math.ceil(sortedStudents.length / studentsPerPage);
-  }, [sortedStudents, studentsPerPage]);
-
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
+    return filteredStudents;
   };
 
-  const toggleSelectStudent = (studentId: string) => {
-    setSelectedStudents(prev =>
-      prev.includes(studentId)
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    );
-  };
-
-  const isAllSelected = useMemo(() => {
-    return paginatedStudents.every(student => selectedStudents.includes(student.id));
-  }, [paginatedStudents, selectedStudents]);
-
-  const toggleSelectAll = () => {
-    if (isAllSelected) {
-      setSelectedStudents(prev => prev.filter(id => !paginatedStudents.map(s => s.id).includes(id)));
-    } else {
-      setSelectedStudents(prev => [...prev, ...paginatedStudents.map(s => s.id)].filter((value, index, array) => array.indexOf(value) === index));
-    }
-  };
-
-  const formatGradeLevel = (grade: string) => {
-    const gradeMap: Record<string, string> = {
-      'pre_k': 'Pre KG',
-      'kg': 'KG',
-      'prep': 'Prep',
-      'kindergarten': 'KG',
-      'grade_1': 'Grade 1',
-      'grade_2': 'Grade 2',
-      'grade_3': 'Grade 3',
-      'grade_4': 'Grade 4',
-      'grade_5': 'Grade 5',
-      'grade_6': 'Grade 6',
-      'grade_7': 'Grade 7',
-      'grade_8': 'Grade 8',
-      'grade_9': 'Grade 9',
-      'grade_10': 'Grade 10',
-      'grade_11': 'Grade 11',
-      'grade_12': 'Grade 12',
-    };
-
-    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
-
-  const exportToExcel = (studentsToExport?: Student[]) => {
-    const dataToExport = studentsToExport || students || [];
+  const exportToCSV = () => {
+    const studentsToExport = getStudentsToExport();
     
-    if (dataToExport.length === 0) {
+    if (!studentsToExport || studentsToExport.length === 0) {
       toast({
-        title: "No data to export",
-        description: "There are no students to export.",
+        title: "No Data",
+        description: "No students selected for export",
         variant: "destructive",
       });
       return;
     }
 
-    const exportData = dataToExport.map(student => ({
-      'Student ID': student.student_id,
-      'First Name': student.first_name,
-      'Last Name': student.last_name,
-      'Father Name': student.father_name || '',
-      'Mother Name': student.mother_name || '',
-      'Grade Level': formatGradeLevel(student.grade_level),
-      'Status': student.status,
-      'Class': student.classes?.class_name || '',
-      'Phone': student.phone || '',
-      'Email': student.email || '',
-      'Date of Birth': student.date_of_birth ? format(new Date(student.date_of_birth), 'yyyy-MM-dd') : '',
-      'Address': student.address || '',
-      'Registration Date': format(new Date(student.created_at), 'yyyy-MM-dd')
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
-
-    // Set column widths
-    const colWidths = [
-      { wch: 15 }, // Student ID
-      { wch: 15 }, // First Name
-      { wch: 15 }, // Last Name
-      { wch: 15 }, // Father Name
-      { wch: 15 }, // Mother Name
-      { wch: 12 }, // Grade Level
-      { wch: 10 }, // Status
-      { wch: 15 }, // Class
-      { wch: 15 }, // Phone
-      { wch: 20 }, // Email
-      { wch: 12 }, // Date of Birth
-      { wch: 30 }, // Address
-      { wch: 15 }  // Registration Date
+    const csvHeaders = [
+      'Student ID', 'First Name', 'Last Name', 'Mother Name', 'Father Name', 'Grandfather Name',
+      'Grade Level', 'Class', 'Email', 'Phone', 'Status', 'Date of Birth', 'Gender', 'Address',
+      'Emergency Contact Name', 'Emergency Contact Phone', 'Created At'
     ];
-    worksheet['!cols'] = colWidths;
 
-    const fileName = selectedStudents.length > 0 
-      ? `selected_students_${new Date().toISOString().split('T')[0]}.xlsx`
-      : `all_students_${new Date().toISOString().split('T')[0]}.xlsx`;
-    
-    XLSX.writeFile(workbook, fileName);
-    
+    const csvData = studentsToExport.map(student => [
+      student.student_id,
+      student.first_name,
+      student.last_name,
+      student.mother_name || '',
+      student.father_name || '',
+      student.grandfather_name || '',
+      student.grade_level,
+      student.classes?.class_name || '',
+      student.email || '',
+      student.phone || '',
+      student.status,
+      student.date_of_birth,
+      student.gender || '',
+      student.address || '',
+      student.emergency_contact_name || '',
+      student.emergency_contact_phone || '',
+      new Date(student.created_at).toLocaleDateString()
+    ]);
+
+    const csvContent = [csvHeaders, ...csvData]
+      .map(row => row.map(field => `"${field}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `students_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
     toast({
       title: "Success",
-      description: `Exported ${dataToExport.length} student records successfully`,
+      description: `${studentsToExport.length} students exported to CSV successfully`,
     });
   };
 
-  const handleExportSelected = () => {
-    if (selectedStudents.length === 0) {
+  const exportToExcel = () => {
+    const studentsToExport = getStudentsToExport();
+    
+    if (!studentsToExport || studentsToExport.length === 0) {
       toast({
-        title: "No students selected",
-        description: "Please select students to export.",
+        title: "No Data",
+        description: "No students selected for export",
         variant: "destructive",
       });
       return;
     }
 
-    const selectedStudentData = students?.filter(student => 
-      selectedStudents.includes(student.id)
-    ) || [];
+    const worksheetData = studentsToExport.map(student => ({
+      'Student ID': student.student_id,
+      'First Name': student.first_name,
+      'Last Name': student.last_name,
+      'Mother Name': student.mother_name || '',
+      'Father Name': student.father_name || '',
+      'Grandfather Name': student.grandfather_name || '',
+      'Grade Level': student.grade_level,
+      'Class': student.classes?.class_name || '',
+      'Email': student.email || '',
+      'Phone': student.phone || '',
+      'Status': student.status,
+      'Date of Birth': student.date_of_birth,
+      'Gender': student.gender || '',
+      'Address': student.address || '',
+      'Emergency Contact Name': student.emergency_contact_name || '',
+      'Emergency Contact Phone': student.emergency_contact_phone || '',
+      'Created At': new Date(student.created_at).toLocaleDateString()
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
+
+    XLSX.writeFile(workbook, `students_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    toast({
+      title: "Success",
+      description: `${studentsToExport.length} students exported to Excel successfully`,
+    });
+  };
+
+  const exportToPDF = () => {
+    const studentsToExport = getStudentsToExport();
     
-    exportToExcel(selectedStudentData);
+    if (!studentsToExport || studentsToExport.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No students selected for export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text('Student List Report', 14, 22);
+    
+    // Add date and count
+    doc.setFontSize(12);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 32);
+    doc.text(`Total Students: ${studentsToExport.length}`, 14, 40);
+    
+    // Prepare table data
+    const tableData = studentsToExport.map(student => [
+      student.student_id,
+      `${student.first_name} ${student.last_name}`,
+      student.mother_name || '',
+      student.grade_level,
+      student.classes?.class_name || '',
+      student.status,
+      student.phone || '',
+      student.email || ''
+    ]);
+
+    // Add table using type assertion
+    (doc as any).autoTable({
+      head: [['Student ID', 'Full Name', 'Mother Name', 'Grade', 'Class', 'Status', 'Phone', 'Email']],
+      body: tableData,
+      startY: 48,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [66, 139, 202] }
+    });
+
+    doc.save(`students_report_${new Date().toISOString().split('T')[0]}.pdf`);
+
+    toast({
+      title: "Success",
+      description: `${studentsToExport.length} students exported to PDF successfully`,
+    });
   };
 
-  const handleViewStudent = (student: any) => {
-    navigate(`/students/${student.id}`);
+  // Enhanced search function with highlighting
+  const highlightSearchTerm = (text: string, searchTerm: string) => {
+    if (!searchTerm || !text) return text;
+    
+    const regex = new RegExp(`(${searchTerm})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <mark key={index} className="bg-yellow-200 px-1 rounded">
+          {part}
+        </mark>
+      ) : part
+    );
   };
 
-  const handleEditStudent = (student: any) => {
-    navigate(`/students/${student.id}/edit`);
-  };
+  const filteredStudents = students?.filter(student => {
+    if (!searchTerm && statusFilter === 'all' && gradeFilter === 'all' && classFilter === 'all') {
+      return true;
+    }
 
-  const handleDeleteStudent = (student: Student) => {
-    setStudentToDelete(student);
-    setShowDeleteDialog(true);
-  };
+    const searchLower = searchTerm.toLowerCase();
+    
+    // Enhanced search: ID, First Name, Mother's Name, Phone Numbers, Class Name
+    const matchesSearch = !searchTerm || 
+      student.student_id.toLowerCase().includes(searchLower) ||
+      student.first_name.toLowerCase().includes(searchLower) ||
+      student.last_name.toLowerCase().includes(searchLower) ||
+      (student.mother_name && student.mother_name.toLowerCase().includes(searchLower)) ||
+      (student.phone && student.phone.toLowerCase().includes(searchLower)) ||
+      (student.phone_secondary && student.phone_secondary.toLowerCase().includes(searchLower)) ||
+      (student.email && student.email.toLowerCase().includes(searchLower)) ||
+      (student.classes?.class_name && student.classes.class_name.toLowerCase().includes(searchLower));
+    
+    const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
+    const matchesGrade = gradeFilter === 'all' || student.grade_level === gradeFilter;
+    const matchesClass = classFilter === 'all' || student.class_id === classFilter;
+    
+    return matchesSearch && matchesStatus && matchesGrade && matchesClass;
+  }).sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortBy) {
+      case 'name':
+        comparison = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+        break;
+      case 'id':
+        comparison = a.student_id.localeCompare(b.student_id);
+        break;
+      case 'grade':
+        const gradeOrder = ['pre_k', 'kg', 'prep', 'kindergarten', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
+        comparison = gradeOrder.indexOf(a.grade_level) - gradeOrder.indexOf(b.grade_level);
+        break;
+      case 'date':
+        comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        break;
+      default:
+        comparison = 0;
+    }
+    
+    return sortOrder === 'asc' ? comparison : -comparison;
+  }) || [];
 
-  const confirmDelete = () => {
-    if (studentToDelete) {
-      deleteStudentMutation.mutate(studentToDelete.id);
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
+  const startIndex = (currentPage - 1) * STUDENTS_PER_PAGE;
+  const endIndex = startIndex + STUDENTS_PER_PAGE;
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, gradeFilter, classFilter]);
+
+  // Selection handlers
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked);
+    if (checked) {
+      setSelectedStudents(new Set(paginatedStudents.map(s => s.id)));
+    } else {
+      setSelectedStudents(new Set());
     }
   };
 
+  const handleSelectStudent = (studentId: string, checked: boolean) => {
+    const newSelected = new Set(selectedStudents);
+    if (checked) {
+      newSelected.add(studentId);
+    } else {
+      newSelected.delete(studentId);
+    }
+    setSelectedStudents(newSelected);
+    setSelectAll(newSelected.size === paginatedStudents.length);
+  };
+
+  const getStatusColor = (status: string) => {
+    const colors = {
+      'Active': 'bg-green-100 text-green-800 border-green-200',
+      'Graduated': 'bg-blue-100 text-blue-800 border-blue-200',
+      'Transferred Out': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'Dropped Out': 'bg-red-100 text-red-800 border-red-200',
+      'On Leave': 'bg-gray-100 text-gray-800 border-gray-200'
+    };
+    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const getPaymentStatusColor = (status: string) => {
+    const colors = {
+      'Paid': 'bg-green-100 text-green-800',
+      'Unpaid': 'bg-red-100 text-red-800',
+      'Partially Paid': 'bg-yellow-100 text-yellow-800',
+      'Waived': 'bg-blue-100 text-blue-800',
+      'Refunded': 'bg-purple-100 text-purple-800'
+    };
+    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+  };
+
+  const formatGradeLevel = (grade: string) => {
+    return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  };
+
+  const handleDelete = (studentId: string) => {
+    if (!canDelete) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have permission to delete students.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (confirm('Are you sure you want to delete this student? This action cannot be undone.')) {
+      deleteStudentMutation.mutate(studentId);
+    }
+  };
+
+  const handleImportComplete = () => {
+    queryClient.invalidateQueries({ queryKey: ['students'] });
+    queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+    setShowImportCard(false);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center text-red-600">
+              <p className="font-medium">Error loading students</p>
+              <p className="text-sm mt-1">{error.message}</p>
+              <Button 
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['students'] })}
+                className="mt-4"
+                variant="outline"
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header with Logo */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <img 
-            src="/SPRING_LOGO-removebg-preview.png" 
-            alt="School Logo" 
-            className="h-16 w-16 object-contain"
-          />
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Students</h2>
-            <p className="text-gray-600">
-              Manage student records and information
-            </p>
-          </div>
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Student Management</h1>
+          <p className="text-gray-600 mt-1">Manage student registrations and information</p>
         </div>
         <div className="flex items-center space-x-2">
-          <DuplicateDetection />
-          <Button variant="outline" onClick={() => exportToExcel()}>
-            <Download className="h-4 w-4 mr-2" />
-            Export All
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowImportCard(!showImportCard)}
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {showImportCard ? 'Hide Import' : 'Bulk Import'}
           </Button>
-          {selectedStudents.length > 0 && (
-            <Button variant="outline" onClick={handleExportSelected}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Selected ({selectedStudents.length})
-            </Button>
-          )}
-          <Link to="/students/import">
-            <Button variant="outline">
-              <Upload className="h-4 w-4 mr-2" />
-              Import
-            </Button>
-          </Link>
-          <Link to="/students/new">
-            <Button>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add Student
-            </Button>
-          </Link>
+          
+          <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
+            <SheetTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 shadow-sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Student
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle className="text-xl">
+                  {editingStudent ? 'Edit Student' : 'Add New Student'}
+                </SheetTitle>
+              </SheetHeader>
+              <div className="mt-6">
+                <StudentForm
+                  student={editingStudent}
+                  onSuccess={() => {
+                    setIsFormOpen(false);
+                    setEditingStudent(null);
+                    queryClient.invalidateQueries({ queryKey: ['students'] });
+                    queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+                  }}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
+
+      {/* Bulk Import Card */}
+      {showImportCard && (
+        <BulkStudentImport onImportComplete={handleImportComplete} />
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -409,7 +589,7 @@ export const StudentList = () => {
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-blue-600">Total Students</p>
-                <p className="text-2xl font-bold text-blue-900">{students?.length || 0}</p>
+                <p className="text-2xl font-bold text-blue-900">{stats?.totalStudents || 0}</p>
               </div>
               <Users className="h-8 w-8 text-blue-500" />
             </div>
@@ -421,11 +601,9 @@ export const StudentList = () => {
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-green-600">Active Students</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {students?.filter(s => s.status === 'Active').length || 0}
-                </p>
+                <p className="text-2xl font-bold text-green-900">{stats?.activeStudents || 0}</p>
               </div>
-              <Users className="h-8 w-8 text-green-500" />
+              <GraduationCap className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
@@ -434,10 +612,10 @@ export const StudentList = () => {
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-1">
-                <p className="text-sm font-medium text-purple-600">Grade Levels</p>
-                <p className="text-2xl font-bold text-purple-900">{gradeLevels?.length || 0}</p>
+                <p className="text-sm font-medium text-purple-600">Selected</p>
+                <p className="text-2xl font-bold text-purple-900">{selectedStudents.size}</p>
               </div>
-              <GraduationCap className="h-8 w-8 text-purple-500" />
+              <CheckSquare className="h-8 w-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
@@ -446,247 +624,352 @@ export const StudentList = () => {
           <CardContent className="p-6">
             <div className="flex items-center">
               <div className="flex-1">
-                <p className="text-sm font-medium text-orange-600">Classes</p>
-                <p className="text-2xl font-bold text-orange-900">{classNames?.length || 0}</p>
+                <p className="text-sm font-medium text-orange-600">Pending Payments</p>
+                <p className="text-2xl font-bold text-orange-900">
+                  {students?.filter(s => s.registration_payments?.some(p => p.payment_status === 'Unpaid')).length || 0}
+                </p>
               </div>
-              <Users className="h-8 w-8 text-orange-500" />
+              <CreditCard className="h-8 w-8 text-orange-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* Enhanced Search and Filters with Sorting */}
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Filters
+            Real-time Search, Filter & Sort Students
           </CardTitle>
+          <p className="text-sm text-gray-600">Search by Student ID, Name, Mother's Name, Phone Numbers, Email, or Class Name</p>
+          {selectedStudents.size > 0 && (
+            <div className="flex items-center gap-2 mt-2">
+              <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                {selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected
+              </Badge>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSelectedStudents(new Set())}
+              >
+                Clear Selection
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Input
-                type="text"
-                placeholder="Search by name or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="lg:col-span-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by Student ID, Name, Mother's Name, Phone, Email, or Class..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <div>
-              <Select value={gradeFilter} onValueChange={setGradeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by Grade" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Grades</SelectItem>
-                  {gradeLevels.map(grade => (
-                    <SelectItem key={grade} value={grade}>{formatGradeLevel(grade)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Select value={classFilter} onValueChange={setClassFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by Class" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Classes</SelectItem>
-                  {classNames.map(className => (
-                    <SelectItem key={className} value={className}>{className}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filter by Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                  <SelectItem value="Suspended">Suspended</SelectItem>
-                  <SelectItem value="Graduated">Graduated</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Graduated">Graduated</SelectItem>
+                <SelectItem value="Transferred Out">Transferred Out</SelectItem>
+                <SelectItem value="Dropped Out">Dropped Out</SelectItem>
+                <SelectItem value="On Leave">On Leave</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={gradeFilter} onValueChange={setGradeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by grade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Grades</SelectItem>
+                <SelectItem value="pre_k">Pre-K</SelectItem>
+                <SelectItem value="kg">KG</SelectItem>
+                <SelectItem value="prep">PREP</SelectItem>
+                <SelectItem value="kindergarten">Kindergarten</SelectItem>
+                {Array.from({length: 12}, (_, i) => (
+                  <SelectItem key={i} value={`grade_${i + 1}`}>Grade {i + 1}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Select value={classFilter} onValueChange={setClassFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classes?.map((cls) => (
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.class_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Sort by Name</SelectItem>
+                <SelectItem value="id">Sort by Student ID</SelectItem>
+                <SelectItem value="grade">Sort by Grade</SelectItem>
+                <SelectItem value="date">Sort by Registration Date</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as typeof sortOrder)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sort order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Ascending (A-Z, 1-9)</SelectItem>
+                <SelectItem value="desc">Descending (Z-A, 9-1)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
       {/* Students Table */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
-          <CardTitle>Student List ({sortedStudents.length} total)</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-lg">
+              Students ({filteredStudents.length})
+            </CardTitle>
+            <div className="text-sm text-gray-600">
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length} students
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
-              <p className="text-gray-600 mt-2">Loading students...</p>
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-gray-600 mt-4">Loading students...</p>
             </div>
-          ) : error ? (
-            <div className="text-center py-8">
-              <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-              <p className="text-red-600 font-medium">Error loading students</p>
-              <p className="text-red-500 text-sm">{error.message}</p>
-            </div>
-          ) : paginatedStudents.length === 0 ? (
-            <div className="text-center py-8">
+          ) : filteredStudents.length === 0 ? (
+            <div className="text-center py-12">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">No students found</p>
-              <p className="text-gray-500 text-sm">Add a new student or adjust the filters</p>
+              <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[50px]">
-                      <Checkbox
-                        checked={isAllSelected}
-                        onCheckedChange={toggleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        setSortBy('name');
-                        setSortOrder(sortBy === 'name' && sortOrder === 'asc' ? 'desc' : 'asc');
-                      }}>
-                        Name
-                        {sortBy === 'name' && (sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        setSortBy('student_id');
-                        setSortOrder(sortBy === 'student_id' && sortOrder === 'asc' ? 'desc' : 'asc');
-                      }}>
-                        Student ID
-                        {sortBy === 'student_id' && (sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        setSortBy('grade');
-                        setSortOrder(sortBy === 'grade' && sortOrder === 'asc' ? 'desc' : 'asc');
-                      }}>
-                        Grade
-                        {sortBy === 'grade' && (sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />)}
-                      </Button>
-                    </TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Class</TableHead>
-                    <TableHead>Registration Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedStudents.map((student) => (
-                    <TableRow key={student.id}>
-                      <TableCell className="w-[50px]">
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-12">
                         <Checkbox
-                          checked={selectedStudents.includes(student.id)}
-                          onCheckedChange={() => toggleSelectStudent(student.id)}
+                          checked={selectAll}
+                          onCheckedChange={handleSelectAll}
                         />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Avatar>
-                            {student.photo_url ? (
-                              <AvatarImage src={student.photo_url} alt={student.first_name} />
-                            ) : (
-                              <AvatarFallback>{student.first_name[0]}{student.last_name[0]}</AvatarFallback>
-                            )}
-                          </Avatar>
-                          <span className="font-medium">{student.first_name} {student.last_name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{student.student_id}</TableCell>
-                      <TableCell>{formatGradeLevel(student.grade_level)}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{student.status}</Badge>
-                      </TableCell>
-                      <TableCell>{student.classes?.class_name || 'Not Assigned'}</TableCell>
-                      <TableCell>{format(new Date(student.created_at), 'MMM dd, yyyy')}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewStudent(student)}
-                            className="hover:bg-blue-50 hover:text-blue-600"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditStudent(student)}
-                            className="hover:bg-gray-50"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteStudent(student)}
-                            className="hover:bg-red-50 hover:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead className="font-semibold">Student</TableHead>
+                      <TableHead className="font-semibold">Student ID</TableHead>
+                      <TableHead className="font-semibold">Mother's Name</TableHead>
+                      <TableHead className="font-semibold">Grade</TableHead>
+                      <TableHead className="font-semibold">Class</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">Payment</TableHead>
+                      <TableHead className="font-semibold">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedStudents.map((student) => (
+                      <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedStudents.has(student.id)}
+                            onCheckedChange={(checked) => handleSelectStudent(student.id, checked as boolean)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage 
+                                src={student.photo_url} 
+                                alt={`${student.first_name} ${student.last_name}`}
+                                className="object-cover"
+                              />
+                              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                                {getInitials(student.first_name, student.last_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {highlightSearchTerm(`${student.first_name} ${student.last_name}`, searchTerm)}
+                              </div>
+                              <div className="text-sm text-gray-500">{student.email}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                            {highlightSearchTerm(student.student_id, searchTerm)}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-gray-600">
+                            {student.mother_name ? highlightSearchTerm(student.mother_name, searchTerm) : 'Not provided'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-medium">
+                            {formatGradeLevel(student.grade_level)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-gray-600">
+                            {student.classes?.class_name ? highlightSearchTerm(student.classes.class_name, searchTerm) : 'Not assigned'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(student.status)} variant="outline">
+                            {student.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {student.registration_payments?.[0] ? (
+                            <Badge className={getPaymentStatusColor(student.registration_payments[0].payment_status)} variant="outline">
+                              {student.registration_payments[0].payment_status}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-gray-100 text-gray-600">
+                              No Record
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedStudent(student)}
+                              className="hover:bg-blue-50 hover:text-blue-600"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingStudent(student);
+                                setIsFormOpen(true);
+                              }}
+                              className="hover:bg-green-50 hover:text-green-600"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(student.id)}
+                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              disabled={!canDelete}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="mt-6 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
+                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                      
+                      {/* Show first page */}
+                      {currentPage > 3 && (
+                        <>
+                          <PaginationItem>
+                            <PaginationLink onClick={() => handlePageChange(1)} className="cursor-pointer">
+                              1
+                            </PaginationLink>
+                          </PaginationItem>
+                          {currentPage > 4 && (
+                            <PaginationItem>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )}
+                        </>
+                      )}
+                      
+                      {/* Show pages around current page */}
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        const pageNumber = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                        if (pageNumber > totalPages) return null;
+                        
+                        return (
+                          <PaginationItem key={pageNumber}>
+                            <PaginationLink
+                              onClick={() => handlePageChange(pageNumber)}
+                              isActive={currentPage === pageNumber}
+                              className="cursor-pointer"
+                            >
+                              {pageNumber}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      })}
+                      
+                      {/* Show last page */}
+                      {currentPage < totalPages - 2 && (
+                        <>
+                          {currentPage < totalPages - 3 && (
+                            <PaginationItem>
+                              <PaginationEllipsis />
+                            </PaginationItem>
+                          )}
+                          <PaginationItem>
+                            <PaginationLink onClick={() => handlePageChange(totalPages)} className="cursor-pointer">
+                              {totalPages}
+                            </PaginationLink>
+                          </PaginationItem>
+                        </>
+                      )}
+                      
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
+                          className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center space-x-2">
-          <Button
-            variant="outline"
-            disabled={currentPage === 1}
-            onClick={() => handlePageChange(currentPage - 1)}
-          >
-            Previous
-          </Button>
-          <span>{currentPage} of {totalPages}</span>
-          <Button
-            variant="outline"
-            disabled={currentPage === totalPages}
-            onClick={() => handlePageChange(currentPage + 1)}
-          >
-            Next
-          </Button>
-        </div>
+      {selectedStudent && (
+        <StudentDetails
+          student={selectedStudent}
+          onClose={() => setSelectedStudent(null)}
+        />
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Student</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the student record for {studentToDelete?.first_name} {studentToDelete?.last_name}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

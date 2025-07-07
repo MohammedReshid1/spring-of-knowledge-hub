@@ -74,11 +74,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center">
-              <img 
-                src="/SPRING_LOGO-removebg-preview.png" 
-                alt="School Logo" 
-                className="h-12 w-12 object-contain mr-3"
-              />
+              <GraduationCap className="h-8 w-8 text-primary mr-3" />
               <h1 className="text-xl font-semibold text-gray-900">
                 Spring of Knowledge Academy
               </h1>

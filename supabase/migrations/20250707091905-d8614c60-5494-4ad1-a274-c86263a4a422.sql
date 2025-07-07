@@ -12,7 +12,7 @@ DECLARE
   backup_data JSONB := '{}';
   temp_data JSONB;
   total_records INTEGER := 0;
-  backup_file_path TEXT;
+  file_path TEXT;
   backup_content TEXT;
 BEGIN
   -- Only allow admin and super_admin
@@ -58,15 +58,15 @@ BEGIN
     'tables', backup_data
   )::TEXT;
 
-  -- Generate file path using different variable name
-  backup_file_path := 'backup_' || backup_id::TEXT || '_' || EXTRACT(epoch FROM now())::TEXT || '.json';
+  -- Generate file path
+  file_path := 'backup_' || backup_id::TEXT || '_' || EXTRACT(epoch FROM now())::TEXT || '.json';
 
   -- Update backup log with file info (use explicit table alias to avoid ambiguity)
   UPDATE backup_logs bl
   SET 
     status = 'completed',
     completed_at = now(),
-    file_path = backup_file_path,
+    file_path = file_path,
     file_size = length(backup_content::TEXT),
     tables_backed_up = table_names,
     records_count = total_records
@@ -74,7 +74,7 @@ BEGIN
 
   -- Note: In a real implementation, you would save backup_content to Supabase Storage
   -- For now, we're just logging the backup with a file path reference
-  RAISE NOTICE 'Backup created with ID: %, File path: %, Size: % bytes', backup_id, backup_file_path, length(backup_content::TEXT);
+  RAISE NOTICE 'Backup created with ID: %, File path: %, Size: % bytes', backup_id, file_path, length(backup_content::TEXT);
 
   RETURN backup_id;
 END;
