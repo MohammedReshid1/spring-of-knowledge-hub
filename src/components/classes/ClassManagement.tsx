@@ -242,7 +242,7 @@ export const ClassManagement = () => {
       cls.academic_year.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
-    const matchesGrade = !gradeFilter || cls.grade_levels?.grade === gradeFilter;
+    const matchesGrade = !gradeFilter || gradeFilter === 'all-grades' || cls.grade_levels?.grade === gradeFilter;
     
     return matchesSearch && matchesGrade;
   }) || [];
@@ -388,7 +388,7 @@ export const ClassManagement = () => {
                   <SelectValue placeholder="Filter by grade" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Grades</SelectItem>
+                  <SelectItem value="all-grades">All Grades</SelectItem>
                   {gradeOptions.map((grade) => (
                     <SelectItem key={grade} value={grade}>
                       {formatGradeLevel(grade)}
