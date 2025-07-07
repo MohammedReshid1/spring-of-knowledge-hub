@@ -1,3 +1,4 @@
+
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -33,7 +34,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
       class_name: classData?.class_name || '',
       grade_level_id: classData?.grade_level_id || '',
       max_capacity: classData?.max_capacity || 25,
-      teacher_id: classData?.teacher_id || 'unassigned',
+      teacher_id: classData?.teacher_id || '',
       academic_year: classData?.academic_year || new Date().getFullYear().toString(),
     },
   });
@@ -87,7 +88,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
         grade_level_id: data.grade_level_id,
         max_capacity: data.max_capacity,
         academic_year: data.academic_year,
-        teacher_id: data.teacher_id === 'unassigned' ? null : data.teacher_id,
+        teacher_id: data.teacher_id || null,
       };
 
       if (classData) {
@@ -197,7 +198,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Grade Level</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value || undefined}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select grade level" />
@@ -246,14 +247,14 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Teacher (Optional)</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value || undefined}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select teacher" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="unassigned">No teacher assigned</SelectItem>
+                  <SelectItem value="no-teacher">No teacher assigned</SelectItem>
                   {teachers && teachers.length > 0 ? (
                     teachers.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id}>
@@ -261,7 +262,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="no-teachers" disabled>No teachers found</SelectItem>
+                    <SelectItem value="no-teachers-available" disabled>No teachers found</SelectItem>
                   )}
                 </SelectContent>
               </Select>
