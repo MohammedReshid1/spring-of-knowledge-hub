@@ -52,21 +52,132 @@ export const StudentList = () => {
       description: `Processing ${jsonData.length} records...`,
     });
 
+    // Helper function to parse name field
+    const parseName = (nameString: string) => {
+      const parts = nameString.trim().split(' ').filter(part => part.length > 0);
+      return {
+        first_name: parts[0] || '',
+        father_name: parts[1] || '',
+        grandfather_name: parts[2] || ''
+      };
+    };
+
+    // Helper function to parse grade and class
+    const parseGradeClass = (gradeClassString: string) => {
+      const normalized = gradeClassString.toLowerCase().trim();
+      
+      // Map grade names to database enum values
+      const gradeMapping: Record<string, string> = {
+        'pre kg': 'pre_k',
+        'pre k': 'pre_k',
+        'pre-k': 'pre_k',
+        'kindergarten': 'kindergarten',
+        'kg': 'kindergarten',
+        'class 1': 'grade_1',
+        'grade 1': 'grade_1',
+        '1st': 'grade_1',
+        'class 2': 'grade_2',
+        'grade 2': 'grade_2',
+        '2nd': 'grade_2',
+        'class 3': 'grade_3',
+        'grade 3': 'grade_3',
+        '3rd': 'grade_3',
+        'class 4': 'grade_4',
+        'grade 4': 'grade_4',
+        '4th': 'grade_4',
+        'class 5': 'grade_5',
+        'grade 5': 'grade_5',
+        '5th': 'grade_5',
+        'class 6': 'grade_6',
+        'grade 6': 'grade_6',
+        '6th': 'grade_6',
+        'class 7': 'grade_7',
+        'grade 7': 'grade_7',
+        '7th': 'grade_7',
+        'class 8': 'grade_8',
+        'grade 8': 'grade_8',
+        '8th': 'grade_8',
+        'class 9': 'grade_9',
+        'grade 9': 'grade_9',
+        '9th': 'grade_9',
+        'class 10': 'grade_10',
+        'grade 10': 'grade_10',
+        '10th': 'grade_10',
+        'class 11': 'grade_11',
+        'grade 11': 'grade_11',
+        '11th': 'grade_11',
+        'class 12': 'grade_12',
+        'grade 12': 'grade_12',
+        '12th': 'grade_12'
+      };
+
+      // Try to find matching grade
+      for (const [key, value] of Object.entries(gradeMapping)) {
+        if (normalized.includes(key)) {
+          return value;
+        }
+      }
+      
+      return null;
+    };
+
+    // Helper function to convert gender
+    const convertGender = (genderString: string) => {
+      const normalized = genderString.trim().toLowerCase();
+      if (normalized === 'm' || normalized === 'male') return 'Male';
+      if (normalized === 'f' || normalized === 'female') return 'Female';
+      return null;
+    };
+
     for (const [index, row] of jsonData.entries()) {
       try {
+        // Parse name field (handle both formats)
+        let first_name = '';
+        let father_name = '';
+        let grandfather_name = '';
+        
+        if (row.name) {
+          const parsed = parseName(row.name);
+          first_name = parsed.first_name;
+          father_name = parsed.father_name;
+          grandfather_name = parsed.grandfather_name;
+        } else {
+          // Fallback to individual fields
+          first_name = row.first_name?.trim() || '';
+          father_name = row.father_name?.trim() || '';
+          grandfather_name = row.grandfather_name?.trim() || '';
+        }
+
+        // Parse grade/class field
+        let grade_level = '';
+        if (row.grade_class || row.class || row.grade || row.grade_level) {
+          const gradeClassField = row.grade_class || row.class || row.grade || row.grade_level;
+          grade_level = parseGradeClass(gradeClassField) || '';
+        }
+
+        // Convert gender
+        const gender = row.gender ? convertGender(row.gender) : null;
+
         // Validate required fields
-        if (!row.first_name || !row.last_name || !row.date_of_birth || !row.grade_level) {
-          errors.push(`Row ${index + 1}: Missing required fields (first_name, last_name, date_of_birth, grade_level)`);
+        if (!first_name || !row.date_of_birth || !grade_level) {
+          errors.push(`Row ${index + 1}: Missing required fields (name/first_name, date_of_birth, grade_class/grade_level)`);
           errorCount++;
           continue;
         }
 
-        // Validate date format
+        // Validate date format (try multiple formats)
+        let dateOfBirth = row.date_of_birth;
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-        if (!dateRegex.test(row.date_of_birth)) {
-          errors.push(`Row ${index + 1}: Invalid date format for date_of_birth. Use YYYY-MM-DD format`);
-          errorCount++;
-          continue;
+        
+        if (!dateRegex.test(dateOfBirth)) {
+          // Try to parse different date formats
+          const date = new Date(dateOfBirth);
+          if (isNaN(date.getTime())) {
+            errors.push(`Row ${index + 1}: Invalid date format for date_of_birth. Use YYYY-MM-DD format`);
+            errorCount++;
+            continue;
+          }
+          dateOfBirth = date.toISOString().split('T')[0];
         }
 
         // Validate grade level
@@ -75,8 +186,8 @@ export const StudentList = () => {
           'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10',
           'grade_11', 'grade_12'
         ];
-        if (!validGrades.includes(row.grade_level)) {
-          errors.push(`Row ${index + 1}: Invalid grade_level "${row.grade_level}". Must be one of: ${validGrades.join(', ')}`);
+        if (!validGrades.includes(grade_level)) {
+          errors.push(`Row ${index + 1}: Invalid grade_level "${grade_level}". Could not parse from "${row.grade_class || row.class || row.grade || row.grade_level}"`);
           errorCount++;
           continue;
         }
@@ -84,14 +195,14 @@ export const StudentList = () => {
         // Prepare student data (student_id will be auto-generated by database trigger)
         const studentData = {
           student_id: '', // Will be auto-generated by database trigger
-          first_name: row.first_name.trim(),
-          last_name: row.last_name.trim(),
-          date_of_birth: row.date_of_birth,
-          grade_level: row.grade_level,
+          first_name: first_name,
+          last_name: '', // Not provided in your format, using empty string
+          date_of_birth: dateOfBirth,
+          grade_level: grade_level as any,
           mother_name: row.mother_name?.trim() || null,
-          father_name: row.father_name?.trim() || null,
-          grandfather_name: row.grandfather_name?.trim() || null,
-          gender: row.gender?.trim() || null,
+          father_name: father_name || null,
+          grandfather_name: grandfather_name || null,
+          gender: gender,
           address: row.address?.trim() || null,
           phone: row.phone?.trim() || null,
           email: row.email?.trim() || null,
