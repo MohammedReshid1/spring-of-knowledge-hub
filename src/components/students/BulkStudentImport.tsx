@@ -202,6 +202,11 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       /Grade\s*:\s*_*(PREP)\s*-\s*([A-E])_*.*$/i,
       /Grade\s*:\s*_*(GRADE|CLASS)\s*(\d+)\s*-\s*([A-E])_*.*$/i,
       
+      // More flexible KG patterns with optional spaces and separators
+      /^(KG)\s*[-\s]*([A-E])\s*$/i,
+      /^(KG)\s+([A-E])\s*$/i,
+      /.*KG\s*[-\s]*([A-E]).*/i, // Very flexible KG pattern
+      
       // Original patterns for direct class names
       /^(PRE\s*KG)[\s\-]*([A-E])$/i,
       /^(PREKG)[\s\-]*([A-E])$/i,
@@ -211,6 +216,11 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       /^(PREP)[\s\-]*([A-E])$/i,
       /^(PREPARATORY)[\s\-]*([A-E])$/i,
       /^(GRADE|CLASS)[\s\-]*(\d+)[\s\-]*([A-E])$/i,
+      
+      // Additional patterns for common variations
+      /.*\b(KG)\s+([A-E])\b.*/i,
+      /.*\b(PRE\s*KG)\s+([A-E])\b.*/i,
+      /.*\b(PREP)\s+([A-E])\b.*/i,
     ];
 
     for (const pattern of classPatterns) {
@@ -219,8 +229,18 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         console.log(`Pattern matched:`, match);
         
         let gradeLevel: GradeLevel = 'pre_k';
-        let section = match[match.length - 1]; // Last capture group is the section
-        let gradePart = match[1];
+        let section = '';
+        let gradePart = '';
+        
+        // Handle the flexible KG pattern that only captures the section
+        if (pattern.toString().includes('.*KG\\s*[-\\s]*([A-E]).*')) {
+          gradePart = 'KG';
+          section = match[1];
+        } else {
+          // Normal pattern handling
+          section = match[match.length - 1]; // Last capture group is the section
+          gradePart = match[1];
+        }
         
         // Handle grade number patterns (for GRADE 1 - A format)
         if (match.length > 3 && match[2] && /^\d+$/.test(match[2])) {
