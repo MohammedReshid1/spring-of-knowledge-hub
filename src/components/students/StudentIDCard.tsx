@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from '@/components/ui/card';
 import { useState } from 'react';
 
@@ -34,10 +33,17 @@ export const StudentIDCard = ({
 
   const formatFullName = (student: Student) => {
     const parts = [student.first_name, student.last_name];
-    if (student.father_name) parts.push(student.father_name);
+    
+    // Add father's name if it exists
+    if (student.father_name) {
+      parts.push(student.father_name);
+    }
+    
+    // Add grandfather's name only if it exists AND is different from father's name
     if (student.grandfather_name && student.grandfather_name !== student.father_name) {
       parts.push(student.grandfather_name);
     }
+    
     return parts.join(' ');
   };
 
@@ -94,7 +100,7 @@ export const StudentIDCard = ({
               {student.student_id}
             </div>
             
-            {/* Full Name - Properly formatted */}
+            {/* Full Name - Properly formatted without repetition */}
             <div className="text-white font-semibold text-[8px] leading-tight">
               {formatFullName(student)}
             </div>

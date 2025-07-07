@@ -1,4 +1,5 @@
--- Update the create_database_backup function to actually save backup files to storage
+
+-- Update the create_database_backup function to fix file_path ambiguity
 CREATE OR REPLACE FUNCTION public.create_database_backup(backup_type text DEFAULT 'manual'::text, backup_method text DEFAULT 'full'::text)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -60,8 +61,8 @@ BEGIN
   -- Generate file path
   file_path := 'backup_' || backup_id::TEXT || '_' || EXTRACT(epoch FROM now())::TEXT || '.json';
 
-  -- Update backup log with file info
-  UPDATE backup_logs 
+  -- Update backup log with file info (use explicit table alias to avoid ambiguity)
+  UPDATE backup_logs bl
   SET 
     status = 'completed',
     completed_at = now(),
@@ -69,7 +70,7 @@ BEGIN
     file_size = length(backup_content::TEXT),
     tables_backed_up = table_names,
     records_count = total_records
-  WHERE id = backup_id;
+  WHERE bl.id = backup_id;
 
   -- Note: In a real implementation, you would save backup_content to Supabase Storage
   -- For now, we're just logging the backup with a file path reference

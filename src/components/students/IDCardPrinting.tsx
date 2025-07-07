@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { StudentIDCard } from './StudentIDCard';
 import { StudentDetails } from './StudentDetails';
-import { CreditCard, Printer, Search, Eye } from 'lucide-react';
+import { CreditCard, Printer, Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getHighlightedText } from '@/utils/searchHighlight';
 
@@ -26,6 +26,8 @@ export const IDCardPrinting = () => {
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear().toString());
   const [showPreview, setShowPreview] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const studentsPerPage = 15;
 
   const { data: students, isLoading } = useQuery({
     queryKey: ['students-for-id-cards'],
@@ -83,6 +85,10 @@ export const IDCardPrinting = () => {
     return matchesSearch && matchesGrade && matchesClass && matchesStatus;
   }) || [];
 
+  const totalPages = Math.ceil(filteredStudents.length / studentsPerPage);
+  const startIndex = (currentPage - 1) * studentsPerPage;
+  const paginatedStudents = filteredStudents.slice(startIndex, startIndex + studentsPerPage);
+
   const selectedStudentData = students?.filter(student => 
     selectedStudents.has(student.id)
   ) || [];
@@ -98,19 +104,33 @@ export const IDCardPrinting = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedStudents.size === filteredStudents.length) {
-      setSelectedStudents(new Set());
+    const currentPageStudentIds = paginatedStudents.map(s => s.id);
+    const newSelected = new Set(selectedStudents);
+    
+    const allCurrentPageSelected = currentPageStudentIds.every(id => newSelected.has(id));
+    
+    if (allCurrentPageSelected) {
+      // Deselect all on current page
+      currentPageStudentIds.forEach(id => newSelected.delete(id));
     } else {
-      setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
+      // Select all on current page
+      currentPageStudentIds.forEach(id => newSelected.add(id));
     }
+    
+    setSelectedStudents(newSelected);
   };
 
   const formatFullName = (student: any) => {
     const parts = [student.first_name, student.last_name];
-    if (student.father_name) parts.push(student.father_name);
+    
+    if (student.father_name) {
+      parts.push(student.father_name);
+    }
+    
     if (student.grandfather_name && student.grandfather_name !== student.father_name) {
       parts.push(student.grandfather_name);
     }
+    
     return parts.join(' ');
   };
 
@@ -271,6 +291,11 @@ export const IDCardPrinting = () => {
 
   const gradeOptions = [...new Set(students?.map(s => s.grade_level) || [])];
 
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setSelectedStudents(new Set()); // Clear selections when changing pages
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -363,21 +388,21 @@ export const IDCardPrinting = () => {
         </CardContent>
       </Card>
 
-      {/* Students Table */}
+      {/* Students Table with Pagination */}
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-lg">
-              Students ({filteredStudents.length})
+              Students ({filteredStudents.length} total, showing {paginatedStudents.length})
             </CardTitle>
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="select-all"
-                checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
+                checked={paginatedStudents.length > 0 && paginatedStudents.every(student => selectedStudents.has(student.id))}
                 onCheckedChange={handleSelectAll}
               />
               <Label htmlFor="select-all">
-                Select All
+                Select All (This Page)
               </Label>
               <Badge variant="outline">
                 {selectedStudents.size} selected
@@ -386,87 +411,140 @@ export const IDCardPrinting = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {filteredStudents.length === 0 ? (
+          {paginatedStudents.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-600 font-medium">No students found</p>
               <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="w-12">Select</TableHead>
-                    <TableHead className="font-semibold">Student</TableHead>
-                    <TableHead className="font-semibold">Student ID</TableHead>
-                    <TableHead className="font-semibold">Grade</TableHead>
-                    <TableHead className="font-semibold">Class</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredStudents.map((student) => (
-                    <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedStudents.has(student.id)}
-                          onCheckedChange={() => handleStudentToggle(student.id)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage 
-                              src={student.photo_url} 
-                              alt={`${student.first_name} ${student.last_name}`}
-                              className="object-cover"
-                            />
-                            <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                              {getInitials(student.first_name, student.last_name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-gray-900">
-                              {getHighlightedText(`${student.first_name} ${student.last_name}`, searchTerm)}
-                            </div>
-                            {student.mother_name && (
-                              <div className="text-sm text-gray-500">
-                                Mother: {getHighlightedText(student.mother_name, searchTerm)}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
-                          {getHighlightedText(student.student_id, searchTerm)}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-medium">
-                          {formatGradeLevel(student.grade_level)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-600">
-                          {student.classes?.class_name ? getHighlightedText(student.classes.class_name, searchTerm) : 'Not assigned'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedStudent(student)}
-                          className="hover:bg-blue-50 hover:text-blue-600"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-12">Select</TableHead>
+                      <TableHead className="font-semibold">Student</TableHead>
+                      <TableHead className="font-semibold">Student ID</TableHead>
+                      <TableHead className="font-semibold">Grade</TableHead>
+                      <TableHead className="font-semibold">Class</TableHead>
+                      <TableHead className="font-semibold">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedStudents.map((student) => (
+                      <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedStudents.has(student.id)}
+                            onCheckedChange={() => handleStudentToggle(student.id)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage 
+                                src={student.photo_url} 
+                                alt={`${student.first_name} ${student.last_name}`}
+                                className="object-cover"
+                              />
+                              <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                                {getInitials(student.first_name, student.last_name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium text-gray-900">
+                                {getHighlightedText(`${student.first_name} ${student.last_name}`, searchTerm)}
+                              </div>
+                              {student.mother_name && (
+                                <div className="text-sm text-gray-500">
+                                  Mother: {getHighlightedText(student.mother_name, searchTerm)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">
+                            {getHighlightedText(student.student_id, searchTerm)}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-medium">
+                            {formatGradeLevel(student.grade_level)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-gray-600">
+                            {student.classes?.class_name ? getHighlightedText(student.classes.class_name, searchTerm) : 'Not assigned'}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedStudent(student)}
+                            className="hover:bg-blue-50 hover:text-blue-600"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-700">
+                      Showing {startIndex + 1} to {Math.min(startIndex + studentsPerPage, filteredStudents.length)} of {filteredStudents.length} students
+                    </p>
+                  </div>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className="gap-1"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Previous
+                        </Button>
+                      </PaginationItem>
+                      
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => handlePageChange(page)}
+                            isActive={currentPage === page}
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+                      
+                      <PaginationItem>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                          className="gap-1"
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

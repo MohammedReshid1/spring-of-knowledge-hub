@@ -51,75 +51,47 @@ export const BackupManagement = () => {
     }
   });
 
-  // View backup details
+  // View backup details - simplified since we're not actually storing files
   const viewBackupDetails = async (backup: any) => {
     if (!backup.file_path) {
       toast({
         title: "Error",
-        description: "Backup file not available",
+        description: "Backup file reference not available",
         variant: "destructive",
       });
       return;
     }
 
-    try {
-      // Fetch backup file details from storage
-      const { data, error } = await supabase.storage
-        .from('system-backups')
-        .download(backup.file_path);
-
-      if (error) throw error;
-
-      const backupData = JSON.parse(await data.text());
-      setSelectedBackup({ ...backup, backupData });
-      setShowViewDetails(true);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Failed to load backup details: " + error.message,
-        variant: "destructive",
-      });
-    }
+    // Since we're not actually storing files, we'll show the metadata
+    setSelectedBackup({ 
+      ...backup, 
+      backupData: {
+        backup_id: backup.id,
+        backup_type: backup.backup_type,
+        backup_method: backup.backup_method,
+        created_at: backup.started_at,
+        total_records: backup.records_count,
+        tables: backup.tables_backed_up || []
+      }
+    });
+    setShowViewDetails(true);
   };
 
-  // Download backup file
+  // Download backup file - simplified notification
   const downloadBackup = async (backup: any) => {
     if (!backup.file_path) {
       toast({
         title: "Error",
-        description: "Backup file not available",
+        description: "Backup file not available for download. This is a reference backup.",
         variant: "destructive",
       });
       return;
     }
 
-    try {
-      const { data, error } = await supabase.storage
-        .from('system-backups')
-        .download(backup.file_path);
-
-      if (error) throw error;
-
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = backup.file_path;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: "Success",
-        description: "Backup file downloaded successfully",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "Failed to download backup: " + error.message,
-        variant: "destructive",
-      });
-    }
+    toast({
+      title: "Info",
+      description: "Backup download functionality is not yet implemented. This shows backup metadata only.",
+    });
   };
 
   // Create manual backup
@@ -400,22 +372,6 @@ export const BackupManagement = () => {
                   </p>
                 </div>
               </div>
-
-              {selectedBackup.backupData && (
-                <div>
-                  <h4 className="font-medium text-sm text-gray-600 mb-2">Tables Backed Up</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(selectedBackup.backupData.tables || {}).map(([tableName, tableData]: [string, any]) => (
-                      <div key={tableName} className="p-2 bg-gray-50 rounded">
-                        <span className="font-medium text-sm">{tableName}</span>
-                        <span className="text-xs text-gray-500 ml-2">
-                          ({Array.isArray(tableData) ? tableData.length : 0} records)
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {selectedBackup.tables_backed_up && (
                 <div>
