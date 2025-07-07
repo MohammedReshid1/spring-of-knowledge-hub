@@ -7,6 +7,9 @@ import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle } from 'luc
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import * as XLSX from 'xlsx';
+import { Database } from '@/integrations/supabase/types';
+
+type GradeLevel = Database['public']['Enums']['grade_level'];
 
 interface ImportResult {
   success: number;
@@ -33,11 +36,11 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     console.log(`Import Progress: ${percentage}% - ${status}`);
   };
 
-  const normalizeGradeLevel = (gradeInput: string): string => {
+  const normalizeGradeLevel = (gradeInput: string): GradeLevel => {
     const normalized = gradeInput.toLowerCase().trim();
     
     // Handle various grade formats including new KG and PREP
-    const gradeMap: Record<string, string> = {
+    const gradeMap: Record<string, GradeLevel> = {
       'pre kg': 'pre_k',
       'pre-kg': 'pre_k',
       'pre k': 'pre_k',
@@ -185,7 +188,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     return defaultDate.toISOString().split('T')[0];
   };
 
-  const extractClassFromHeader = (headerText: string): { className: string; gradeLevel: string } | null => {
+  const extractClassFromHeader = (headerText: string): { className: string; gradeLevel: GradeLevel } | null => {
     if (!headerText || typeof headerText !== 'string') return null;
     
     const text = headerText.toString().trim();
@@ -193,23 +196,23 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     // Enhanced patterns to handle various class formats including spaces and dashes
     const classPatterns = [
       // PRE KG variations
-      /^(PRE\s*KG)[\s\-]*([A-Z])$/i,
-      /^(PREKG)[\s\-]*([A-Z])$/i,
-      /^(PRE\s*K)[\s\-]*([A-Z])$/i,
+      /^(PRE\s*KG)[\s\-]*([A-E])$/i,
+      /^(PREKG)[\s\-]*([A-E])$/i,
+      /^(PRE\s*K)[\s\-]*([A-E])$/i,
       // KG variations  
-      /^(KG)[\s\-]*([A-Z])$/i,
-      /^(KINDERGARTEN)[\s\-]*([A-Z])$/i,
+      /^(KG)[\s\-]*([A-E])$/i,
+      /^(KINDERGARTEN)[\s\-]*([A-E])$/i,
       // PREP variations
-      /^(PREP)[\s\-]*([A-Z])$/i,
-      /^(PREPARATORY)[\s\-]*([A-Z])$/i,
+      /^(PREP)[\s\-]*([A-E])$/i,
+      /^(PREPARATORY)[\s\-]*([A-E])$/i,
       // Grade variations
-      /^(GRADE|CLASS)[\s\-]*(\d+)[\s\-]*([A-Z])$/i,
+      /^(GRADE|CLASS)[\s\-]*(\d+)[\s\-]*([A-E])$/i,
     ];
 
     for (const pattern of classPatterns) {
       const match = text.match(pattern);
       if (match) {
-        let gradeLevel = '';
+        let gradeLevel: GradeLevel = 'pre_k';
         let section = match[match.length - 1]; // Last capture group is the section
         
         const gradeText = match[1].toLowerCase();
@@ -220,7 +223,8 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         } else if (gradeText.includes('prep')) {
           gradeLevel = 'prep';
         } else if (match[2]) { // Grade number
-          gradeLevel = `grade_${match[2]}`;
+          const gradeNum = match[2];
+          gradeLevel = `grade_${gradeNum}` as GradeLevel;
         }
 
         return {
@@ -233,7 +237,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     return null;
   };
 
-  const createOrFindClass = async (className: string, gradeLevel: string): Promise<string | null> => {
+  const createOrFindClass = async (className: string, gradeLevel: GradeLevel): Promise<string | null> => {
     try {
       // First, get the grade level ID
       const { data: gradeLevelData } = await supabase
@@ -351,7 +355,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     // Create classes in database and get their IDs
     const classIdMap: Map<string, string> = new Map();
     for (const [className, classInfo] of classes) {
-      const classId = await createOrFindClass(className, classInfo.gradeLevel);
+      const classId = await createOrFindClass(className, classInfo.gradeLevel as GradeLevel);
       if (classId) {
         classIdMap.set(className, classId);
         
@@ -425,7 +429,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
             grandfather_name: parsedName.grandfather_name,
             mother_name: null,
             date_of_birth: defaultDate.toISOString().split('T')[0],
-            grade_level: classInfo.gradeLevel as any,
+            grade_level: classInfo.gradeLevel as GradeLevel,
             gender: gender,
             address: null,
             phone: null,
