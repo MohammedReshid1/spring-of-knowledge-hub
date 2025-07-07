@@ -34,7 +34,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
       class_name: classData?.class_name || '',
       grade_level_id: classData?.grade_level_id || '',
       max_capacity: classData?.max_capacity || 25,
-      teacher_id: classData?.teacher_id || '',
+      teacher_id: classData?.teacher_id || undefined,
       academic_year: classData?.academic_year || new Date().getFullYear().toString(),
     },
   });
@@ -206,7 +206,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                 </FormControl>
                 <SelectContent>
                   {isLoadingGrades ? (
-                    <SelectItem value="loading" disabled>Loading grades...</SelectItem>
+                    <SelectItem value="loading-grades" disabled>Loading grades...</SelectItem>
                   ) : gradelevels && gradelevels.length > 0 ? (
                     gradelevels.map((grade) => (
                       <SelectItem key={grade.id} value={grade.id}>
@@ -214,7 +214,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="no-grades" disabled>No grade levels found</SelectItem>
+                    <SelectItem value="no-grades-found" disabled>No grade levels found</SelectItem>
                   )}
                 </SelectContent>
               </Select>
@@ -247,14 +247,21 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Teacher (Optional)</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value || undefined}>
+              <Select onValueChange={(value) => {
+                // Handle the special "no-teacher" case
+                if (value === "no-teacher-selected") {
+                  field.onChange(undefined);
+                } else {
+                  field.onChange(value);
+                }
+              }} value={field.value || undefined}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select teacher" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="no-teacher">No teacher assigned</SelectItem>
+                  <SelectItem value="no-teacher-selected">No teacher assigned</SelectItem>
                   {teachers && teachers.length > 0 ? (
                     teachers.map((teacher) => (
                       <SelectItem key={teacher.id} value={teacher.id}>
