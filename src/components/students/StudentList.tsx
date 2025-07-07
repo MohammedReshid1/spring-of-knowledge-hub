@@ -20,12 +20,13 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
-import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown, UserCheck } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
 import { BulkStudentImport } from './BulkStudentImport';
+import { DuplicateChecker } from './DuplicateChecker';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -46,6 +47,7 @@ export const StudentList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'name' | 'id' | 'grade' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isDuplicateCheckerOpen, setIsDuplicateCheckerOpen] = useState(false);
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
 
@@ -542,6 +544,15 @@ export const StudentList = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setIsDuplicateCheckerOpen(true)}
+            className="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border-yellow-300"
+          >
+            <UserCheck className="h-4 w-4 mr-2" />
+            Check Duplicates
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowImportCard(!showImportCard)}
           >
             <Upload className="h-4 w-4 mr-2" />
@@ -970,6 +981,12 @@ export const StudentList = () => {
           onClose={() => setSelectedStudent(null)}
         />
       )}
+
+      {/* Duplicate Checker Modal */}
+      <DuplicateChecker
+        isOpen={isDuplicateCheckerOpen}
+        onClose={() => setIsDuplicateCheckerOpen(false)}
+      />
     </div>
   );
 };
