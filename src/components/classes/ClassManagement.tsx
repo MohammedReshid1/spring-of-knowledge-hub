@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -91,59 +92,25 @@ export const ClassManagement = () => {
     }
   });
 
-  // Updated grade stats query to calculate capacity from classes and remove duplicates
+  // Updated grade stats query to show all grade levels from grade_levels table
   const { data: gradeStats } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
       console.log('Fetching grade stats...');
       
-      // Get all classes grouped by grade level
-      const { data: classesData, error: classesError } = await supabase
-        .from('classes')
-        .select(`
-          *,
-          grade_levels:grade_level_id (
-            id,
-            grade
-          )
-        `);
+      // Get all grade levels from the grade_levels table
+      const { data: gradeLevelsData, error: gradeLevelsError } = await supabase
+        .from('grade_levels')
+        .select('id, grade, max_capacity, current_enrollment, academic_year, created_at, updated_at')
+        .order('grade');
       
-      if (classesError) {
-        console.error('Error fetching classes for stats:', classesError);
-        throw classesError;
+      if (gradeLevelsError) {
+        console.error('Error fetching grade levels:', gradeLevelsError);
+        throw gradeLevelsError;
       }
 
-      // Calculate total capacity per grade level from classes and remove duplicates
-      const gradeCapacities = classesData?.reduce((acc, cls) => {
-        if (cls.grade_levels?.grade) {
-          const grade = cls.grade_levels.grade;
-          if (!acc[grade]) {
-            acc[grade] = { 
-              totalCapacity: 0, 
-              currentEnrollment: 0,
-              id: cls.grade_levels.id,
-              gradeKey: grade
-            };
-          }
-          acc[grade].totalCapacity += cls.max_capacity || 0;
-          acc[grade].currentEnrollment += cls.current_enrollment || 0;
-        }
-        return acc;
-      }, {} as Record<string, { totalCapacity: number; currentEnrollment: number; id: string; gradeKey: string }>) || {};
-
-      // Convert to array and remove duplicates based on grade key
-      const enhancedGradeStats = Object.values(gradeCapacities).map(gradeData => ({
-        id: gradeData.id,
-        grade: gradeData.gradeKey,
-        max_capacity: gradeData.totalCapacity,
-        current_enrollment: gradeData.currentEnrollment,
-        academic_year: new Date().getFullYear().toString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
-
-      console.log('Grade stats calculated successfully:', enhancedGradeStats.length);
-      return enhancedGradeStats;
+      console.log('Grade stats fetched successfully:', gradeLevelsData?.length);
+      return gradeLevelsData || [];
     }
   });
 
@@ -290,7 +257,7 @@ export const ClassManagement = () => {
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">Grade Level Capacity Overview</CardTitle>
-          <p className="text-sm text-gray-600">Capacity calculated from total class capacities per grade level</p>
+          <p className="text-sm text-gray-600">Current enrollment and capacity for all grade levels</p>
         </CardHeader>
         <CardContent>
           {!gradeStats || gradeStats.length === 0 ? (
