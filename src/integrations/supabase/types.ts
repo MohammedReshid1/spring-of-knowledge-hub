@@ -603,6 +603,10 @@ export type Database = {
         Args: { backup_type?: string; backup_method?: string }
         Returns: string
       }
+      delete_backup_log: {
+        Args: { backup_log_id: string }
+        Returns: boolean
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
