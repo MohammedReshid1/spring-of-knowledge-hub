@@ -91,23 +91,12 @@ export const ClassManagement = () => {
     }
   });
 
-  // Updated grade stats query to calculate capacity from classes
+  // Updated grade stats query to calculate capacity from classes and remove duplicates
   const { data: gradeStats } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
       console.log('Fetching grade stats...');
       
-      // Get all grade levels
-      const { data: gradeLevels, error: gradeError } = await supabase
-        .from('grade_levels')
-        .select('*')
-        .order('grade');
-      
-      if (gradeError) {
-        console.error('Error fetching grade levels:', gradeError);
-        throw gradeError;
-      }
-
       // Get all classes grouped by grade level
       const { data: classesData, error: classesError } = await supabase
         .from('classes')
@@ -124,28 +113,34 @@ export const ClassManagement = () => {
         throw classesError;
       }
 
-      // Calculate total capacity per grade level from classes
+      // Calculate total capacity per grade level from classes and remove duplicates
       const gradeCapacities = classesData?.reduce((acc, cls) => {
         if (cls.grade_levels?.grade) {
           const grade = cls.grade_levels.grade;
           if (!acc[grade]) {
-            acc[grade] = { totalCapacity: 0, currentEnrollment: 0 };
+            acc[grade] = { 
+              totalCapacity: 0, 
+              currentEnrollment: 0,
+              id: cls.grade_levels.id,
+              gradeKey: grade
+            };
           }
           acc[grade].totalCapacity += cls.max_capacity || 0;
           acc[grade].currentEnrollment += cls.current_enrollment || 0;
         }
         return acc;
-      }, {} as Record<string, { totalCapacity: number; currentEnrollment: number }>) || {};
+      }, {} as Record<string, { totalCapacity: number; currentEnrollment: number; id: string; gradeKey: string }>) || {};
 
-      // Merge with grade levels data
-      const enhancedGradeStats = gradeLevels?.map(grade => {
-        const gradeCapacity = gradeCapacities[grade.grade] || { totalCapacity: 0, currentEnrollment: 0 };
-        return {
-          ...grade,
-          max_capacity: gradeCapacity.totalCapacity || grade.max_capacity,
-          current_enrollment: gradeCapacity.currentEnrollment || grade.current_enrollment
-        };
-      }) || [];
+      // Convert to array and remove duplicates based on grade key
+      const enhancedGradeStats = Object.values(gradeCapacities).map(gradeData => ({
+        id: gradeData.id,
+        grade: gradeData.gradeKey,
+        max_capacity: gradeData.totalCapacity,
+        current_enrollment: gradeData.currentEnrollment,
+        academic_year: new Date().getFullYear().toString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
 
       console.log('Grade stats calculated successfully:', enhancedGradeStats.length);
       return enhancedGradeStats;

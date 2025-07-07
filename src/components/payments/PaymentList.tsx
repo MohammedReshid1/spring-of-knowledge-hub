@@ -12,7 +12,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt, Download, FileSpreadsheet, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from '@/hooks/use-toast';
 import { EnhancedPaymentForm } from './EnhancedPaymentForm';
@@ -27,8 +28,11 @@ export const PaymentList = () => {
   const [editingPayment, setEditingPayment] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [cycleFilter, setCycleFilter] = useState('all');
+  const [gradeFilter, setGradeFilter] = useState('all');
   const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { isRegistrar, canDelete } = useRoleAccess();
 
@@ -58,6 +62,29 @@ export const PaymentList = () => {
     }
     
     return `${symbol} ${amount.toFixed(2)}`;
+  };
+
+  const formatGradeLevel = (grade: string) => {
+    const gradeMap: Record<string, string> = {
+      'pre_k': 'Pre KG',
+      'kg': 'KG', 
+      'prep': 'PREP',
+      'kindergarten': 'KG',
+      'grade_1': 'Grade 1',
+      'grade_2': 'Grade 2',
+      'grade_3': 'Grade 3',
+      'grade_4': 'Grade 4',
+      'grade_5': 'Grade 5',
+      'grade_6': 'Grade 6',
+      'grade_7': 'Grade 7',
+      'grade_8': 'Grade 8',
+      'grade_9': 'Grade 9',
+      'grade_10': 'Grade 10',
+      'grade_11': 'Grade 11',
+      'grade_12': 'Grade 12',
+    };
+
+    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   // Real-time subscription for payments
@@ -172,9 +199,23 @@ export const PaymentList = () => {
     
     const matchesStatus = statusFilter === 'all' || payment.payment_status === statusFilter;
     const matchesCycle = cycleFilter === 'all' || payment.payment_cycle === cycleFilter;
+    const matchesGrade = gradeFilter === 'all' || payment.students?.grade_level === gradeFilter;
     
-    return matchesSearch && matchesStatus && matchesCycle;
+    return matchesSearch && matchesStatus && matchesCycle && matchesGrade;
   }) || [];
+
+  // Pagination
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedPayments = filteredPayments.slice(startIndex, startIndex + itemsPerPage);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, cycleFilter, gradeFilter]);
+
+  // Get unique grade levels for filter
+  const gradeOptions = Array.from(new Set(payments?.map(payment => payment.students?.grade_level).filter(Boolean))) || [];
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -256,7 +297,7 @@ export const PaymentList = () => {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedPayments(filteredPayments.map(p => p.id));
+      setSelectedPayments(paginatedPayments.map(p => p.id));
     } else {
       setSelectedPayments([]);
     }
@@ -271,7 +312,7 @@ export const PaymentList = () => {
       'Student Name': `${payment.students?.first_name || ''} ${payment.students?.last_name || ''}`.trim(),
       'Student ID': payment.students?.student_id || '',
       'Mother Name': payment.students?.mother_name || '',
-      'Grade Level': payment.students?.grade_level || '',
+      'Grade Level': payment.students?.grade_level ? formatGradeLevel(payment.students.grade_level) : '',
       'Payment Cycle': formatCycle(payment.payment_cycle),
       'Amount Paid': payment.amount_paid || 0,
       'Payment Status': payment.payment_status || '',
@@ -513,16 +554,52 @@ export const PaymentList = () => {
                 <SelectItem value="annual">Annual</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={gradeFilter} onValueChange={setGradeFilter}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Filter by grade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Grades</SelectItem>
+                {gradeOptions.map((grade) => (
+                  <SelectItem key={grade} value={grade}>
+                    {formatGradeLevel(grade)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
       {/* Payments Table */}
       <Card className="shadow-sm">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">
             Payments ({filteredPayments.length})
           </CardTitle>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -530,196 +607,257 @@ export const PaymentList = () => {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="text-gray-600 mt-4">Loading payments...</p>
             </div>
-          ) : filteredPayments.length === 0 ? (
+          ) : paginatedPayments.length === 0 ? (
             <div className="text-center py-12">
               <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">No payments found</p>
               <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="font-semibold w-12">
-                      <Checkbox
-                        checked={selectedPayments.length === filteredPayments.length && filteredPayments.length > 0}
-                        onCheckedChange={handleSelectAll}
-                        className="border-gray-400"
-                      />
-                    </TableHead>
-                    <TableHead className="font-semibold">Student</TableHead>
-                    <TableHead className="font-semibold">Payment Cycle</TableHead>
-                    <TableHead className="font-semibold">Amount</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold">Payment Method</TableHead>
-                    <TableHead className="font-semibold">Date</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPayments.map((payment) => {
-                    const paymentDetails = formatPaymentDetails((payment as any).payment_details || (payment as any).transaction_data);
-                    return (
-                      <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedPayments.includes(payment.id)}
-                            onCheckedChange={(checked) => handleSelectPayment(payment.id, checked as boolean)}
-                            className="border-gray-400"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-3">
-                            <Avatar className="h-10 w-10">
-                              <AvatarImage 
-                                src={payment.students?.photo_url} 
-                                alt={`${payment.students?.first_name} ${payment.students?.last_name}`}
-                                className="object-cover"
-                              />
-                              <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                                {getInitials(payment.students?.first_name || '', payment.students?.last_name || '')}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium text-gray-900">
-                                {getHighlightedText(`${payment.students?.first_name} ${payment.students?.last_name}`, searchTerm)}
+            <div className="space-y-4">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="font-semibold w-12">
+                        <Checkbox
+                          checked={selectedPayments.length === paginatedPayments.length && paginatedPayments.length > 0}
+                          onCheckedChange={handleSelectAll}
+                          className="border-gray-400"
+                        />
+                      </TableHead>
+                      <TableHead className="font-semibold">Student</TableHead>
+                      <TableHead className="font-semibold">Grade</TableHead>
+                      <TableHead className="font-semibold">Payment Cycle</TableHead>
+                      <TableHead className="font-semibold">Amount</TableHead>
+                      <TableHead className="font-semibold">Status</TableHead>
+                      <TableHead className="font-semibold">Payment Method</TableHead>
+                      <TableHead className="font-semibold">Date</TableHead>
+                      <TableHead className="font-semibold">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedPayments.map((payment) => {
+                      const paymentDetails = formatPaymentDetails((payment as any).payment_details || (payment as any).transaction_data);
+                      return (
+                        <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedPayments.includes(payment.id)}
+                              onCheckedChange={(checked) => handleSelectPayment(payment.id, checked as boolean)}
+                              className="border-gray-400"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage 
+                                  src={payment.students?.photo_url} 
+                                  alt={`${payment.students?.first_name} ${payment.students?.last_name}`}
+                                  className="object-cover"
+                                />
+                                <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                                  {getInitials(payment.students?.first_name || '', payment.students?.last_name || '')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  {getHighlightedText(`${payment.students?.first_name} ${payment.students?.last_name}`, searchTerm)}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  ID: {getHighlightedText(payment.students?.student_id || '', searchTerm)}
+                                </div>
+                                {payment.students?.mother_name && (
+                                  <div className="text-xs text-gray-400">
+                                    Mother: {getHighlightedText(payment.students.mother_name, searchTerm)}
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-sm text-gray-500">
-                                ID: {getHighlightedText(payment.students?.student_id || '', searchTerm)}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {payment.students?.grade_level && (
+                              <Badge variant="outline" className="font-medium">
+                                {formatGradeLevel(payment.students.grade_level)}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getCycleColor(payment.payment_cycle)} variant="outline">
+                              {formatCycle(payment.payment_cycle)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-green-600">
+                              {formatCurrency(payment.amount_paid || 0)}
+                            </div>
+                            {(payment as any).total_amount && (payment as any).total_amount !== payment.amount_paid && (
+                              <div className="text-xs text-gray-500">
+                                of {formatCurrency((payment as any).total_amount)}
                               </div>
-                              {payment.students?.mother_name && (
-                                <div className="text-xs text-gray-400">
-                                  Mother: {getHighlightedText(payment.students.mother_name, searchTerm)}
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(payment.payment_status)} variant="outline">
+                              {payment.payment_status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div className="font-medium">{(payment as any).payment_method || 'Cash'}</div>
+                              {(payment as any).payment_method === 'Bank Transfer' && (
+                                <div className="text-xs text-gray-500">
+                                  <div>Bank: {paymentDetails.bank_name}</div>
+                                  <div>Ref: {paymentDetails.transaction_number}</div>
                                 </div>
                               )}
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getCycleColor(payment.payment_cycle)} variant="outline">
-                            {formatCycle(payment.payment_cycle)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium text-green-600">
-                            {formatCurrency(payment.amount_paid || 0)}
-                          </div>
-                          {(payment as any).total_amount && (payment as any).total_amount !== payment.amount_paid && (
-                            <div className="text-xs text-gray-500">
-                              of {formatCurrency((payment as any).total_amount)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              {payment.payment_date 
+                                ? new Date(payment.payment_date).toLocaleDateString()
+                                : 'Not recorded'
+                              }
                             </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getStatusColor(payment.payment_status)} variant="outline">
-                            {payment.payment_status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <div className="font-medium">{(payment as any).payment_method || 'Cash'}</div>
-                            {(payment as any).payment_method === 'Bank Transfer' && (
-                              <div className="text-xs text-gray-500">
-                                <div>Bank: {paymentDetails.bank_name}</div>
-                                <div>Ref: {paymentDetails.transaction_number}</div>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {payment.payment_date 
-                              ? new Date(payment.payment_date).toLocaleDateString()
-                              : 'Not recorded'
-                            }
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="hover:bg-blue-50 hover:text-blue-600"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-2xl">
-                                <DialogHeader>
-                                  <DialogTitle>Payment Details</DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-6">
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                      <h3 className="font-semibold text-gray-900">Student Information</h3>
-                                      <div className="mt-2 space-y-1">
-                                        <p><span className="font-medium">Name:</span> {payment.students?.first_name} {payment.students?.last_name}</p>
-                                        <p><span className="font-medium">Student ID:</span> {payment.students?.student_id}</p>
-                                        <p><span className="font-medium">Grade:</span> {payment.students?.grade_level}</p>
-                                        {payment.students?.mother_name && (
-                                          <p><span className="font-medium">Mother:</span> {payment.students.mother_name}</p>
-                                        )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="hover:bg-blue-50 hover:text-blue-600"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl">
+                                  <DialogHeader>
+                                    <DialogTitle>Payment Details</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <h3 className="font-semibold text-gray-900">Student Information</h3>
+                                        <div className="mt-2 space-y-1">
+                                          <p><span className="font-medium">Name:</span> {payment.students?.first_name} {payment.students?.last_name}</p>
+                                          <p><span className="font-medium">Student ID:</span> {payment.students?.student_id}</p>
+                                          <p><span className="font-medium">Grade:</span> {payment.students?.grade_level ? formatGradeLevel(payment.students.grade_level) : 'N/A'}</p>
+                                          {payment.students?.mother_name && (
+                                            <p><span className="font-medium">Mother:</span> {payment.students.mother_name}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <h3 className="font-semibold text-gray-900">Payment Information</h3>
+                                        <div className="mt-2 space-y-1">
+                                          <p><span className="font-medium">Cycle:</span> {formatCycle(payment.payment_cycle)}</p>
+                                          <p><span className="font-medium">Amount:</span> {formatCurrency(payment.amount_paid || 0)}</p>
+                                          <p><span className="font-medium">Status:</span> {payment.payment_status}</p>
+                                          <p><span className="font-medium">Method:</span> {(payment as any).payment_method || 'Cash'}</p>
+                                          <p><span className="font-medium">Date:</span> {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'Not recorded'}</p>
+                                        </div>
                                       </div>
                                     </div>
-                                    <div>
-                                      <h3 className="font-semibold text-gray-900">Payment Information</h3>
-                                      <div className="mt-2 space-y-1">
-                                        <p><span className="font-medium">Cycle:</span> {formatCycle(payment.payment_cycle)}</p>
-                                        <p><span className="font-medium">Amount:</span> {formatCurrency(payment.amount_paid || 0)}</p>
-                                        <p><span className="font-medium">Status:</span> {payment.payment_status}</p>
-                                        <p><span className="font-medium">Method:</span> {(payment as any).payment_method || 'Cash'}</p>
-                                        <p><span className="font-medium">Date:</span> {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'Not recorded'}</p>
+                                    {(payment as any).payment_method === 'Bank Transfer' && (
+                                      <div>
+                                        <h3 className="font-semibold text-gray-900">Bank Transfer Details</h3>
+                                        <div className="mt-2 space-y-1">
+                                          <p><span className="font-medium">Bank:</span> {paymentDetails.bank_name}</p>
+                                          <p><span className="font-medium">Transaction:</span> {paymentDetails.transaction_number}</p>
+                                        </div>
                                       </div>
-                                    </div>
+                                    )}
+                                    {payment.notes && (
+                                      <div>
+                                        <h3 className="font-semibold text-gray-900">Notes</h3>
+                                        <p className="mt-2 text-gray-600">{payment.notes}</p>
+                                      </div>
+                                    )}
                                   </div>
-                                  {(payment as any).payment_method === 'Bank Transfer' && (
-                                    <div>
-                                      <h3 className="font-semibold text-gray-900">Bank Transfer Details</h3>
-                                      <div className="mt-2 space-y-1">
-                                        <p><span className="font-medium">Bank:</span> {paymentDetails.bank_name}</p>
-                                        <p><span className="font-medium">Transaction:</span> {paymentDetails.transaction_number}</p>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {payment.notes && (
-                                    <div>
-                                      <h3 className="font-semibold text-gray-900">Notes</h3>
-                                      <p className="mt-2 text-gray-600">{payment.notes}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingPayment(payment);
-                                setIsFormOpen(true);
-                              }}
-                              className="hover:bg-green-50 hover:text-green-600"
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingPayment(payment);
+                                  setIsFormOpen(true);
+                                }}
+                                className="hover:bg-green-50 hover:text-green-600"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(payment.id)}
+                                className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                disabled={!canDelete}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination Info */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredPayments.length)} of {filteredPayments.length} results
+                  </p>
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                      
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <PaginationItem key={pageNum}>
+                            <PaginationLink
+                              onClick={() => setCurrentPage(pageNum)}
+                              isActive={currentPage === pageNum}
+                              className="cursor-pointer"
                             >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(payment.id)}
-                              className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              disabled={!canDelete}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                              {pageNum}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      })}
+                      
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                          className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
