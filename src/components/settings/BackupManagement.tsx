@@ -10,12 +10,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { Download, RefreshCw, Database, Clock, CheckCircle, XCircle, AlertCircle, Eye, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
 
+import { useRoleAccess } from '@/hooks/useRoleAccess';
+
 export const BackupManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState<any>(null);
   const [showViewDetails, setShowViewDetails] = useState(false);
+  const { isSuperAdmin } = useRoleAccess();
 
   // Fetch backup logs
   const { data: backupLogs, isLoading } = useQuery({
@@ -187,6 +190,11 @@ export const BackupManagement = () => {
           <h2 className="text-2xl font-bold text-red-600">Database Backup Management</h2>
           <p className="text-sm text-gray-600 mt-1">
             Create manual backups and view backup history. Automatic backups run every week.
+            {!isSuperAdmin && (
+              <span className="block text-yellow-600 text-xs mt-1">
+                Note: Only Super Admins can create manual backups and restore data.
+              </span>
+            )}
           </p>
         </div>
         
@@ -195,7 +203,7 @@ export const BackupManagement = () => {
             <Button 
               variant="outline" 
               className="border-red-200 text-red-700 hover:bg-red-50"
-              disabled={isCreatingBackup}
+              disabled={isCreatingBackup || !isSuperAdmin}
             >
               <Database className="h-4 w-4 mr-2" />
               {isCreatingBackup ? 'Creating...' : 'Create Manual Backup'}
@@ -289,38 +297,40 @@ export const BackupManagement = () => {
                         >
                           <Download className="h-4 w-4" />
                         </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="text-orange-600 hover:text-orange-700"
-                              title="Restore Backup"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Restore Database Backup</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                <strong>WARNING:</strong> This will completely replace all current data with the backup data from{' '}
-                                {format(new Date(backup.started_at), 'PPp')}. This action cannot be undone.
-                                <br /><br />
-                                Are you absolutely sure you want to proceed?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => restoreBackupMutation.mutate(backup.id)}
-                                className="bg-red-600 hover:bg-red-700"
+                        {isSuperAdmin && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="text-orange-600 hover:text-orange-700"
+                                title="Restore Backup"
                               >
-                                Restore Backup
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Restore Database Backup</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  <strong>WARNING:</strong> This will completely replace all current data with the backup data from{' '}
+                                  {format(new Date(backup.started_at), 'PPp')}. This action cannot be undone.
+                                  <br /><br />
+                                  Are you absolutely sure you want to proceed?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => restoreBackupMutation.mutate(backup.id)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Restore Backup
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </>
                     )}
                   </div>

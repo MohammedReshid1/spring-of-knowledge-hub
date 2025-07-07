@@ -581,21 +581,29 @@ export const StudentList = () => {
   const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    
+    console.log("Excel file selected:", file.name);
+    setIsImporting(true);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
+        console.log("Reading Excel file...");
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
         
+        console.log("Excel data parsed:", jsonData);
         await processImportData(jsonData);
       } catch (error) {
+        console.error("Excel import error:", error);
+        setIsImporting(false);
+        setImportProgress(0);
         toast({
           title: "Import Error",
-          description: "Failed to process Excel file",
+          description: "Failed to process Excel file: " + (error instanceof Error ? error.message : 'Unknown error'),
           variant: "destructive",
         });
       }
@@ -608,10 +616,14 @@ export const StudentList = () => {
   const handleImportCSV = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    
+    console.log("CSV file selected:", file.name);
+    setIsImporting(true);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
+        console.log("Reading CSV file...");
         const text = e.target?.result as string;
         const lines = text.split('\n');
         const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
@@ -625,11 +637,15 @@ export const StudentList = () => {
           return obj;
         });
         
+        console.log("CSV data parsed:", jsonData);
         await processImportData(jsonData);
       } catch (error) {
+        console.error("CSV import error:", error);
+        setIsImporting(false);
+        setImportProgress(0);
         toast({
           title: "Import Error",
-          description: "Failed to process CSV file",
+          description: "Failed to process CSV file: " + (error instanceof Error ? error.message : 'Unknown error'),
           variant: "destructive",
         });
       }
@@ -779,13 +795,22 @@ export const StudentList = () => {
             {/* Import Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled={isImporting}>
                   <Upload className="h-4 w-4 mr-2" />
-                  Import
+                  {isImporting ? 'Importing...' : 'Import'}
                   <ChevronDown className="h-4 w-4 ml-2" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = '/student-import-template.csv';
+                  link.download = 'student-import-template.csv';
+                  link.click();
+                }}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Template
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <label className="cursor-pointer">
                     <input
@@ -793,6 +818,7 @@ export const StudentList = () => {
                       accept=".xlsx,.xls"
                       onChange={handleImportExcel}
                       className="hidden"
+                      disabled={isImporting}
                     />
                     <FileSpreadsheet className="h-4 w-4 mr-2" />
                     Import Excel
@@ -805,6 +831,7 @@ export const StudentList = () => {
                       accept=".csv"
                       onChange={handleImportCSV}
                       className="hidden"
+                      disabled={isImporting}
                     />
                     <FileText className="h-4 w-4 mr-2" />
                     Import CSV
