@@ -25,6 +25,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sessionTimer, setSessionTimer] = useState<NodeJS.Timeout | null>(null);
+
+  const startSessionTimer = () => {
+    if (sessionTimer) {
+      clearTimeout(sessionTimer);
+    }
+    
+    const timer = setTimeout(() => {
+      console.log('Session expired, logging out');
+      signOut();
+    }, 30 * 60 * 1000); // 30 minutes
+    
+    setSessionTimer(timer);
+  };
+
+  const resetSessionTimer = () => {
+    if (sessionTimer) {
+      clearTimeout(sessionTimer);
+    }
+    startSessionTimer();
+  };
 
   useEffect(() => {
     // Set up auth state listener
@@ -34,6 +55,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+        
+        if (session?.user) {
+          startSessionTimer();
+        } else if (sessionTimer) {
+          clearTimeout(sessionTimer);
+          setSessionTimer(null);
+        }
       }
     );
 
@@ -45,7 +73,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (sessionTimer) {
+        clearTimeout(sessionTimer);
+      }
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -102,8 +135,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     console.log('Signing out');
+    if (sessionTimer) {
+      clearTimeout(sessionTimer);
+      setSessionTimer(null);
+    }
     await supabase.auth.signOut();
   };
+
+  // Reset session timer on user activity
+  useEffect(() => {
+    if (user) {
+      const handleActivity = () => resetSessionTimer();
+      
+      window.addEventListener('mousedown', handleActivity);
+      window.addEventListener('keydown', handleActivity);
+      window.addEventListener('scroll', handleActivity);
+      
+      return () => {
+        window.removeEventListener('mousedown', handleActivity);
+        window.removeEventListener('keydown', handleActivity);
+        window.removeEventListener('scroll', handleActivity);
+      };
+    }
+  }, [user, sessionTimer]);
 
   const value = {
     user,
