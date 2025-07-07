@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -191,12 +190,20 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     
     const text = headerText.toString().trim();
     
-    // Look for patterns like "PRE KG A", "KG B", "PREP A", etc.
+    // Enhanced patterns to handle various class formats including spaces and dashes
     const classPatterns = [
-      /^(PRE\s*KG|PREKG)\s*([A-Z])$/i,
-      /^(KG|KINDERGARTEN)\s*([A-Z])$/i,
-      /^(PREP|PREPARATORY)\s*([A-Z])$/i,
-      /^(GRADE|CLASS)\s*(\d+)\s*([A-Z])$/i,
+      // PRE KG variations
+      /^(PRE\s*KG)[\s\-]*([A-Z])$/i,
+      /^(PREKG)[\s\-]*([A-Z])$/i,
+      /^(PRE\s*K)[\s\-]*([A-Z])$/i,
+      // KG variations  
+      /^(KG)[\s\-]*([A-Z])$/i,
+      /^(KINDERGARTEN)[\s\-]*([A-Z])$/i,
+      // PREP variations
+      /^(PREP)[\s\-]*([A-Z])$/i,
+      /^(PREPARATORY)[\s\-]*([A-Z])$/i,
+      // Grade variations
+      /^(GRADE|CLASS)[\s\-]*(\d+)[\s\-]*([A-Z])$/i,
     ];
 
     for (const pattern of classPatterns) {
@@ -205,11 +212,12 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         let gradeLevel = '';
         let section = match[match.length - 1]; // Last capture group is the section
         
-        if (match[1].toLowerCase().includes('pre')) {
+        const gradeText = match[1].toLowerCase();
+        if (gradeText.includes('pre')) {
           gradeLevel = 'pre_k';
-        } else if (match[1].toLowerCase().includes('kg') || match[1].toLowerCase().includes('kindergarten')) {
+        } else if (gradeText.includes('kg') || gradeText.includes('kindergarten')) {
           gradeLevel = 'kg';
-        } else if (match[1].toLowerCase().includes('prep')) {
+        } else if (gradeText.includes('prep')) {
           gradeLevel = 'prep';
         } else if (match[2]) { // Grade number
           gradeLevel = `grade_${match[2]}`;
@@ -227,7 +235,19 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
 
   const createOrFindClass = async (className: string, gradeLevel: string): Promise<string | null> => {
     try {
-      // First, try to find existing class
+      // First, get the grade level ID
+      const { data: gradeLevelData } = await supabase
+        .from('grade_levels')
+        .select('id')
+        .eq('grade', gradeLevel)
+        .single();
+
+      if (!gradeLevelData) {
+        console.error(`Grade level ${gradeLevel} not found`);
+        return null;
+      }
+
+      // Try to find existing class
       const { data: existingClass } = await supabase
         .from('classes')
         .select('id')
@@ -243,6 +263,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         .from('classes')
         .insert({
           class_name: className,
+          grade_level_id: gradeLevelData.id,
           max_capacity: 50, // Default capacity, will be adjusted based on actual students
           current_enrollment: 0,
         })
@@ -495,15 +516,19 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   };
 
   const downloadExcelTemplate = () => {
-    // Create sample data with class headers
+    // Create sample data with class headers including all variations
     const templateData = [
-      { 'A': 'PRE KG A' },
+      { 'A': 'PRE KG - A' },
       { 'A': 'Ahmed Mohammed Ali' },
       { 'A': 'Aisha Hassan Ibrahim' },
       { 'A': '' },
-      { 'A': 'KG B' },
+      { 'A': 'KG - B' },
       { 'A': 'Omar Yusuf Mohammed' },
       { 'A': 'Fatima Ahmed Said' },
+      { 'A': '' },
+      { 'A': 'PREP - A' },
+      { 'A': 'Sara Ahmed Mohammed' },
+      { 'A': 'Hassan Ali Ibrahim' },
     ];
 
     const ws = XLSX.utils.json_to_sheet(templateData);
@@ -513,13 +538,17 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   };
 
   const downloadCsvTemplate = () => {
-    const csvContent = `PRE KG A
+    const csvContent = `PRE KG - A
 Ahmed Mohammed Ali
 Aisha Hassan Ibrahim
 
-KG B  
+KG - B  
 Omar Yusuf Mohammed
-Fatima Ahmed Said`;
+Fatima Ahmed Said
+
+PREP - A
+Sara Ahmed Mohammed
+Hassan Ali Ibrahim`;
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -542,10 +571,11 @@ Fatima Ahmed Said`;
         <div className="bg-blue-50 p-4 rounded-lg">
           <h4 className="font-medium text-blue-800 mb-2">How it works:</h4>
           <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Put class names like "PRE KG A", "KG B", "PREP A" in separate rows</li>
+            <li>• Put class names like "PRE KG - A", "KG - B", "PREP - A" in separate rows</li>
             <li>• List student names in rows below each class header</li>
             <li>• The system will automatically create classes and assign students</li>
-            <li>• Supports PRE KG, KG, PREP, and Grade 1-12</li>
+            <li>• Supports PRE KG, KG, PREP, and Grade 1-12 with sections A-E</li>
+            <li>• Class capacity will be adjusted based on actual student count</li>
           </ul>
         </div>
 

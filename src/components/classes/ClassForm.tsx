@@ -147,7 +147,27 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
   });
 
   const formatGradeLevel = (grade: string) => {
-    return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    // Updated to handle KG and PREP properly
+    const gradeMap: Record<string, string> = {
+      'pre_k': 'Pre KG',
+      'kg': 'KG',
+      'prep': 'Prep',
+      'kindergarten': 'KG', // Fallback if any old data exists
+      'grade_1': 'Grade 1',
+      'grade_2': 'Grade 2',
+      'grade_3': 'Grade 3',
+      'grade_4': 'Grade 4',
+      'grade_5': 'Grade 5',
+      'grade_6': 'Grade 6',
+      'grade_7': 'Grade 7',
+      'grade_8': 'Grade 8',
+      'grade_9': 'Grade 9',
+      'grade_10': 'Grade 10',
+      'grade_11': 'Grade 11',
+      'grade_12': 'Grade 12',
+    };
+
+    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const onSubmit = (data: ClassFormData) => {
@@ -164,7 +184,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
             <FormItem>
               <FormLabel>Class Name</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Grade 1A" {...field} />
+                <Input placeholder="e.g., KG - A, PREP - B" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
