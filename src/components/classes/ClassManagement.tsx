@@ -97,10 +97,11 @@ export const ClassManagement = () => {
     queryFn: async () => {
       console.log('Fetching grade stats...');
       
-      // Get all grade levels
+      // Get all grade levels, excluding the old 'kindergarten' entry
       const { data: gradeLevelsData, error: gradeLevelsError } = await supabase
         .from('grade_levels')
         .select('id, grade, max_capacity, academic_year, created_at, updated_at')
+        .neq('grade', 'kindergarten')
         .order('grade');
       
       if (gradeLevelsError) {
@@ -126,11 +127,17 @@ export const ClassManagement = () => {
         return acc;
       }, {} as Record<string, number>) || {};
 
-      // Combine grade levels with actual student counts
-      const enhancedGradeStats = gradeLevelsData?.map(grade => ({
-        ...grade,
-        current_enrollment: studentCounts[grade.grade] || 0
-      })) || [];
+      // Combine grade levels with actual student counts and auto-adjust capacity
+      const enhancedGradeStats = gradeLevelsData?.map(grade => {
+        const currentEnrollment = studentCounts[grade.grade] || 0;
+        const adjustedCapacity = Math.max(grade.max_capacity, currentEnrollment);
+        
+        return {
+          ...grade,
+          current_enrollment: currentEnrollment,
+          max_capacity: adjustedCapacity
+        };
+      }) || [];
 
       console.log('Grade stats calculated successfully:', enhancedGradeStats.length);
       return enhancedGradeStats;
