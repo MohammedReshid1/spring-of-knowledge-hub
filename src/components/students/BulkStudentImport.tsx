@@ -15,6 +15,12 @@ interface ImportResult {
   errors: string[];
 }
 
+interface ClassInfo {
+  name: string;
+  gradeLevel: string;
+  students: any[];
+}
+
 export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () => void }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -31,16 +37,18 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   const normalizeGradeLevel = (gradeInput: string): string => {
     const normalized = gradeInput.toLowerCase().trim();
     
-    // Handle various grade formats
+    // Handle various grade formats including new KG and PREP
     const gradeMap: Record<string, string> = {
       'pre kg': 'pre_k',
       'pre-kg': 'pre_k',
       'pre k': 'pre_k',
       'prekg': 'pre_k',
       'nursery': 'pre_k',
-      'kg': 'kindergarten',
-      'kindergarten': 'kindergarten',
-      'k': 'kindergarten',
+      'kg': 'kg',
+      'kindergarten': 'kg',
+      'k': 'kg',
+      'prep': 'prep',
+      'preparatory': 'prep',
       'class 1': 'grade_1',
       'grade 1': 'grade_1',
       '1st': 'grade_1',
@@ -101,14 +109,14 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       'nour', 'rania', 'sara', 'sarah', 'yasmin', 'zahra', 'zara', 'amina', 'dina', 'lina',
       'maya', 'nada', 'reem', 'salma', 'tala', 'yara', 'zeina', 'alia', 'aya', 'dana',
       'farah', 'ghada', 'iman', 'laith', 'nora', 'rama', 'salam', 'wafa', 'yusra', 'zaina',
-      'rena', 'rinad', 'rezan', 'rumeysa', 'yemariam'
+      'rena', 'rinad', 'rezan', 'rumeysa', 'yemariam', 'anisa'
     ];
 
     const maleNames = [
       'ahmed', 'mohammed', 'omar', 'ali', 'hassan', 'ibrahim', 'khalid', 'saad', 'tariq', 'yusuf',
       'abdel', 'abdul', 'adnan', 'amjad', 'bashar', 'fadi', 'hadi', 'jamal', 'karim', 'majid',
       'nasser', 'qasim', 'rami', 'sami', 'walid', 'zaid', 'abdurahman', 'abubeker', 'amar',
-      'siyam', 'yasir'
+      'siyam', 'yasir', 'asad', 'aymen', 'benyas'
     ];
 
     // Check if name starts with or contains female name patterns
@@ -178,6 +186,81 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     return defaultDate.toISOString().split('T')[0];
   };
 
+  const extractClassFromHeader = (headerText: string): { className: string; gradeLevel: string } | null => {
+    if (!headerText || typeof headerText !== 'string') return null;
+    
+    const text = headerText.toString().trim();
+    
+    // Look for patterns like "PRE KG A", "KG B", "PREP A", etc.
+    const classPatterns = [
+      /^(PRE\s*KG|PREKG)\s*([A-Z])$/i,
+      /^(KG|KINDERGARTEN)\s*([A-Z])$/i,
+      /^(PREP|PREPARATORY)\s*([A-Z])$/i,
+      /^(GRADE|CLASS)\s*(\d+)\s*([A-Z])$/i,
+    ];
+
+    for (const pattern of classPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        let gradeLevel = '';
+        let section = match[match.length - 1]; // Last capture group is the section
+        
+        if (match[1].toLowerCase().includes('pre')) {
+          gradeLevel = 'pre_k';
+        } else if (match[1].toLowerCase().includes('kg') || match[1].toLowerCase().includes('kindergarten')) {
+          gradeLevel = 'kg';
+        } else if (match[1].toLowerCase().includes('prep')) {
+          gradeLevel = 'prep';
+        } else if (match[2]) { // Grade number
+          gradeLevel = `grade_${match[2]}`;
+        }
+
+        return {
+          className: text,
+          gradeLevel
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const createOrFindClass = async (className: string, gradeLevel: string): Promise<string | null> => {
+    try {
+      // First, try to find existing class
+      const { data: existingClass } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('class_name', className)
+        .single();
+
+      if (existingClass) {
+        return existingClass.id;
+      }
+
+      // Create new class
+      const { data: newClass, error } = await supabase
+        .from('classes')
+        .insert({
+          class_name: className,
+          max_capacity: 50, // Default capacity, will be adjusted based on actual students
+          current_enrollment: 0,
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('Error creating class:', error);
+        return null;
+      }
+
+      return newClass.id;
+    } catch (error) {
+      console.error('Error in createOrFindClass:', error);
+      return null;
+    }
+  };
+
   const processExcelData = async (jsonData: any[]) => {
     if (!jsonData || jsonData.length === 0) {
       throw new Error('No data found in the Excel file');
@@ -195,162 +278,167 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     };
 
     console.log('Raw Excel data:', jsonData);
-    console.log('Sample row:', jsonData[0]);
 
-    // Get column headers (they might have different names)
-    const headers = Object.keys(jsonData[0] || {});
-    console.log('Available columns:', headers);
+    // First pass: Identify classes from headers and group students
+    const classes: Map<string, ClassInfo> = new Map();
+    let currentClass: ClassInfo | null = null;
 
-    updateProgress(0, jsonData.length, 'Processing student data...');
+    updateProgress(10, 100, 'Analyzing Excel structure and identifying classes...');
 
-    // Filter out header rows and invalid data
-    const validRows = jsonData.filter((row, index) => {
-      // Skip rows that look like headers or instructions
-      const firstValue = Object.values(row)[0]?.toString().toLowerCase() || '';
-      if (firstValue.includes('grade') || 
-          firstValue.includes('character') || 
-          firstValue.includes('homeroom') || 
-          firstValue.includes('teacher') ||
+    for (let i = 0; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      const firstValue = Object.values(row)[0]?.toString().trim() || '';
+
+      // Check if this row contains a class header
+      const classInfo = extractClassFromHeader(firstValue);
+      if (classInfo) {
+        console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
+        currentClass = {
+          name: classInfo.className,
+          gradeLevel: classInfo.gradeLevel,
+          students: []
+        };
+        classes.set(classInfo.className, currentClass);
+        continue;
+      }
+
+      // Skip empty rows or instruction rows
+      if (!firstValue || 
+          firstValue.toLowerCase().includes('grade') || 
+          firstValue.toLowerCase().includes('character') || 
+          firstValue.toLowerCase().includes('homeroom') || 
+          firstValue.toLowerCase().includes('teacher') ||
           firstValue === 'no' ||
           firstValue === 'm' ||
           firstValue === 'key' ||
-          firstValue.includes('n.b.') ||
-          firstValue.includes('when students')) {
-        console.log(`Skipping header/instruction row ${index + 1}:`, firstValue);
-        return false;
-      }
-      
-      // Skip empty rows
-      if (!row || Object.values(row).every(val => !val || val.toString().trim() === '')) {
-        console.log(`Skipping empty row ${index + 1}`);
-        return false;
+          firstValue.toLowerCase().includes('n.b.') ||
+          firstValue.toLowerCase().includes('when students')) {
+        continue;
       }
 
-      return true;
-    });
+      // Check if this looks like a student name
+      if (currentClass && /^[a-zA-Z\s]+$/.test(firstValue) && firstValue.split(' ').length >= 2) {
+        console.log(`Adding student ${firstValue} to class ${currentClass.name}`);
+        currentClass.students.push(row);
+      }
+    }
 
-    console.log(`Processing ${validRows.length} valid rows out of ${jsonData.length} total rows`);
+    console.log('Classes found:', Array.from(classes.keys()));
 
-    for (let i = 0; i < validRows.length; i++) {
-      const row = validRows[i];
-      
-      try {
-        updateProgress(i + 1, validRows.length, `Processing student ${i + 1} of ${validRows.length}`);
+    updateProgress(25, 100, 'Creating classes in database...');
 
-        // Try to find the name field (could be various column names)
-        let studentName = '';
-        const nameFields = ['name', 'student_name', 'full_name', 'Name', 'Student Name', 'Full Name'];
+    // Create classes in database and get their IDs
+    const classIdMap: Map<string, string> = new Map();
+    for (const [className, classInfo] of classes) {
+      const classId = await createOrFindClass(className, classInfo.gradeLevel);
+      if (classId) {
+        classIdMap.set(className, classId);
         
-        // First try the defined name fields
-        for (const field of nameFields) {
-          if (row[field]) {
-            studentName = row[field].toString().trim();
-            break;
-          }
-        }
+        // Update class capacity based on student count
+        await supabase
+          .from('classes')
+          .update({ 
+            max_capacity: Math.max(classInfo.students.length, 25),
+            current_enrollment: 0 // Will be updated by triggers
+          })
+          .eq('id', classId);
+      }
+    }
 
-        // If no name field found, try the first text field that looks like a name
-        if (!studentName) {
-          for (const [key, value] of Object.entries(row)) {
+    updateProgress(40, 100, 'Processing student data...');
+
+    // Second pass: Insert students
+    let totalStudents = 0;
+    for (const classInfo of classes.values()) {
+      totalStudents += classInfo.students.length;
+    }
+
+    let processedStudents = 0;
+
+    for (const [className, classInfo] of classes) {
+      const classId = classIdMap.get(className);
+      
+      for (const studentRow of classInfo.students) {
+        try {
+          processedStudents++;
+          updateProgress(40 + (processedStudents / totalStudents) * 50, 100, 
+            `Processing student ${processedStudents} of ${totalStudents} in ${className}`);
+
+          // Extract student name (first non-empty value)
+          let studentName = '';
+          for (const value of Object.values(studentRow)) {
             if (value && typeof value === 'string' && value.trim().length > 2) {
-              const trimmedValue = value.toString().trim();
-              // Check if it looks like a name (contains letters and spaces, not numbers or special chars)
-              if (/^[a-zA-Z\s]+$/.test(trimmedValue) && trimmedValue.split(' ').length >= 2) {
-                studentName = trimmedValue;
-                console.log(`Using "${key}" field as name: ${studentName}`);
-                break;
-              }
+              studentName = value.toString().trim();
+              break;
             }
           }
-        }
 
-        if (!studentName) {
-          results.errors.push(`Row ${i + 1}: No valid name found`);
+          if (!studentName) {
+            results.errors.push(`Row ${processedStudents}: No valid name found in ${className}`);
+            results.failed++;
+            continue;
+          }
+
+          const parsedName = parseName(studentName);
+          const gender = normalizeGender('', parsedName.first_name);
+
+          // Default date of birth based on grade level
+          let defaultAge = 6; // Default age
+          switch (classInfo.gradeLevel) {
+            case 'pre_k': defaultAge = 4; break;
+            case 'kg': defaultAge = 5; break;
+            case 'prep': defaultAge = 6; break;
+            case 'grade_1': defaultAge = 7; break;
+            case 'grade_2': defaultAge = 8; break;
+            default: defaultAge = 6;
+          }
+
+          const defaultDate = new Date();
+          defaultDate.setFullYear(defaultDate.getFullYear() - defaultAge);
+
+          const studentData = {
+            student_id: '', // Will be auto-generated
+            first_name: parsedName.first_name,
+            last_name: parsedName.last_name,
+            father_name: parsedName.father_name,
+            grandfather_name: parsedName.grandfather_name,
+            mother_name: null,
+            date_of_birth: defaultDate.toISOString().split('T')[0],
+            grade_level: classInfo.gradeLevel as any,
+            gender: gender,
+            address: null,
+            phone: null,
+            email: null,
+            status: 'Active' as const,
+            admission_date: new Date().toISOString().split('T')[0],
+            class_id: classId
+          };
+
+          console.log(`Inserting student ${processedStudents}:`, studentData);
+
+          const { error } = await supabase
+            .from('students')
+            .insert(studentData);
+
+          if (error) {
+            console.error(`Error inserting student ${processedStudents}:`, error);
+            results.errors.push(`${studentName} in ${className}: ${error.message}`);
+            results.failed++;
+          } else {
+            console.log(`Successfully inserted student ${processedStudents}: ${studentName} in ${className}`);
+            results.success++;
+          }
+
+          // Small delay to prevent overwhelming the database
+          if (processedStudents % 10 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+
+        } catch (error) {
+          console.error(`Unexpected error processing student ${processedStudents}:`, error);
+          results.errors.push(`Student ${processedStudents} in ${className}: ${error instanceof Error ? error.message : 'Unknown error'}`);
           results.failed++;
-          continue;
         }
-
-        const parsedName = parseName(studentName);
-
-        // Try to find grade/class field
-        let gradeLevel = 'pre_k';
-        const gradeFields = ['grade', 'class', 'level', 'Grade', 'Class', 'Level', 'grade_level'];
-        for (const field of gradeFields) {
-          if (row[field]) {
-            gradeLevel = normalizeGradeLevel(row[field].toString());
-            break;
-          }
-        }
-
-        // Try to find gender field
-        let gender = 'Male';
-        const genderFields = ['gender', 'sex', 'Gender', 'Sex'];
-        let genderInput = '';
-        for (const field of genderFields) {
-          if (row[field]) {
-            genderInput = row[field].toString();
-            break;
-          }
-        }
-        gender = normalizeGender(genderInput, parsedName.first_name);
-
-        // Try to find date of birth
-        let dateOfBirth = new Date().toISOString().split('T')[0];
-        const dobFields = ['date_of_birth', 'dob', 'birth_date', 'Date of Birth', 'DOB', 'Birth Date'];
-        for (const field of dobFields) {
-          if (row[field]) {
-            dateOfBirth = parseDate(row[field]);
-            break;
-          }
-        }
-
-        // Try to find other fields
-        const motherName = row['mother_name'] || row['Mother Name'] || row['mother'] || '';
-        const address = row['address'] || row['Address'] || '';
-        const phone = row['phone'] || row['Phone'] || row['contact'] || '';
-        const email = row['email'] || row['Email'] || '';
-
-        const studentData = {
-          student_id: '', // Will be auto-generated
-          first_name: parsedName.first_name,
-          last_name: parsedName.last_name,
-          father_name: parsedName.father_name,
-          grandfather_name: parsedName.grandfather_name,
-          mother_name: motherName.toString().trim() || null,
-          date_of_birth: dateOfBirth,
-          grade_level: gradeLevel as any,
-          gender: gender,
-          address: address.toString().trim() || null,
-          phone: phone.toString().trim() || null,
-          email: email.toString().trim() || null,
-          status: 'Active' as const,
-          admission_date: new Date().toISOString().split('T')[0]
-        };
-
-        console.log(`Inserting student ${i + 1}:`, studentData);
-
-        const { error } = await supabase
-          .from('students')
-          .insert(studentData);
-
-        if (error) {
-          console.error(`Error inserting student ${i + 1}:`, error);
-          results.errors.push(`Row ${i + 1} (${studentName}): ${error.message}`);
-          results.failed++;
-        } else {
-          console.log(`Successfully inserted student ${i + 1}: ${studentName}`);
-          results.success++;
-        }
-
-        // Small delay to prevent overwhelming the database
-        if (i % 10 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-      } catch (error) {
-        console.error(`Unexpected error processing row ${i + 1}:`, error);
-        results.errors.push(`Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        results.failed++;
       }
     }
 
@@ -363,11 +451,11 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       onImportComplete();
       toast({
         title: "Import Completed",
-        description: `Successfully imported ${results.success} students${results.failed > 0 ? `, ${results.failed} failed` : ''}`,
+        description: `Successfully imported ${results.success} students into ${classes.size} classes${results.failed > 0 ? `, ${results.failed} failed` : ''}`,
       });
     } else {
       toast({
-        title: "Import Failed",
+        title: "Import Failed",  
         description: "No students were imported successfully",
         variant: "destructive",
       });
@@ -407,34 +495,15 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   };
 
   const downloadExcelTemplate = () => {
-    // Create sample data
+    // Create sample data with class headers
     const templateData = [
-      {
-        'Student Name': 'Ahmed Mohammed Ali',
-        'Date of Birth': '2015-05-15',
-        'Grade/Class': 'Pre KG A',
-        'Gender': 'Male',
-        'Mother Name': 'Fatima Ahmed',
-        'Father Name': 'Mohammed Ali',
-        'Address': '123 Main Street, Addis Ababa',
-        'Phone': '+251911123456',
-        'Email': 'ahmed@example.com',
-        'Emergency Contact Name': 'Fatima Ahmed',
-        'Emergency Contact Phone': '+251911123456'
-      },
-      {
-        'Student Name': 'Aisha Hassan Ibrahim',
-        'Date of Birth': '2014-08-20',
-        'Grade/Class': 'Pre KG B',
-        'Gender': 'Female',
-        'Mother Name': 'Maryam Hassan',
-        'Father Name': 'Hassan Ibrahim',
-        'Address': '456 Oak Avenue, Addis Ababa',
-        'Phone': '+251911654321',
-        'Email': 'aisha@example.com',
-        'Emergency Contact Name': 'Maryam Hassan',
-        'Emergency Contact Phone': '+251911654321'
-      }
+      { 'A': 'PRE KG A' },
+      { 'A': 'Ahmed Mohammed Ali' },
+      { 'A': 'Aisha Hassan Ibrahim' },
+      { 'A': '' },
+      { 'A': 'KG B' },
+      { 'A': 'Omar Yusuf Mohammed' },
+      { 'A': 'Fatima Ahmed Said' },
     ];
 
     const ws = XLSX.utils.json_to_sheet(templateData);
@@ -444,9 +513,13 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   };
 
   const downloadCsvTemplate = () => {
-    const csvContent = `Student Name,Date of Birth,Grade/Class,Gender,Mother Name,Father Name,Address,Phone,Email,Emergency Contact Name,Emergency Contact Phone
-Ahmed Mohammed Ali,2015-05-15,Pre KG A,Male,Fatima Ahmed,Mohammed Ali,"123 Main Street, Addis Ababa",+251911123456,ahmed@example.com,Fatima Ahmed,+251911123456
-Aisha Hassan Ibrahim,2014-08-20,Pre KG B,Female,Maryam Hassan,Hassan Ibrahim,"456 Oak Avenue, Addis Ababa",+251911654321,aisha@example.com,Maryam Hassan,+251911654321`;
+    const csvContent = `PRE KG A
+Ahmed Mohammed Ali
+Aisha Hassan Ibrahim
+
+KG B  
+Omar Yusuf Mohammed
+Fatima Ahmed Said`;
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -462,10 +535,20 @@ Aisha Hassan Ibrahim,2014-08-20,Pre KG B,Female,Maryam Hassan,Hassan Ibrahim,"45
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileSpreadsheet className="h-5 w-5" />
-          Bulk Student Import
+          Bulk Student Import with Class Detection
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <h4 className="font-medium text-blue-800 mb-2">How it works:</h4>
+          <ul className="text-sm text-blue-700 space-y-1">
+            <li>• Put class names like "PRE KG A", "KG B", "PREP A" in separate rows</li>
+            <li>• List student names in rows below each class header</li>
+            <li>• The system will automatically create classes and assign students</li>
+            <li>• Supports PRE KG, KG, PREP, and Grade 1-12</li>
+          </ul>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-2">
           <Button onClick={downloadExcelTemplate} variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />

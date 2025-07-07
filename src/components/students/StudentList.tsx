@@ -623,6 +623,8 @@ export const StudentList = () => {
               <SelectContent>
                 <SelectItem value="all">All Grades</SelectItem>
                 <SelectItem value="pre_k">Pre-K</SelectItem>
+                <SelectItem value="kg">KG</SelectItem>
+                <SelectItem value="prep">PREP</SelectItem>
                 <SelectItem value="kindergarten">Kindergarten</SelectItem>
                 {Array.from({length: 12}, (_, i) => (
                   <SelectItem key={i} value={`grade_${i + 1}`}>Grade {i + 1}</SelectItem>

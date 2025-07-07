@@ -651,6 +651,8 @@ export type Database = {
     Enums: {
       grade_level:
         | "pre_k"
+        | "kg"
+        | "prep"
         | "kindergarten"
         | "grade_1"
         | "grade_2"
@@ -806,6 +808,8 @@ export const Constants = {
     Enums: {
       grade_level: [
         "pre_k",
+        "kg",
+        "prep",
         "kindergarten",
         "grade_1",
         "grade_2",
