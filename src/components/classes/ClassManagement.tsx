@@ -12,7 +12,7 @@ import { Plus, Edit, Trash2, Eye, BookOpenCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useToast } from '@/hooks/use-toast';
 import { ConfirmDeleteDialog } from '@/components/ui/ConfirmDeleteDialog';
-import { ClassForm } from './ClassForm';
+import { ClassFormDialog } from './ClassFormDialog';
 import { ClassDetailsDialog } from './ClassDetailsDialog';
 
 export const ClassManagement = () => {
@@ -274,7 +274,7 @@ export const ClassManagement = () => {
       </Card>
 
       {/* Class Form Modal */}
-      <ClassForm
+      <ClassFormDialog
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         isEditMode={isEditMode}

@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
-import { Index } from './pages/Index';
+import Index from './pages/Index';
 import { Overview } from './pages/Overview';
 import { StudentList } from './pages/StudentList';
 import { ClassManagement } from './pages/ClassManagement';
@@ -9,17 +10,18 @@ import { TeacherManagement } from './pages/TeacherManagement';
 import { PaymentList } from './pages/PaymentList';
 import { PaymentDashboard } from './pages/PaymentDashboard';
 import { AccountSettings } from './pages/AccountSettings';
-import { NotFound } from './pages/NotFound';
+import NotFound from './pages/NotFound';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { QueryClient } from '@tanstack/react-query';
 import { IDCardManager } from './components/students/IDCardManager';
 import { StudentDetailsPage } from '@/pages/StudentDetailsPage';
 
+const queryClient = new QueryClient();
+
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <QueryClient>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<ProtectedRoute><Overview /></ProtectedRoute>} />
@@ -33,9 +35,9 @@ function App() {
             <Route path="/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </QueryClient>
-      </AuthProvider>
-    </BrowserRouter>
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 
