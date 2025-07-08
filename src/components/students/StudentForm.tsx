@@ -22,7 +22,7 @@ const studentSchema = z.object({
   father_name: z.string().min(1, 'Father\'s name is required'),
   grandfather_name: z.string().min(1, 'Grandfather\'s name is required'),
   date_of_birth: z.string().min(1, 'Date of birth is required'),
-  gender: z.enum(['male', 'female'], { required_error: 'Gender is required' }),
+  gender: z.enum(['Male', 'Female'], { required_error: 'Gender is required' }),
   grade_level: z.string().min(1, 'Grade level is required') as z.ZodType<GradeLevel>,
   class_id: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
@@ -417,8 +417,8 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

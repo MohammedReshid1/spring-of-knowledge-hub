@@ -116,6 +116,8 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                   studentId={studentId}
                   onSuccess={() => {
                     setIsFormOpen(false);
+                    // Refresh the data after successful payment recording
+                    window.location.reload();
                   }}
                 />
               </div>

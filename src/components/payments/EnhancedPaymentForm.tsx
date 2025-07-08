@@ -17,6 +17,7 @@ import { CalendarIcon, CreditCard, DollarSign, Upload, Building2, Smartphone } f
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { validatePaymentData } from './PaymentValidation';
 
 const paymentSchema = z.object({
   student_id: z.string().min(1, 'Student is required'),
@@ -268,7 +269,7 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
     }
   });
 
-  const onSubmit = (data: PaymentFormData) => {
+  const onSubmit = async (data: PaymentFormData) => {
     // Validate bank transfer requirements
     if (data.payment_method === 'Bank Transfer' && !data.transaction_number) {
       toast({
@@ -286,6 +287,25 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
         toast({
           title: "Access Denied",
           description: "Registrars cannot change payment status from paid to unpaid",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Validate for duplicate payments (only for new payments)
+    if (!payment) {
+      const validationResult = await validatePaymentData({
+        student_id: data.student_id,
+        payment_cycle: data.payment_cycle,
+        academic_year: data.academic_year,
+        amount_paid: data.amount_paid,
+      });
+
+      if (!validationResult.isValid) {
+        toast({
+          title: "Validation Error",
+          description: validationResult.error,
           variant: "destructive",
         });
         return;

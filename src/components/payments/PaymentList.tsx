@@ -197,7 +197,9 @@ export const PaymentList = () => {
       payment.students?.student_id?.toLowerCase().includes(searchLower) ||
       payment.students?.mother_name?.toLowerCase().includes(searchLower);
     
-    const matchesStatus = statusFilter === 'all' || payment.payment_status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || 
+      payment.payment_status === statusFilter ||
+      (statusFilter === 'Paid' && payment.payment_status === 'Paid');
     const matchesCycle = cycleFilter === 'all' || payment.payment_cycle === cycleFilter;
     const matchesGrade = gradeFilter === 'all' || payment.students?.grade_level === gradeFilter;
     
