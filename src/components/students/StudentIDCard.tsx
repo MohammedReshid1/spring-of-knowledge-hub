@@ -101,11 +101,15 @@ export const StudentIDCard = ({
               className={`w-full h-full object-cover transition-opacity duration-300 ${
                 frontImageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
-              onLoad={() => setFrontImageLoaded(true)}
-              onError={(e) => {
-                console.log('Front SVG failed to load');
+              onLoad={() => {
+                console.log('Front SVG loaded successfully');
                 setFrontImageLoaded(true);
-                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSIjMzB3NCIvPgo8L3N2Zz4K';
+              }}
+              onError={(e) => {
+                console.error('Front SVG failed to load, using fallback');
+                setFrontImageLoaded(true);
+                // Blue gradient fallback
+                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJhIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzI1NWM5NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzFhYmRiYiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSJ1cmwoI2EpIi8+PC9zdmc+';
               }}
             />
           </div>
@@ -163,9 +167,12 @@ export const StudentIDCard = ({
               className={`w-full h-full object-cover transition-opacity duration-300 ${
                 backImageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
-              onLoad={() => setBackImageLoaded(true)}
+              onLoad={() => {
+                console.log('Back SVG loaded successfully');
+                setBackImageLoaded(true);
+              }}
               onError={(e) => {
-                console.log('Back SVG failed to load');
+                console.error('Back SVG failed to load, hiding element');
                 setBackImageLoaded(true);
                 e.currentTarget.style.display = 'none';
               }}
