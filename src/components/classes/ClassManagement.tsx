@@ -16,6 +16,7 @@ import { ClassForm } from './ClassForm';
 import { ClassStudentsPopup } from './ClassStudentsPopup';
 import { ClassSuggestions } from './ClassSuggestions';
 import { StudentClassAssignment } from './StudentClassAssignment';
+import { GradeMismatchFixer } from './GradeMismatchFixer';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { getHighlightedText } from '@/utils/searchHighlight';
 import type { Database } from '@/integrations/supabase/types';
@@ -332,6 +333,9 @@ export const ClassManagement = () => {
           </SheetContent>
         </Sheet>
       </div>
+
+      {/* Grade Mismatch Fixer */}
+      <GradeMismatchFixer />
 
       {/* Class Suggestions */}
       <ClassSuggestions />

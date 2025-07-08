@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/hooks/use-toast';
 
 const classSchema = z.object({
-  class_name: z.string().min(1, 'Class name is required'),
   grade_level_id: z.string().min(1, 'Grade level is required'),
+  section: z.string().min(1, 'Section is required'),
   max_capacity: z.number().min(1, 'Max capacity must be at least 1'),
   teacher_id: z.string().optional(),
   academic_year: z.string().min(1, 'Academic year is required'),
@@ -31,8 +31,8 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
   const form = useForm<ClassFormData>({
     resolver: zodResolver(classSchema),
     defaultValues: {
-      class_name: classData?.class_name || '',
       grade_level_id: classData?.grade_level_id || '',
+      section: classData?.class_name ? classData.class_name.split(' - ')[1] || 'A' : 'A',
       max_capacity: classData?.max_capacity || 25,
       teacher_id: classData?.teacher_id || undefined,
       academic_year: classData?.academic_year || new Date().getFullYear().toString(),
@@ -81,10 +81,35 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
     }
   });
 
+  const generateClassName = (gradeLevel: string, section: string) => {
+    const gradeMap: Record<string, string> = {
+      'pre_k': 'PRE-KG',
+      'kg': 'KG',
+      'prep': 'PREP',
+      'grade_1': 'GRADE 1',
+      'grade_2': 'GRADE 2',
+      'grade_3': 'GRADE 3',
+      'grade_4': 'GRADE 4',
+      'grade_5': 'GRADE 5',
+      'grade_6': 'GRADE 6',
+      'grade_7': 'GRADE 7',
+      'grade_8': 'GRADE 8',
+      'grade_9': 'GRADE 9',
+      'grade_10': 'GRADE 10',
+      'grade_11': 'GRADE 11',
+      'grade_12': 'GRADE 12',
+    };
+    
+    const selectedGradeLevel = gradelevels?.find(g => g.id === gradeLevel);
+    const gradeName = selectedGradeLevel ? gradeMap[selectedGradeLevel.grade] || selectedGradeLevel.grade : '';
+    return `${gradeName} - ${section}`;
+  };
+
   const submitMutation = useMutation({
     mutationFn: async (data: ClassFormData) => {
+      const class_name = generateClassName(data.grade_level_id, data.section);
       const payload = {
-        class_name: data.class_name,
+        class_name,
         grade_level_id: data.grade_level_id,
         max_capacity: data.max_capacity,
         academic_year: data.academic_year,
@@ -178,50 +203,73 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
-        <FormField
-          control={form.control}
-          name="class_name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Class Name</FormLabel>
-              <FormControl>
-                <Input placeholder="e.g., KG - A, PREP - B" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="grade_level_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Grade Level</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || undefined}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select grade level" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {isLoadingGrades ? (
+                      <SelectItem value="loading-grades" disabled>Loading grades...</SelectItem>
+                    ) : gradelevels && gradelevels.length > 0 ? (
+                      gradelevels.map((grade) => (
+                        <SelectItem key={grade.id} value={grade.id}>
+                          {formatGradeLevel(grade.grade)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-grades-found" disabled>No grade levels found</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="grade_level_id"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Grade Level</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value || undefined}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select grade level" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {isLoadingGrades ? (
-                    <SelectItem value="loading-grades" disabled>Loading grades...</SelectItem>
-                  ) : gradelevels && gradelevels.length > 0 ? (
-                    gradelevels.map((grade) => (
-                      <SelectItem key={grade.id} value={grade.id}>
-                        {formatGradeLevel(grade.grade)}
+          <FormField
+            control={form.control}
+            name="section"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Section</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || undefined}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select section" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'].map((section) => (
+                      <SelectItem key={section} value={section}>
+                        {section}
                       </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="no-grades-found" disabled>No grade levels found</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {form.watch('grade_level_id') && form.watch('section') && (
+          <div className="p-3 bg-muted rounded-md">
+            <p className="text-sm font-medium">Class Name Preview:</p>
+            <p className="text-lg font-semibold text-primary">
+              {generateClassName(form.watch('grade_level_id'), form.watch('section'))}
+            </p>
+          </div>
+        )}
+
 
         <FormField
           control={form.control}
