@@ -125,54 +125,89 @@ export const GradeMismatchFixer = () => {
     mutationFn: async (mismatches: MismatchedStudent[]) => {
       let fixedCount = 0;
       let createdClasses = 0;
+      const classCache = new Map<string, string>(); // Cache for class names to IDs
 
+      // Group students by suggested class name to avoid duplicates
+      const studentsByClass = new Map<string, MismatchedStudent[]>();
+      
       for (const student of mismatches) {
-        let classId = student.suggested_class_id;
+        const className = student.suggested_class_name;
+        if (!studentsByClass.has(className)) {
+          studentsByClass.set(className, []);
+        }
+        studentsByClass.get(className)!.push(student);
+      }
 
-        // If suggested class doesn't exist, create it
+      // Process each unique class
+      for (const [className, studentsForClass] of studentsByClass) {
+        let classId = studentsForClass[0].suggested_class_id;
+
+        // If suggested class doesn't exist, check if we already created it or create it
         if (!classId) {
-          // Get grade level ID
-          const { data: gradeLevel, error: gradeError } = await supabase
-            .from('grade_levels')
-            .select('id')
-            .eq('grade', student.grade_level)
-            .single();
+          // Check cache first
+          if (classCache.has(className)) {
+            classId = classCache.get(className)!;
+          } else {
+            // Check if class exists by name (in case it was created by another process)
+            const { data: existingClass } = await supabase
+              .from('classes')
+              .select('id')
+              .eq('class_name', className)
+              .single();
 
-          if (gradeError || !gradeLevel) {
-            console.error(`Grade level ${student.grade_level} not found`);
-            continue;
+            if (existingClass) {
+              classId = existingClass.id;
+              classCache.set(className, classId);
+            } else {
+              // Get grade level ID for the first student in this class
+              const { data: gradeLevel, error: gradeError } = await supabase
+                .from('grade_levels')
+                .select('id')
+                .eq('grade', studentsForClass[0].grade_level)
+                .single();
+
+              if (gradeError || !gradeLevel) {
+                console.error(`Grade level ${studentsForClass[0].grade_level} not found`);
+                continue;
+              }
+
+              // Create the class
+              const { data: newClass, error: createError } = await supabase
+                .from('classes')
+                .insert({
+                  class_name: className,
+                  grade_level_id: gradeLevel.id,
+                  max_capacity: 30,
+                  current_enrollment: 0,
+                  academic_year: new Date().getFullYear().toString()
+                })
+                .select('id')
+                .single();
+
+              if (createError || !newClass) {
+                console.error(`Failed to create class ${className}:`, createError);
+                continue;
+              }
+
+              classId = newClass.id;
+              classCache.set(className, classId);
+              createdClasses++;
+            }
           }
-
-          // Create the class
-          const { data: newClass, error: createError } = await supabase
-            .from('classes')
-            .insert({
-              class_name: student.suggested_class_name,
-              grade_level_id: gradeLevel.id,
-              max_capacity: 30,
-              current_enrollment: 0,
-              academic_year: new Date().getFullYear().toString()
-            })
-            .select('id')
-            .single();
-
-          if (createError || !newClass) {
-            console.error(`Failed to create class ${student.suggested_class_name}`);
-            continue;
-          }
-
-          classId = newClass.id;
-          createdClasses++;
         }
 
-        // Assign student to correct class
-        const { error: updateError } = await supabase
-          .from('students')
-          .update({ class_id: classId })
-          .eq('id', student.id);
+        // Assign all students to this class
+        for (const student of studentsForClass) {
+          const { error: updateError } = await supabase
+            .from('students')
+            .update({ class_id: classId })
+            .eq('id', student.id);
 
-        if (!updateError) {
-          fixedCount++;
+          if (!updateError) {
+            fixedCount++;
+          } else {
+            console.error(`Failed to assign student ${student.student_id} to class ${className}:`, updateError);
+          }
         }
       }
 
