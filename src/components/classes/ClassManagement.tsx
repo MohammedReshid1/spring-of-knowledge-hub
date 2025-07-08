@@ -104,13 +104,13 @@ export const ClassManagement = () => {
     }
   });
 
-  // Fixed grade stats query to properly calculate enrollment from students table
+  // Updated grade stats query to directly count from students table
   const { data: gradeStats } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
-      console.log('Fetching grade stats...');
+      console.log('Fetching grade stats with direct student count...');
       
-      // Get all grade levels, excluding the old 'kindergarten' entry
+      // Get all grade levels
       const { data: gradeLevelsData, error: gradeLevelsError } = await supabase
         .from('grade_levels')
         .select('id, grade, max_capacity, academic_year, created_at, updated_at')
@@ -122,39 +122,39 @@ export const ClassManagement = () => {
         throw gradeLevelsError;
       }
 
-      // Get actual student counts per grade level
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('students')
-        .select('grade_level, status')
-        .eq('status', 'Active');
+      // Count active students directly from students table for each grade
+      const gradeStatsPromises = gradeLevelsData?.map(async (grade) => {
+        const { count, error } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .eq('grade_level', grade.grade)
+          .eq('status', 'Active');
 
-      if (studentsError) {
-        console.error('Error fetching students for enrollment count:', studentsError);
-        throw studentsError;
-      }
+        if (error) {
+          console.error(`Error counting students for grade ${grade.grade}:`, error);
+          return {
+            ...grade,
+            current_enrollment: 0
+          };
+        }
 
-      // Count students per grade level
-      const studentCounts = studentsData?.reduce((acc, student) => {
-        const grade = student.grade_level;
-        acc[grade] = (acc[grade] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>) || {};
+        const actualEnrollment = count || 0;
+        console.log(`Grade ${grade.grade}: ${actualEnrollment} active students`);
 
-      // Combine grade levels with actual student counts and auto-adjust capacity
-      const enhancedGradeStats = gradeLevelsData?.map(grade => {
-        const currentEnrollment = studentCounts[grade.grade] || 0;
-        const adjustedCapacity = Math.max(grade.max_capacity, currentEnrollment);
-        
         return {
           ...grade,
-          current_enrollment: currentEnrollment,
-          max_capacity: adjustedCapacity
+          current_enrollment: actualEnrollment,
+          max_capacity: Math.max(grade.max_capacity, actualEnrollment)
         };
       }) || [];
 
-      console.log('Grade stats calculated successfully:', enhancedGradeStats.length);
+      const enhancedGradeStats = await Promise.all(gradeStatsPromises);
+      
+      console.log('Grade stats calculated with direct counts:', enhancedGradeStats);
       return enhancedGradeStats;
-    }
+    },
+    staleTime: 0, // Always fetch fresh data
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
   const deleteClassMutation = useMutation({
