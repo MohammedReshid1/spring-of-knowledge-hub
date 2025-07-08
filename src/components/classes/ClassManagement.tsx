@@ -17,6 +17,7 @@ import { ClassStudentsPopup } from './ClassStudentsPopup';
 import { ClassSuggestions } from './ClassSuggestions';
 import { StudentClassAssignment } from './StudentClassAssignment';
 import { GradeMismatchFixer } from './GradeMismatchFixer';
+import { DuplicateClassCleaner } from './DuplicateClassCleaner';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { getHighlightedText } from '@/utils/searchHighlight';
 import type { Database } from '@/integrations/supabase/types';
@@ -333,6 +334,9 @@ export const ClassManagement = () => {
           </SheetContent>
         </Sheet>
       </div>
+
+      {/* Duplicate Class Cleaner */}
+      <DuplicateClassCleaner />
 
       {/* Grade Mismatch Fixer */}
       <GradeMismatchFixer />
