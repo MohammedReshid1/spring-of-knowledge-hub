@@ -63,6 +63,7 @@ export const ClassManagement = () => {
         () => {
           console.log('Students updated, refetching grade stats...');
           queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['classes'] });
         }
       )
       .subscribe();
@@ -77,7 +78,7 @@ export const ClassManagement = () => {
   const { data: classes, isLoading } = useQuery({
     queryKey: ['classes'],
     queryFn: async () => {
-      console.log('Fetching classes...');
+      console.log('Fetching classes with student counts...');
       const { data, error } = await supabase
         .from('classes')
         .select(`
@@ -85,8 +86,7 @@ export const ClassManagement = () => {
           grade_levels:grade_level_id (
             id,
             grade,
-            max_capacity,
-            current_enrollment
+            max_capacity
           ),
           teacher:teacher_id (
             id,
@@ -99,22 +99,52 @@ export const ClassManagement = () => {
         console.error('Error fetching classes:', error);
         throw error;
       }
-      console.log('Classes fetched successfully:', data?.length);
-      return data;
-    }
+
+      // Get actual student counts for each class
+      const classesWithCounts = await Promise.all(data?.map(async (cls) => {
+        const { count, error: countError } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .eq('class_id', cls.id)
+          .eq('status', 'Active');
+
+        if (countError) {
+          console.error(`Error counting students for class ${cls.id}:`, countError);
+        }
+
+        return {
+          ...cls,
+          current_enrollment: count || 0
+        };
+      }) || []);
+
+      console.log('Classes fetched with actual student counts:', classesWithCounts.length);
+      return classesWithCounts;
+    },
+    staleTime: 0,
+    refetchInterval: 30000
   });
 
-  // Updated grade stats query to directly count from students table
+  // Ensure all grade levels exist and have proper data
   const { data: gradeStats } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
-      console.log('Fetching grade stats with direct student count...');
+      console.log('Fetching comprehensive grade stats...');
+      
+      // First ensure all grade levels exist
+      const allGrades = ['pre_k', 'kg', 'prep', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
+      
+      // Insert missing grade levels
+      for (const grade of allGrades) {
+        await supabase
+          .from('grade_levels')
+          .upsert({ grade, max_capacity: 30 }, { onConflict: 'grade' });
+      }
       
       // Get all grade levels
       const { data: gradeLevelsData, error: gradeLevelsError } = await supabase
         .from('grade_levels')
-        .select('id, grade, max_capacity, academic_year, created_at, updated_at')
-        .neq('grade', 'kindergarten')
+        .select('*')
         .order('grade');
       
       if (gradeLevelsError) {
@@ -122,7 +152,7 @@ export const ClassManagement = () => {
         throw gradeLevelsError;
       }
 
-      // Count active students directly from students table for each grade
+      // Count active students for each grade level
       const gradeStatsPromises = gradeLevelsData?.map(async (grade) => {
         const { count, error } = await supabase
           .from('students')
@@ -141,6 +171,12 @@ export const ClassManagement = () => {
         const actualEnrollment = count || 0;
         console.log(`Grade ${grade.grade}: ${actualEnrollment} active students`);
 
+        // Update the grade level record with actual enrollment
+        await supabase
+          .from('grade_levels')
+          .update({ current_enrollment: actualEnrollment })
+          .eq('id', grade.id);
+
         return {
           ...grade,
           current_enrollment: actualEnrollment,
@@ -150,11 +186,11 @@ export const ClassManagement = () => {
 
       const enhancedGradeStats = await Promise.all(gradeStatsPromises);
       
-      console.log('Grade stats calculated with direct counts:', enhancedGradeStats);
+      console.log('Grade stats calculated with actual counts:', enhancedGradeStats);
       return enhancedGradeStats;
     },
-    staleTime: 0, // Always fetch fresh data
-    refetchInterval: 30000, // Refetch every 30 seconds
+    staleTime: 0,
+    refetchInterval: 30000
   });
 
   const deleteClassMutation = useMutation({
@@ -197,12 +233,11 @@ export const ClassManagement = () => {
   };
 
   const formatGradeLevel = (grade: string) => {
-    // Updated to handle KG and PREP properly  
     const gradeMap: Record<string, string> = {
       'pre_k': 'Pre KG',
       'kg': 'KG', 
       'prep': 'PREP',
-      'kindergarten': 'KG', // Fallback if any old data exists
+      'kindergarten': 'KG',
       'grade_1': 'Grade 1',
       'grade_2': 'Grade 2',
       'grade_3': 'Grade 3',
@@ -238,7 +273,6 @@ export const ClassManagement = () => {
     queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
   };
 
-  // Filter classes based on search term and grade level
   const filteredClasses = classes?.filter(cls => {
     const matchesSearch = !searchTerm || (
       cls.class_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -252,17 +286,14 @@ export const ClassManagement = () => {
     return matchesSearch && matchesGrade;
   }) || [];
 
-  // Pagination
   const totalPages = Math.ceil(filteredClasses.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedClasses = filteredClasses.slice(startIndex, startIndex + itemsPerPage);
 
-  // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, gradeFilter]);
 
-  // Get unique grade levels for filter
   const gradeOptions = Array.from(new Set(classes?.map(cls => cls.grade_levels?.grade).filter(Boolean))) || [];
 
   return (
@@ -476,8 +507,8 @@ export const ClassManagement = () => {
                   </TableHeader>
                   <TableBody>
                     {paginatedClasses.map((cls) => {
-                    const percentage = cls.max_capacity > 0 ? (cls.current_enrollment / cls.max_capacity) * 100 : 0;
-                    
+                      const percentage = cls.max_capacity > 0 ? (cls.current_enrollment / cls.max_capacity) * 100 : 0;
+                      
                       return (
                         <TableRow key={cls.id} className="hover:bg-gray-50 transition-colors">
                           <TableCell className="font-medium text-gray-900">
@@ -561,7 +592,6 @@ export const ClassManagement = () => {
                 </Table>
               </div>
               
-              {/* Pagination Info */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">

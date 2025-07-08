@@ -1,17 +1,18 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Users, User, Database, Shield } from 'lucide-react';
+import { Settings, Users, User, Database, Shield, ArrowRight } from 'lucide-react';
 import { UserManagement } from './UserManagement';
 import { AccountManagement } from './AccountManagement';
 import { DatabaseCleanup } from './DatabaseCleanup';
 import { BackupManagement } from './BackupManagement';
+import { GradeTransition } from './GradeTransition';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 export const AccountSettings = () => {
-  const [activeTab, setActiveTab] = useState<'account' | 'users' | 'cleanup' | 'backup'>('account');
-  const { isRegistrar, isSuperAdmin } = useRoleAccess();
+  const [activeTab, setActiveTab] = useState<'account' | 'users' | 'cleanup' | 'backup' | 'grade-transition'>('account');
+  const { isRegistrar, isSuperAdmin, isAdmin } = useRoleAccess();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -40,6 +41,16 @@ export const AccountSettings = () => {
             User Management
           </Button>
         )}
+        {(isSuperAdmin || isAdmin) && (
+          <Button
+            variant={activeTab === 'grade-transition' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('grade-transition')}
+            className="flex items-center gap-2"
+          >
+            <ArrowRight className="h-4 w-4" />
+            Grade Transition
+          </Button>
+        )}
         {!isRegistrar && (
           <Button
             variant={activeTab === 'backup' ? 'default' : 'ghost'}
@@ -66,6 +77,7 @@ export const AccountSettings = () => {
       <div className="space-y-6">
         {activeTab === 'account' && <AccountManagement />}
         {activeTab === 'users' && !isRegistrar && <UserManagement />}
+        {activeTab === 'grade-transition' && (isSuperAdmin || isAdmin) && <GradeTransition />}
         {activeTab === 'backup' && !isRegistrar && <BackupManagement />}
         {activeTab === 'cleanup' && isSuperAdmin && <DatabaseCleanup />}
       </div>
