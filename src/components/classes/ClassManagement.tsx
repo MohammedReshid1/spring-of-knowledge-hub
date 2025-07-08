@@ -55,9 +55,22 @@ export const ClassManagement = () => {
       )
       .subscribe();
 
+    const studentsChannel = supabase
+      .channel('students-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'students' },
+        () => {
+          console.log('Students updated, refetching grade stats...');
+          queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(classesChannel);
       supabase.removeChannel(gradeChannel);
+      supabase.removeChannel(studentsChannel);
     };
   }, [queryClient]);
 
