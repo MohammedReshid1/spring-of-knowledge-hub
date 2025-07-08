@@ -14,6 +14,8 @@ import { Plus, Users, User, Edit, Trash2, AlertCircle, CheckCircle, BookOpen, Se
 import { toast } from '@/hooks/use-toast';
 import { ClassForm } from './ClassForm';
 import { ClassStudentsPopup } from './ClassStudentsPopup';
+import { ClassSuggestions } from './ClassSuggestions';
+import { StudentClassAssignment } from './StudentClassAssignment';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { getHighlightedText } from '@/utils/searchHighlight';
 import type { Database } from '@/integrations/supabase/types';
@@ -330,6 +332,12 @@ export const ClassManagement = () => {
           </SheetContent>
         </Sheet>
       </div>
+
+      {/* Class Suggestions */}
+      <ClassSuggestions />
+
+      {/* Student Class Assignment */}
+      <StudentClassAssignment />
 
       {/* Grade Level Overview */}
       <Card className="shadow-sm">

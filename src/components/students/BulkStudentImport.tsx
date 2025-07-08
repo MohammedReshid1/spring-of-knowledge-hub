@@ -83,6 +83,22 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       'grade 8': 'grade_8',
       '8th': 'grade_8',
       '8': 'grade_8',
+      'class 9': 'grade_9',
+      'grade 9': 'grade_9',
+      '9th': 'grade_9',
+      '9': 'grade_9',
+      'class 10': 'grade_10',
+      'grade 10': 'grade_10',
+      '10th': 'grade_10',
+      '10': 'grade_10',
+      'class 11': 'grade_11',
+      'grade 11': 'grade_11',
+      '11th': 'grade_11',
+      '11': 'grade_11',
+      'class 12': 'grade_12',
+      'grade 12': 'grade_12',
+      '12th': 'grade_12',
+      '12': 'grade_12',
     };
 
     // Try exact match first
@@ -215,7 +231,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       /^(KINDERGARTEN)[\s\-]*([A-E])$/i,
       /^(PREP)[\s\-]*([A-E])$/i,
       /^(PREPARATORY)[\s\-]*([A-E])$/i,
-      /^(GRADE|CLASS)[\s\-]*(\d+)[\s\-]*([A-E])$/i,
+      /^(GRADE|CLASS)[\s\-]*(\d{1,2})[\s\-]*([A-E])$/i,
       
       // Additional patterns for common variations
       /.*\b(KG)\s+([A-E])\b.*/i,
@@ -243,7 +259,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         }
         
         // Handle grade number patterns (for GRADE 1 - A format)
-        if (match.length > 3 && match[2] && /^\d+$/.test(match[2])) {
+        if (match.length > 3 && match[2] && /^\d{1,2}$/.test(match[2])) {
           const gradeNum = match[2];
           gradeLevel = `grade_${gradeNum}` as GradeLevel;
           section = match[3];
@@ -478,6 +494,16 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
             case 'prep': defaultAge = 6; break;
             case 'grade_1': defaultAge = 7; break;
             case 'grade_2': defaultAge = 8; break;
+            case 'grade_3': defaultAge = 9; break;
+            case 'grade_4': defaultAge = 10; break;
+            case 'grade_5': defaultAge = 11; break;
+            case 'grade_6': defaultAge = 12; break;
+            case 'grade_7': defaultAge = 13; break;
+            case 'grade_8': defaultAge = 14; break;
+            case 'grade_9': defaultAge = 15; break;
+            case 'grade_10': defaultAge = 16; break;
+            case 'grade_11': defaultAge = 17; break;
+            case 'grade_12': defaultAge = 18; break;
             default: defaultAge = 6;
           }
 

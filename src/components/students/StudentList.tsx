@@ -127,10 +127,11 @@ export const StudentList = () => {
   }, [queryClient]);
 
   const { data: students, isLoading, error } = useQuery({
-    queryKey: ['students'],
+    queryKey: ['students', searchTerm, statusFilter, gradeFilter, classFilter],
     queryFn: async () => {
-      console.log('Fetching students...');
-      const { data, error } = await supabase
+      console.log('Fetching students with filters...');
+      
+      let query = supabase
         .from('students')
         .select(`
           *,
@@ -146,8 +147,26 @@ export const StudentList = () => {
             amount_paid,
             payment_date
           )
-        `)
-        .order('created_at', { ascending: false });
+        `);
+
+      // Apply server-side filtering for better performance
+      if (searchTerm) {
+        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      }
+      
+      if (statusFilter && statusFilter !== 'all') {
+        query = query.eq('status', statusFilter as any);
+      }
+      
+      if (gradeFilter && gradeFilter !== 'all') {
+        query = query.eq('grade_level', gradeFilter as any);
+      }
+      
+      if (classFilter && classFilter !== 'all') {
+        query = query.eq('class_id', classFilter);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         console.error('Error fetching students:', error);
@@ -155,7 +174,9 @@ export const StudentList = () => {
       }
       console.log('Students fetched successfully:', data?.length);
       return data;
-    }
+    },
+    staleTime: 30000, // Cache for 30 seconds
+    refetchInterval: 60000 // Refetch every minute
   });
 
   const { data: classes } = useQuery({
@@ -418,30 +439,8 @@ export const StudentList = () => {
     );
   };
 
-  const filteredStudents = students?.filter(student => {
-    if (!searchTerm && statusFilter === 'all' && gradeFilter === 'all' && classFilter === 'all') {
-      return true;
-    }
-
-    const searchLower = searchTerm.toLowerCase();
-    
-    // Enhanced search: ID, First Name, Mother's Name, Phone Numbers, Class Name
-    const matchesSearch = !searchTerm || 
-      student.student_id.toLowerCase().includes(searchLower) ||
-      student.first_name.toLowerCase().includes(searchLower) ||
-      student.last_name.toLowerCase().includes(searchLower) ||
-      (student.mother_name && student.mother_name.toLowerCase().includes(searchLower)) ||
-      (student.phone && student.phone.toLowerCase().includes(searchLower)) ||
-      (student.phone_secondary && student.phone_secondary.toLowerCase().includes(searchLower)) ||
-      (student.email && student.email.toLowerCase().includes(searchLower)) ||
-      (student.classes?.class_name && student.classes.class_name.toLowerCase().includes(searchLower));
-    
-    const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
-    const matchesGrade = gradeFilter === 'all' || student.grade_level === gradeFilter;
-    const matchesClass = classFilter === 'all' || student.class_id === classFilter;
-    
-    return matchesSearch && matchesStatus && matchesGrade && matchesClass;
-  }).sort((a, b) => {
+  // Since we're now filtering at the database level, we just need to sort the results
+  const filteredStudents = students?.sort((a, b) => {
     let comparison = 0;
     
     switch (sortBy) {
