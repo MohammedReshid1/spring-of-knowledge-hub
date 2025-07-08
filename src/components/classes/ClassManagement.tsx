@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +16,9 @@ import { ClassForm } from './ClassForm';
 import { ClassStudentsPopup } from './ClassStudentsPopup';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { getHighlightedText } from '@/utils/searchHighlight';
+import type { Database } from '@/integrations/supabase/types';
+
+type GradeLevel = Database['public']['Enums']['grade_level'];
 
 export const ClassManagement = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -132,13 +136,13 @@ export const ClassManagement = () => {
       console.log('Fetching comprehensive grade stats...');
       
       // First ensure all grade levels exist
-      const allGrades = ['pre_k', 'kg', 'prep', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
+      const allGrades: GradeLevel[] = ['pre_k', 'kg', 'prep', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
       
-      // Insert missing grade levels
+      // Insert missing grade levels one by one to avoid type issues
       for (const grade of allGrades) {
         await supabase
           .from('grade_levels')
-          .upsert({ grade, max_capacity: 30 }, { onConflict: 'grade' });
+          .upsert({ grade: grade as GradeLevel, max_capacity: 30 }, { onConflict: 'grade' });
       }
       
       // Get all grade levels
@@ -627,7 +631,6 @@ export const ClassManagement = () => {
         </CardContent>
       </Card>
 
-      {/* Class Students Popup */}
       <ClassStudentsPopup
         classData={viewStudentsClass}
         isOpen={isStudentsPopupOpen}
