@@ -120,9 +120,25 @@ export const ClassManagement = () => {
           console.error(`Error counting students for class ${cls.id}:`, countError);
         }
 
+        const currentEnrollment = count || 0;
+        
+        // Automatically increase capacity if enrollment exceeds current capacity
+        let adjustedCapacity = cls.max_capacity;
+        if (currentEnrollment > cls.max_capacity) {
+          // Round up to nearest 5 to give some buffer
+          adjustedCapacity = Math.ceil(currentEnrollment / 5) * 5;
+          
+          // Update the capacity in the database
+          await supabase
+            .from('classes')
+            .update({ max_capacity: adjustedCapacity })
+            .eq('id', cls.id);
+        }
+
         return {
           ...cls,
-          current_enrollment: count || 0
+          current_enrollment: currentEnrollment,
+          max_capacity: adjustedCapacity
         };
       }) || []);
 
