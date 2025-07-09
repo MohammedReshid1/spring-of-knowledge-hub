@@ -112,10 +112,11 @@ export const PaymentList = () => {
   }, [queryClient]);
 
   const { data: payments, isLoading, error } = useQuery({
-    queryKey: ['payments'],
+    queryKey: ['payments', searchTerm, statusFilter, cycleFilter, gradeFilter],
     queryFn: async () => {
-      console.log('Fetching payments...');
-      const { data, error } = await supabase
+      console.log('Fetching payments with filters...');
+      
+      let query = supabase
         .from('registration_payments')
         .select(`
           *,
@@ -126,17 +127,48 @@ export const PaymentList = () => {
             last_name,
             mother_name,
             grade_level,
-            photo_url
+            photo_url,
+            status
           )
-        `)
-        .order('payment_date', { ascending: false });
+        `);
+
+      // Apply server-side filtering for better performance
+      if (statusFilter && statusFilter !== 'all') {
+        query = query.eq('payment_status', statusFilter);
+      }
+      
+      if (cycleFilter && cycleFilter !== 'all') {
+        query = query.eq('payment_cycle', cycleFilter);
+      }
+
+      const { data, error } = await query.order('payment_date', { ascending: false });
       
       if (error) {
         console.error('Error fetching payments:', error);
         throw error;
       }
-      console.log('Payments fetched successfully:', data?.length);
-      return data;
+
+      // Apply client-side filtering for complex searches and grade filtering
+      let filteredData = data || [];
+      
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        filteredData = filteredData.filter(payment => 
+          payment.students?.first_name?.toLowerCase().includes(searchLower) ||
+          payment.students?.last_name?.toLowerCase().includes(searchLower) ||
+          payment.students?.student_id?.toLowerCase().includes(searchLower) ||
+          payment.students?.mother_name?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      if (gradeFilter && gradeFilter !== 'all') {
+        filteredData = filteredData.filter(payment => 
+          payment.students?.grade_level === gradeFilter
+        );
+      }
+      
+      console.log('Payments fetched and filtered successfully:', filteredData?.length);
+      return filteredData;
     }
   });
 
@@ -189,22 +221,8 @@ export const PaymentList = () => {
     }
   });
 
-  const filteredPayments = payments?.filter(payment => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = !searchTerm || 
-      payment.students?.first_name?.toLowerCase().includes(searchLower) ||
-      payment.students?.last_name?.toLowerCase().includes(searchLower) ||
-      payment.students?.student_id?.toLowerCase().includes(searchLower) ||
-      payment.students?.mother_name?.toLowerCase().includes(searchLower);
-    
-    const matchesStatus = statusFilter === 'all' || 
-      payment.payment_status === statusFilter ||
-      (statusFilter === 'Paid' && payment.payment_status === 'Paid');
-    const matchesCycle = cycleFilter === 'all' || payment.payment_cycle === cycleFilter;
-    const matchesGrade = gradeFilter === 'all' || payment.students?.grade_level === gradeFilter;
-    
-    return matchesSearch && matchesStatus && matchesCycle && matchesGrade;
-  }) || [];
+  // Since filtering is now done at database level, just use the payments directly
+  const filteredPayments = payments || [];
 
   // Pagination
   const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);

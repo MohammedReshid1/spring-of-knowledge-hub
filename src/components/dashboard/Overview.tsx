@@ -62,8 +62,8 @@ export const Overview = () => {
     queryFn: async () => {
       console.log('Fetching dashboard stats...');
       
-      // Optimized parallel queries
-      const [studentsResult, classesResult, gradeLevelsResult] = await Promise.all([
+      // Optimized parallel queries including payment revenue
+      const [studentsResult, classesResult, gradeLevelsResult, paymentsResult] = await Promise.all([
         supabase
           .from('students')
           .select('status, grade_level, created_at, registration_payments(payment_status)'),
@@ -72,16 +72,21 @@ export const Overview = () => {
           .select('id, current_enrollment, max_capacity'),
         supabase
           .from('grade_levels')
-          .select('grade, current_enrollment, max_capacity')
+          .select('grade, current_enrollment, max_capacity'),
+        supabase
+          .from('registration_payments')
+          .select('amount_paid, payment_status')
       ]);
 
       if (studentsResult.error) throw studentsResult.error;
       if (classesResult.error) throw classesResult.error;
       if (gradeLevelsResult.error) throw gradeLevelsResult.error;
+      if (paymentsResult.error) throw paymentsResult.error;
 
       const students = studentsResult.data || [];
       const classes = classesResult.data || [];
       const gradeLevels = gradeLevelsResult.data || [];
+      const payments = paymentsResult.data || [];
 
       // Calculate stats
       const totalStudents = students.length;
@@ -92,6 +97,9 @@ export const Overview = () => {
       const totalCapacity = gradeLevels.reduce((sum, grade) => sum + grade.max_capacity, 0);
       const totalEnrolled = gradeLevels.reduce((sum, grade) => sum + grade.current_enrollment, 0);
       const enrollmentRate = totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 100) : 0;
+
+      // Calculate total revenue from all payments
+      const totalRevenue = payments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
 
       // Payment statistics
       const paidStudents = students.filter(s => 
@@ -131,6 +139,7 @@ export const Overview = () => {
         activeStudents,
         totalClasses,
         enrollmentRate,
+        totalRevenue,
         paidStudents,
         unpaidStudents,
         recentRegistrations,
@@ -163,11 +172,33 @@ export const Overview = () => {
     activeStudents: 0,
     totalClasses: 0,
     enrollmentRate: 0,
+    totalRevenue: 0,
     paidStudents: 0,
     unpaidStudents: 0,
     recentRegistrations: 0,
     statusCounts: {} as Record<string, number>,
     gradeUtilization: []
+  };
+
+  // Get currency from system settings
+  const getCurrency = () => {
+    const settings = localStorage.getItem('systemSettings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      return parsed.currency || 'ETB';
+    }
+    return 'ETB';
+  };
+
+  const formatCurrency = (amount: number) => {
+    const currency = getCurrency();
+    const symbols = {
+      'ETB': 'ETB',
+      'USD': '$',
+      'EUR': '€',
+      'GBP': '£'
+    };
+    return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
   };
 
   return (
@@ -220,15 +251,15 @@ export const Overview = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-md transition-shadow">
+        <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-700">Enrollment Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium text-emerald-700">Total Revenue</CardTitle>
+            <CreditCard className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-900">{stats.enrollmentRate}%</div>
-            <p className="text-xs text-orange-600 mt-1">
-              School capacity utilization
+            <div className="text-2xl font-bold text-emerald-900">{formatCurrency(stats.totalRevenue)}</div>
+            <p className="text-xs text-emerald-600 mt-1">
+              All payment records
             </p>
           </CardContent>
         </Card>

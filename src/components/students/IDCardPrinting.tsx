@@ -30,9 +30,9 @@ export const IDCardPrinting = () => {
   const studentsPerPage = 15;
 
   const { data: students, isLoading } = useQuery({
-    queryKey: ['students-for-id-cards'],
+    queryKey: ['students-for-id-cards', searchTerm, selectedGrade, selectedClass, statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('students')
         .select(`
           *,
@@ -43,7 +43,26 @@ export const IDCardPrinting = () => {
               grade
             )
           )
-        `)
+        `);
+
+      // Apply server-side filtering for better performance
+      if (searchTerm) {
+        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      }
+      
+      if (selectedGrade !== 'all') {
+        query = query.eq('grade_level', selectedGrade as any);
+      }
+      
+      if (selectedClass !== 'all') {
+        query = query.eq('class_id', selectedClass);
+      }
+      
+      if (statusFilter) {
+        query = query.eq('status', statusFilter as any);
+      }
+
+      const { data, error } = await query
         .order('grade_level')
         .order('first_name');
       
@@ -65,25 +84,8 @@ export const IDCardPrinting = () => {
     }
   });
 
-  const filteredStudents = students?.filter(student => {
-    const searchLower = searchTerm.toLowerCase();
-    
-    const matchesSearch = !searchTerm || 
-      student.student_id.toLowerCase().includes(searchLower) ||
-      student.first_name.toLowerCase().includes(searchLower) ||
-      student.last_name.toLowerCase().includes(searchLower) ||
-      (student.mother_name && student.mother_name.toLowerCase().includes(searchLower)) ||
-      (student.father_name && student.father_name.toLowerCase().includes(searchLower)) ||
-      (student.phone && student.phone.toLowerCase().includes(searchLower)) ||
-      (student.email && student.email.toLowerCase().includes(searchLower)) ||
-      (student.classes?.class_name && student.classes.class_name.toLowerCase().includes(searchLower));
-    
-    const matchesGrade = selectedGrade === 'all' || student.grade_level === selectedGrade;
-    const matchesClass = selectedClass === 'all' || student.class_id === selectedClass;
-    const matchesStatus = student.status === statusFilter;
-    
-    return matchesSearch && matchesGrade && matchesClass && matchesStatus;
-  }) || [];
+  // Since filtering is now done at database level, just use the students directly
+  const filteredStudents = students || [];
 
   const totalPages = Math.ceil(filteredStudents.length / studentsPerPage);
   const startIndex = (currentPage - 1) * studentsPerPage;

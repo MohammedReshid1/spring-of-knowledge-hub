@@ -62,7 +62,7 @@ export const PaymentDashboard = () => {
     queryFn: async () => {
       console.log('Fetching payment dashboard stats...');
       
-      // Get all payments with student info
+      // Get all payments with student info (including inactive students)
       const { data: payments, error: paymentsError } = await supabase
         .from('registration_payments')
         .select(`
@@ -86,7 +86,7 @@ export const PaymentDashboard = () => {
 
       if (studentsError) throw studentsError;
 
-      // Calculate statistics
+      // Calculate statistics - include ALL payments regardless of student status
       const totalRevenue = payments?.reduce((sum, p) => sum + (p.amount_paid || 0), 0) || 0;
       const totalPayments = payments?.length || 0;
       const activeStudents = students?.length || 0;

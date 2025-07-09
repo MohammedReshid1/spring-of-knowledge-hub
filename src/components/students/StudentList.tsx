@@ -166,6 +166,7 @@ export const StudentList = () => {
         query = query.eq('class_id', classFilter);
       }
 
+      // Remove any limits to fetch all matching students
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
