@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { debounce } from 'lodash';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { getHighlightedText } from '@/utils/searchHighlight';
 export const IDCardPrinting = () => {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('Active');
@@ -29,8 +31,16 @@ export const IDCardPrinting = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const studentsPerPage = 15;
 
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce((term: string) => {
+      setDebouncedSearchTerm(term);
+    }, 300),
+    []
+  );
+
   const { data: students, isLoading } = useQuery({
-    queryKey: ['students-for-id-cards', searchTerm, selectedGrade, selectedClass, statusFilter],
+    queryKey: ['students-for-id-cards', debouncedSearchTerm, selectedGrade, selectedClass, statusFilter],
     queryFn: async () => {
       let query = supabase
         .from('students')
@@ -46,8 +56,8 @@ export const IDCardPrinting = () => {
         `);
 
       // Apply server-side filtering for better performance
-      if (searchTerm) {
-        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      if (debouncedSearchTerm) {
+        query = query.or(`student_id.ilike.%${debouncedSearchTerm}%,first_name.ilike.%${debouncedSearchTerm}%,last_name.ilike.%${debouncedSearchTerm}%,mother_name.ilike.%${debouncedSearchTerm}%,father_name.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%`);
       }
       
       if (selectedGrade !== 'all') {
@@ -381,7 +391,10 @@ export const IDCardPrinting = () => {
                 <Input
                   placeholder="Search by Student ID, Name, Phone, Email, or Class..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    debouncedSearch(e.target.value);
+                  }}
                   className="pl-10"
                 />
               </div>

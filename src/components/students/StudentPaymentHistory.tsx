@@ -5,10 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { CreditCard, Plus, DollarSign, Calendar, Receipt } from 'lucide-react';
+import { CreditCard, Plus, DollarSign, Calendar, Receipt, Edit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { EnhancedPaymentForm } from '../payments/EnhancedPaymentForm';
 import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
 
 interface StudentPaymentHistoryProps {
   studentId: string;
@@ -17,8 +19,35 @@ interface StudentPaymentHistoryProps {
 
 export const StudentPaymentHistory = ({ studentId, studentName }: StudentPaymentHistoryProps) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
 
-  const { data: payments, isLoading } = useQuery({
+  const deletePaymentMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const { error } = await supabase
+        .from('registration_payments')
+        .delete()
+        .eq('id', paymentId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Payment record deleted successfully",
+      });
+      // Refresh the payment data
+      window.location.reload();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete payment: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const { data: payments, isLoading, refetch } = useQuery({
     queryKey: ['student-payments', studentId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -114,10 +143,11 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
               <div className="mt-6">
                 <EnhancedPaymentForm
                   studentId={studentId}
+                  payment={editingPayment}
                   onSuccess={() => {
                     setIsFormOpen(false);
-                    // Refresh the data after successful payment recording
-                    window.location.reload();
+                    setEditingPayment(null);
+                    refetch();
                   }}
                 />
               </div>
@@ -151,6 +181,7 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                   <TableHead>Method</TableHead>
                   <TableHead>Academic Year</TableHead>
                   <TableHead>Notes</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -192,6 +223,31 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                       <span className="text-gray-600 text-sm">
                         {payment.notes || 'No notes'}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingPayment(payment);
+                            setIsFormOpen(true);
+                          }}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this payment record?')) {
+                              deletePaymentMutation.mutate(payment.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

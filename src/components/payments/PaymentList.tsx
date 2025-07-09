@@ -147,18 +147,27 @@ export const PaymentList = () => {
         console.error('Error fetching payments:', error);
         throw error;
       }
-
-      // Apply client-side filtering for complex searches and grade filtering
+      
+      // Apply client-side search filtering after fetching all payments
       let filteredData = data || [];
       
       if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        filteredData = filteredData.filter(payment => 
-          payment.students?.first_name?.toLowerCase().includes(searchLower) ||
-          payment.students?.last_name?.toLowerCase().includes(searchLower) ||
-          payment.students?.student_id?.toLowerCase().includes(searchLower) ||
-          payment.students?.mother_name?.toLowerCase().includes(searchLower)
-        );
+        filteredData = filteredData.filter(payment => {
+          const student = payment.students;
+          if (!student) return false;
+          
+          const searchFields = [
+            student.student_id,
+            student.first_name,
+            student.last_name, 
+            student.mother_name,
+            payment.payment_status,
+            payment.payment_cycle,
+            payment.academic_year
+          ].filter(Boolean).join(' ').toLowerCase();
+          
+          return searchFields.includes(searchTerm.toLowerCase());
+        });
       }
       
       if (gradeFilter && gradeFilter !== 'all') {
@@ -167,7 +176,7 @@ export const PaymentList = () => {
         );
       }
       
-      console.log('Payments fetched and filtered successfully:', filteredData?.length);
+      console.log('Payments fetched and filtered successfully:', filteredData.length);
       return filteredData;
     }
   });

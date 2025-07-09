@@ -62,8 +62,11 @@ export const Overview = () => {
     queryFn: async () => {
       console.log('Fetching dashboard stats...');
       
-      // Optimized parallel queries including payment revenue
-      const [studentsResult, classesResult, gradeLevelsResult, paymentsResult] = await Promise.all([
+      // Use count queries for accurate totals
+      const [studentsCountResult, studentsResult, classesResult, gradeLevelsResult, paymentsResult] = await Promise.all([
+        supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true }),
         supabase
           .from('students')
           .select('status, grade_level, created_at, registration_payments(payment_status)'),
@@ -78,6 +81,7 @@ export const Overview = () => {
           .select('amount_paid, payment_status')
       ]);
 
+      if (studentsCountResult.error) throw studentsCountResult.error;
       if (studentsResult.error) throw studentsResult.error;
       if (classesResult.error) throw classesResult.error;
       if (gradeLevelsResult.error) throw gradeLevelsResult.error;
@@ -88,8 +92,8 @@ export const Overview = () => {
       const gradeLevels = gradeLevelsResult.data || [];
       const payments = paymentsResult.data || [];
 
-      // Calculate stats
-      const totalStudents = students.length;
+      // Calculate stats using accurate count
+      const totalStudents = studentsCountResult.count || 0;
       const activeStudents = students.filter(s => s.status === 'Active').length;
       const totalClasses = classes.length;
       
