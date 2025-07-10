@@ -54,7 +54,7 @@ interface Student {
 export const StudentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'Active' | 'Inactive' | 'Transferred Out' | 'Dropped Out'>('Active');
+  const [statusFilter, setStatusFilter] = useState<'Active' | 'Graduated' | 'Transferred Out' | 'Dropped Out' | 'On Leave'>('Active');
   const queryClient = useQueryClient();
 
   // Debounced search function
@@ -162,12 +162,13 @@ export const StudentList = () => {
                 id="status"
                 className="w-full p-2 border rounded"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'Active' | 'Inactive' | 'Transferred Out' | 'Dropped Out')}
+                onChange={(e) => setStatusFilter(e.target.value as 'Active' | 'Graduated' | 'Transferred Out' | 'Dropped Out' | 'On Leave')}
               >
                 <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
+                <option value="On Leave">On Leave</option>
                 <option value="Transferred Out">Transferred Out</option>
                 <option value="Dropped Out">Dropped Out</option>
+                <option value="Graduated">Graduated</option>
               </select>
             </div>
             <Link to="/students/new">
