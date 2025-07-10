@@ -211,6 +211,20 @@ export const StudentList = () => {
       
       if (activeError) throw activeError;
 
+      // Get pending payments count - students with unpaid registration payments
+      const { count: pendingPaymentsCount, error: pendingError } = await supabase
+        .from('students')
+        .select(`
+          *,
+          registration_payments!inner (
+            payment_status
+          )
+        `, { count: 'exact', head: true })
+        .eq('registration_payments.payment_status', 'Unpaid')
+        .eq('status', 'Active');
+      
+      if (pendingError) throw pendingError;
+
       // Get status counts for each status
       const { data: statusData, error: statusError } = await supabase
         .from('students')
@@ -227,6 +241,7 @@ export const StudentList = () => {
       return {
         totalStudents: totalCount || 0,
         activeStudents: activeCount || 0,
+        pendingPayments: pendingPaymentsCount || 0,
         statusCounts
       };
     }
@@ -711,7 +726,7 @@ export const StudentList = () => {
               <div className="flex-1">
                 <p className="text-sm font-medium text-orange-600">Pending Payments</p>
                 <p className="text-2xl font-bold text-orange-900">
-                  {students?.filter(s => s.registration_payments?.some(p => p.payment_status === 'Unpaid')).length || 0}
+                  {stats?.pendingPayments || 0}
                 </p>
               </div>
               <CreditCard className="h-8 w-8 text-orange-500" />
