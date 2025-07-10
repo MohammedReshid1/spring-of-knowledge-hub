@@ -85,7 +85,7 @@ export const Overview = () => {
           .eq('payment_status', 'Unpaid'),
         supabase
           .from('students')
-          .select('status, grade_level, created_at, registration_payments(payment_status)')
+          .select('status, grade_level, created_at, registration_payments(payment_status)'),
         supabase
           .from('classes')
           .select('id, current_enrollment, max_capacity'),
