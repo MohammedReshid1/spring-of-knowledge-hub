@@ -6,10 +6,6 @@ import { IDCardPrinting } from './IDCardPrinting';
 export const IDCardManager = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-2 mb-6">
-        <CreditCard className="h-6 w-6" />
-        <h1 className="text-2xl font-bold">Student ID Card Printing</h1>
-      </div>
 
       <Card>
         <CardHeader>

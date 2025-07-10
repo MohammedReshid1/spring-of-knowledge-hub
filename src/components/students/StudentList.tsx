@@ -149,19 +149,9 @@ export const StudentList = () => {
           )
         `);
 
-      // Apply server-side filtering with enhanced multi-word name search
+      // Apply server-side filtering
       if (searchTerm) {
-        const searchWords = searchTerm.trim().split(/\s+/);
-        
-        if (searchWords.length === 1) {
-          // Single word search - search across all relevant fields
-          const singleWord = searchWords[0];
-          query = query.or(`student_id.ilike.%${singleWord}%,first_name.ilike.%${singleWord}%,last_name.ilike.%${singleWord}%,father_name.ilike.%${singleWord}%,grandfather_name.ilike.%${singleWord}%,mother_name.ilike.%${singleWord}%,phone.ilike.%${singleWord}%,email.ilike.%${singleWord}%`);
-        } else {
-          // Multi-word search - use a more complex approach
-          // We'll fetch all students and filter client-side for multi-word searches
-          // This ensures we can match "John Ahmed" against "first_name: John, father_name: Ahmed"
-        }
+        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       }
       
       if (statusFilter && statusFilter !== 'all') {
@@ -183,32 +173,8 @@ export const StudentList = () => {
         throw error;
       }
 
-      // Apply client-side multi-word filtering if needed
-      let filteredData = data;
-      if (searchTerm && searchTerm.trim().split(/\s+/).length > 1) {
-        const searchWords = searchTerm.trim().toLowerCase().split(/\s+/);
-        
-        filteredData = data?.filter(student => {
-          // Combine all searchable text fields
-          const searchableText = [
-            student.student_id,
-            student.first_name,
-            student.last_name,
-            student.father_name,
-            student.grandfather_name,
-            student.mother_name,
-            student.phone,
-            student.email,
-            student.classes?.class_name
-          ].filter(Boolean).join(' ').toLowerCase();
-          
-          // Check if all search words are present in the combined text
-          return searchWords.every(word => searchableText.includes(word));
-        }) || [];
-      }
-
-      console.log('Students fetched successfully:', filteredData?.length);
-      return filteredData;
+      console.log('Students fetched successfully:', data?.length);
+      return data;
     },
     staleTime: 30000,
     refetchInterval: 60000
@@ -218,18 +184,12 @@ export const StudentList = () => {
   const { data: filteredStudentsCount } = useQuery({
     queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter],
     queryFn: async () => {
-      if (searchTerm && searchTerm.trim().split(/\s+/).length > 1) {
-        // For multi-word searches, return the count from the main query result
-        return students?.length || 0;
-      }
-
       let countQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true });
 
       if (searchTerm) {
-        const singleWord = searchTerm.trim();
-        countQuery = countQuery.or(`student_id.ilike.%${singleWord}%,first_name.ilike.%${singleWord}%,last_name.ilike.%${singleWord}%,father_name.ilike.%${singleWord}%,grandfather_name.ilike.%${singleWord}%,mother_name.ilike.%${singleWord}%,phone.ilike.%${singleWord}%,email.ilike.%${singleWord}%`);
+        countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       }
       
       if (statusFilter && statusFilter !== 'all') {
@@ -254,8 +214,7 @@ export const StudentList = () => {
       return count || 0;
     },
     staleTime: 30000,
-    refetchInterval: 60000,
-    enabled: !!students // Only run after students query completes
+    refetchInterval: 60000
   });
 
   const { data: classes } = useQuery({
