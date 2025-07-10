@@ -86,7 +86,6 @@ export const Overview = () => {
         supabase
           .from('students')
           .select('status, grade_level, created_at, registration_payments(payment_status)')
-          .limit(2000), // Increase limit to handle larger datasets
         supabase
           .from('classes')
           .select('id, current_enrollment, max_capacity'),
@@ -96,7 +95,6 @@ export const Overview = () => {
         supabase
           .from('registration_payments')
           .select('amount_paid, payment_status')
-          .limit(5000) // Increase limit for payments
       ]);
 
       if (studentsCountResult.error) throw studentsCountResult.error;
