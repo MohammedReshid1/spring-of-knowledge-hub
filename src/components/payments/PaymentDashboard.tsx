@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,7 @@ export const PaymentDashboard = () => {
   const [reportType, setReportType] = useState('quarterly');
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
+  const queryClient = useQueryClient();
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -56,6 +57,29 @@ export const PaymentDashboard = () => {
     };
     return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
   };
+
+  // Real-time subscription for payment updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('payment-dashboard-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'registration_payments'
+        },
+        () => {
+          console.log('Payment dashboard data changed, refetching...');
+          queryClient.invalidateQueries({ queryKey: ['payment-dashboard-stats'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const { data: paymentStats } = useQuery({
     queryKey: ['payment-dashboard-stats'],
@@ -173,8 +197,8 @@ export const PaymentDashboard = () => {
         allPayments: payments || []
       };
     },
-    staleTime: 30000,
-    refetchInterval: 60000,
+    staleTime: 5000, // 5 seconds for real-time feel
+    refetchInterval: 15000, // Refetch every 15 seconds
   });
 
   const getDateRange = () => {

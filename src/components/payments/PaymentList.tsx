@@ -126,6 +126,8 @@ export const PaymentList = () => {
             first_name,
             last_name,
             mother_name,
+            father_name,
+            grandfather_name,
             grade_level,
             photo_url,
             status
@@ -877,11 +879,16 @@ export const PaymentList = () => {
                                 <div className="text-sm text-gray-500">
                                   ID: {getHighlightedText(payment.students?.student_id || '', searchTerm)}
                                 </div>
-                                {payment.students?.mother_name && (
-                                  <div className="text-xs text-gray-400">
-                                    Mother: {getHighlightedText(payment.students.mother_name, searchTerm)}
-                                  </div>
-                                )}
+                                 {payment.students?.mother_name && (
+                                   <div className="text-xs text-gray-400">
+                                     Mother: {getHighlightedText(payment.students.mother_name, searchTerm)}
+                                   </div>
+                                 )}
+                                 {payment.students?.father_name && (
+                                   <div className="text-xs text-gray-400">
+                                     Father: {getHighlightedText(payment.students.father_name, searchTerm)}
+                                   </div>
+                                 )}
                               </div>
                             </div>
                           </TableCell>
