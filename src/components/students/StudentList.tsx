@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { debounce } from 'lodash';
@@ -54,7 +53,7 @@ interface Student {
 export const StudentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'Active' | 'Graduated' | 'Transferred Out' | 'Dropped Out' | 'On Leave'>('Active');
+  const [statusFilter, setStatusFilter] = useState<string>('Active');
   const queryClient = useQueryClient();
 
   // Debounced search function
@@ -71,44 +70,7 @@ export const StudentList = () => {
         .order('created_at', { ascending: false });
 
       if (debouncedSearchTerm) {
-        const searchTerms = debouncedSearchTerm.trim().split(/\s+/);
-        
-        if (searchTerms.length === 1) {
-          // Single term search - search across all fields
-          const term = searchTerms[0];
-          query = query.or(`student_id.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%,mother_name.ilike.%${term}%,father_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`);
-        } else {
-          // Multiple terms search - create combinations for name fields
-          const [firstTerm, ...otherTerms] = searchTerms;
-          const secondTerm = otherTerms.join(' ');
-          
-          // Search for combinations: first+last, first+father, first+mother, etc.
-          query = query.or([
-            // Single field matches for each term
-            `student_id.ilike.%${firstTerm}%`,
-            `first_name.ilike.%${firstTerm}%`,
-            `last_name.ilike.%${firstTerm}%`,
-            `mother_name.ilike.%${firstTerm}%`,
-            `father_name.ilike.%${firstTerm}%`,
-            `phone.ilike.%${firstTerm}%`,
-            `email.ilike.%${firstTerm}%`,
-            // Cross-field combinations
-            `and(first_name.ilike.%${firstTerm}%,last_name.ilike.%${secondTerm}%)`,
-            `and(first_name.ilike.%${firstTerm}%,father_name.ilike.%${secondTerm}%)`,
-            `and(first_name.ilike.%${firstTerm}%,mother_name.ilike.%${secondTerm}%)`,
-            `and(last_name.ilike.%${firstTerm}%,father_name.ilike.%${secondTerm}%)`,
-            `and(father_name.ilike.%${firstTerm}%,last_name.ilike.%${secondTerm}%)`,
-            `and(mother_name.ilike.%${firstTerm}%,last_name.ilike.%${secondTerm}%)`,
-            // Full term search in individual fields
-            `student_id.ilike.%${debouncedSearchTerm}%`,
-            `first_name.ilike.%${debouncedSearchTerm}%`,
-            `last_name.ilike.%${debouncedSearchTerm}%`,
-            `mother_name.ilike.%${debouncedSearchTerm}%`,
-            `father_name.ilike.%${debouncedSearchTerm}%`,
-            `phone.ilike.%${debouncedSearchTerm}%`,
-            `email.ilike.%${debouncedSearchTerm}%`
-          ].join(','));
-        }
+        query = query.or(`student_id.ilike.%${debouncedSearchTerm}%,first_name.ilike.%${debouncedSearchTerm}%,last_name.ilike.%${debouncedSearchTerm}%,mother_name.ilike.%${debouncedSearchTerm}%,father_name.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%`);
       }
 
       if (statusFilter) {
@@ -199,13 +161,12 @@ export const StudentList = () => {
                 id="status"
                 className="w-full p-2 border rounded"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'Active' | 'Graduated' | 'Transferred Out' | 'Dropped Out' | 'On Leave')}
+                onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="Active">Active</option>
-                <option value="On Leave">On Leave</option>
+                <option value="Inactive">Inactive</option>
                 <option value="Transferred Out">Transferred Out</option>
                 <option value="Dropped Out">Dropped Out</option>
-                <option value="Graduated">Graduated</option>
               </select>
             </div>
             <Link to="/students/new">
@@ -239,9 +200,7 @@ export const StudentList = () => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{getHighlightedText(student.student_id, searchTerm)}</Badge>
-                  </TableCell>
+                  <TableCell><Badge variant="secondary">{getHighlightedText(student.student_id, searchTerm)}</TableCell>
                   <TableCell>{student.grade_level}</TableCell>
                   <TableCell>{student.status}</TableCell>
                   <TableCell className="text-right">

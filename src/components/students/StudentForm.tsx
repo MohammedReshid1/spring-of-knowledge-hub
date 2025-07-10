@@ -408,9 +408,9 @@ export const StudentForm = ({ student, onSubmit, onCancel, isLoading }: StudentF
                   <SelectValue placeholder="Select grade" />
                 </SelectTrigger>
                 <SelectContent>
-                  {gradeLevels?.map((gradeLevel) => (
-                    <SelectItem key={gradeLevel.id} value={gradeLevel.grade}>
-                      {gradeLevel.grade}
+                  {gradeLevels?.map((grade) => (
+                    <SelectItem key={grade.id} value={grade.grade_level}>
+                      {grade.grade}
                     </SelectItem>
                   ))}
                 </SelectContent>
