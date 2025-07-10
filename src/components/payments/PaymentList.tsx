@@ -143,8 +143,132 @@ export const PaymentList = () => {
 
       // Apply server-side search filtering for better performance
       if (searchTerm) {
-        // Use text search across related student fields
-        query = query.or(`students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%,students.father_name.ilike.%${searchTerm}%`);
+        // Create multiple queries for each search field and combine results
+        const searchQueries = await Promise.all([
+          supabase
+            .from('registration_payments')
+            .select(`
+              *,
+              students!inner (
+                id,
+                student_id,
+                first_name,
+                last_name,
+                mother_name,
+                father_name,
+                grandfather_name,
+                grade_level,
+                photo_url,
+                status
+              )
+            `)
+            .ilike('students.student_id', `%${searchTerm}%`),
+          supabase
+            .from('registration_payments')
+            .select(`
+              *,
+              students!inner (
+                id,
+                student_id,
+                first_name,
+                last_name,
+                mother_name,
+                father_name,
+                grandfather_name,
+                grade_level,
+                photo_url,
+                status
+              )
+            `)
+            .ilike('students.first_name', `%${searchTerm}%`),
+          supabase
+            .from('registration_payments')
+            .select(`
+              *,
+              students!inner (
+                id,
+                student_id,
+                first_name,
+                last_name,
+                mother_name,
+                father_name,
+                grandfather_name,
+                grade_level,
+                photo_url,
+                status
+              )
+            `)
+            .ilike('students.last_name', `%${searchTerm}%`),
+          supabase
+            .from('registration_payments')
+            .select(`
+              *,
+              students!inner (
+                id,
+                student_id,
+                first_name,
+                last_name,
+                mother_name,
+                father_name,
+                grandfather_name,
+                grade_level,
+                photo_url,
+                status
+              )
+            `)
+            .ilike('students.mother_name', `%${searchTerm}%`),
+          supabase
+            .from('registration_payments')
+            .select(`
+              *,
+              students!inner (
+                id,
+                student_id,
+                first_name,
+                last_name,
+                mother_name,
+                father_name,
+                grandfather_name,
+                grade_level,
+                photo_url,
+                status
+              )
+            `)
+            .ilike('students.father_name', `%${searchTerm}%`)
+        ]);
+
+        // Combine all results and remove duplicates
+        const allResults = searchQueries
+          .filter(result => result.data && !result.error)
+          .flatMap(result => result.data || []);
+
+        // Remove duplicates based on payment ID
+        const uniqueResults = allResults.filter((payment, index, arr) => 
+          arr.findIndex(p => p.id === payment.id) === index
+        );
+
+        // Apply additional filters to the search results
+        let filteredResults = uniqueResults;
+
+        if (statusFilter && statusFilter !== 'all') {
+          filteredResults = filteredResults.filter(p => p.payment_status === statusFilter);
+        }
+        
+        if (cycleFilter && cycleFilter !== 'all') {
+          filteredResults = filteredResults.filter(p => p.payment_cycle === cycleFilter);
+        }
+        
+        if (gradeFilter && gradeFilter !== 'all') {
+          filteredResults = filteredResults.filter(p => p.students?.grade_level === gradeFilter);
+        }
+
+        // Filter out payments for inactive students to keep the list clean
+        const activePayments = filteredResults.filter(payment => 
+          payment.students && (payment.students.status === 'Active' || !payment.students.status)
+        );
+
+        console.log('Search results found:', activePayments.length);
+        return activePayments.sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime());
       }
       
       if (gradeFilter && gradeFilter !== 'all') {
