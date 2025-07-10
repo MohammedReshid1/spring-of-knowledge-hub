@@ -434,7 +434,7 @@ export const IDCardPrinting = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-lg">
-              Students ({filteredStudents.length} total, showing {paginatedStudents.length})
+            Students ({filteredStudents.length} total, showing {paginatedStudents.length})
             </CardTitle>
             <div className="flex items-center space-x-2">
               <Checkbox
