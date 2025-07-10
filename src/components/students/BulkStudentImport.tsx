@@ -249,7 +249,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         let gradePart = '';
         
         // Handle the flexible KG pattern that only captures the section
-        if (pattern.toString().includes('.*KG\\s*[-\\s]*([A-E]).*')) {
+        if (pattern.toString().includes('.*KG\\s*[-\\s]*([A-Z]).*')) {
           gradePart = 'KG';
           section = match[1];
         } else {

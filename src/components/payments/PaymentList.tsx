@@ -144,13 +144,7 @@ export const PaymentList = () => {
       // Apply server-side search filtering for better performance
       if (searchTerm) {
         // Search across student fields using OR conditions
-        query = query.or(
-          `students.student_id.ilike.%${searchTerm}%,` +
-          `students.first_name.ilike.%${searchTerm}%,` +
-          `students.last_name.ilike.%${searchTerm}%,` +
-          `students.mother_name.ilike.%${searchTerm}%`,
-          { foreignTable: 'students' }
-        );
+        query = query.or(`student_id.ilike.%${searchTerm}%,students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%`);
       }
       
       if (gradeFilter && gradeFilter !== 'all') {

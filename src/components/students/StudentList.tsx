@@ -196,23 +196,37 @@ export const StudentList = () => {
   const { data: stats } = useQuery({
     queryKey: ['student-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get total students count
+      const { count: totalCount, error: totalError } = await supabase
         .from('students')
-        .select('status, grade_level');
+        .select('*', { count: 'exact', head: true });
       
-      if (error) throw error;
+      if (totalError) throw totalError;
+
+      // Get active students count
+      const { count: activeCount, error: activeError } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Active');
       
-      const totalStudents = data.length;
-      const activeStudents = data.filter(s => s.status === 'Active').length;
-      const statusCounts: Record<string, number> = data.reduce((acc, student) => {
+      if (activeError) throw activeError;
+
+      // Get status counts for each status
+      const { data: statusData, error: statusError } = await supabase
+        .from('students')
+        .select('status');
+      
+      if (statusError) throw statusError;
+
+      const statusCounts: Record<string, number> = statusData.reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       
       return {
-        totalStudents,
-        activeStudents,
+        totalStudents: totalCount || 0,
+        activeStudents: activeCount || 0,
         statusCounts
       };
     }

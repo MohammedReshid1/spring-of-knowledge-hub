@@ -142,10 +142,17 @@ export const PaymentDashboard = () => {
         ?.sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime())
         ?.slice(0, 10) || [];
 
-      // Students with payment issues
-      const studentsWithIssues = payments?.filter(p => 
-        p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid'
-      ).length || 0;
+      // Students with payment issues - get actual count from database
+      const { count: paymentIssuesCount, error: issuesError } = await supabase
+        .from('registration_payments')
+        .select('*', { count: 'exact', head: true })
+        .in('payment_status', ['Unpaid', 'Partially Paid']);
+
+      if (issuesError) {
+        console.error('Error fetching payment issues count:', issuesError);
+      }
+
+      const studentsWithIssues = paymentIssuesCount || 0;
 
       // Payment completion rate
       const paidPayments = payments?.filter(p => p.payment_status === 'Paid').length || 0;
