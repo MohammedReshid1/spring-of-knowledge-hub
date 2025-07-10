@@ -1,102 +1,77 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { z } from 'zod';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Upload, X, Save, UserPlus } from 'lucide-react';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Camera, Upload } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { StudentIdGenerator } from '@/utils/studentIdGenerator';
+import { Database } from '@/integrations/supabase/types';
 
-const formSchema = z.object({
-  student_id: z.string().min(1, 'Student ID is required'),
+type GradeLevel = Database['public']['Enums']['grade_level'];
+
+const studentSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().min(1, 'Last name is required'),
-  father_name: z.string().optional(),
-  grandfather_name: z.string().optional(),
-  mother_name: z.string().optional(),
-  date_of_birth: z.date({
-    required_error: 'Date of birth is required',
-  }),
-  gender: z.enum(['Male', 'Female']).optional(),
-  grade_level: z.enum([
-    'pre_k', 'kg', 'prep', 'kindergarten', 'grade_1', 'grade_2', 'grade_3',
-    'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9',
-    'grade_10', 'grade_11', 'grade_12'
-  ]),
+  mother_name: z.string().min(1, 'Mother\'s name is required'),
+  father_name: z.string().min(1, 'Father\'s name is required'),
+  grandfather_name: z.string().min(1, 'Grandfather\'s name is required'),
+  date_of_birth: z.string().min(1, 'Date of birth is required'),
+  gender: z.enum(['Male', 'Female'], { required_error: 'Gender is required' }),
+  grade_level: z.string().min(1, 'Grade level is required') as z.ZodType<GradeLevel>,
   class_id: z.string().optional(),
-  phone: z.string().optional(),
-  phone_secondary: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().min(1, 'Parent\'s/Guardian\'s phone number is required'),
+  phone_secondary: z.string().optional(),
   address: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
   medical_info: z.string().optional(),
-  previous_school: z.string().optional(),
-  admission_date: z.date().optional(),
+  previous_school: z.string().min(1, 'Previous school is required'),
+  photo_url: z.string().min(1, 'Student photo is required'),
+  birth_certificate_url: z.string().optional(),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type StudentFormData = z.infer<typeof studentSchema>;
 
 interface StudentFormProps {
   student?: any;
-  onSubmit: (data: FormData) => Promise<void>;
-  onCancel: () => void;
-  isLoading?: boolean;
+  onSuccess: () => void;
 }
 
-export const StudentForm = ({ student, onSubmit, onCancel, isLoading }: StudentFormProps) => {
+export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(student?.photo_url || null);
+  const [photoPreview, setPhotoPreview] = useState<string>(student?.photo_url || '');
   const [birthCertFile, setBirthCertFile] = useState<File | null>(null);
-  const [isGeneratingId, setIsGeneratingId] = useState(false);
 
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<StudentFormData>({
+    resolver: zodResolver(studentSchema),
     defaultValues: {
-      student_id: student?.student_id || '',
       first_name: student?.first_name || '',
-      last_name: student?.last_name || '',
+      mother_name: student?.mother_name || '',
       father_name: student?.father_name || '',
       grandfather_name: student?.grandfather_name || '',
-      mother_name: student?.mother_name || '',
-      date_of_birth: student?.date_of_birth ? new Date(student.date_of_birth) : undefined,
+      date_of_birth: student?.date_of_birth || '',
       gender: student?.gender || undefined,
-      grade_level: student?.grade_level || 'grade_1',
+      grade_level: student?.grade_level || '',
       class_id: student?.class_id || '',
+      email: student?.email || '',
       phone: student?.phone || '',
       phone_secondary: student?.phone_secondary || '',
-      email: student?.email || '',
       address: student?.address || '',
       emergency_contact_name: student?.emergency_contact_name || '',
       emergency_contact_phone: student?.emergency_contact_phone || '',
       medical_info: student?.medical_info || '',
       previous_school: student?.previous_school || '',
-      admission_date: student?.admission_date ? new Date(student.admission_date) : new Date(),
+      photo_url: student?.photo_url || '',
+      birth_certificate_url: student?.birth_certificate_url || '',
     },
-  });
-
-  const { data: gradeLevels } = useQuery({
-    queryKey: ['gradeLevels'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('grade_levels')
-        .select('*')
-        .order('grade');
-      
-      if (error) throw error;
-      return data;
-    }
   });
 
   const { data: classes } = useQuery({
@@ -104,544 +79,528 @@ export const StudentForm = ({ student, onSubmit, onCancel, isLoading }: StudentF
     queryFn: async () => {
       const { data, error } = await supabase
         .from('classes')
-        .select('*')
+        .select('*, grade_levels:grade_level_id(grade)')
         .order('class_name');
-      
       if (error) throw error;
       return data;
     }
   });
 
-  const generateNewStudentId = async () => {
-    if (student) {
-      toast({
-        title: "Cannot regenerate ID",
-        description: "Student ID cannot be changed for existing students.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsGeneratingId(true);
-    try {
-      const newId = await StudentIdGenerator.generateStudentId();
-      form.setValue('student_id', newId);
-      
-      toast({
-        title: "Student ID Generated",
-        description: `New student ID: ${newId}`,
-      });
-    } catch (error) {
-      console.error('Error generating student ID:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate student ID. Please try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsGeneratingId(false);
-    }
-  };
-
-  // Auto-generate student ID for new students
-  useEffect(() => {
-    if (!student && !form.getValues('student_id')) {
-      generateNewStudentId();
-    }
-  }, [student]);
-
-  const handlePhotoRemove = () => {
-    setPhotoFile(null);
-    setPhotoPreview(null);
-  };
-
-  const handleBirthCertRemove = () => {
-    setBirthCertFile(null);
-  };
-
-  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        toast({
-          title: "File too large",
-          description: "Photo must be smaller than 5MB",
-          variant: "destructive"
-        });
-        return;
-      }
       setPhotoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
+        const result = reader.result as string;
+        setPhotoPreview(result);
+        form.setValue('photo_url', result); // Set the form value to satisfy validation
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleBirthCertUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBirthCertChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        toast({
-          title: "File too large",
-          description: "Birth certificate must be smaller than 10MB",
-          variant: "destructive"
-        });
-        return;
-      }
       setBirthCertFile(file);
     }
   };
 
-  const handleSubmit = async (data: FormData) => {
-    try {
-      let photoUrl = student?.photo_url;
-      let birthCertUrl = student?.birth_certificate_url;
+  const uploadPhoto = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = fileName;
 
-      // Upload photo if selected
-      if (photoFile) {
-        const photoPath = `${Date.now()}_${photoFile.name}`;
-        const { error: photoError } = await supabase.storage
-          .from('student-photos')
-          .upload(photoPath, photoFile);
+    const { error: uploadError } = await supabase.storage
+      .from('student-photos')
+      .upload(filePath, file);
 
-        if (photoError) throw photoError;
+    if (uploadError) throw uploadError;
 
-        const { data: photoData } = supabase.storage
-          .from('student-photos')
-          .getPublicUrl(photoPath);
+    const { data } = supabase.storage
+      .from('student-photos')
+      .getPublicUrl(filePath);
 
-        photoUrl = photoData.publicUrl;
+    return data.publicUrl;
+  };
+
+  const uploadBirthCertificate = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `birth_cert_${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('birth-certificates')
+      .upload(fileName, file);
+
+    if (uploadError) throw uploadError;
+
+    // For birth certificates, we don't use public URL since it's private
+    // Return the path instead
+    return fileName;
+  };
+
+  const submitMutation = useMutation({
+    mutationFn: async (data: StudentFormData) => {
+        let photoUrl = data.photo_url;
+        let birthCertUrl = data.birth_certificate_url;
+
+        if (photoFile) {
+          photoUrl = await uploadPhoto(photoFile);
+        }
+
+        if (birthCertFile) {
+          birthCertUrl = await uploadBirthCertificate(birthCertFile);
+        }
+
+        const payload = {
+        first_name: data.first_name,
+        last_name: '', // Remove last name as requested
+        mother_name: data.mother_name || null,
+        father_name: data.father_name || null,
+        grandfather_name: data.grandfather_name || null,
+        date_of_birth: data.date_of_birth,
+        grade_level: data.grade_level as GradeLevel,
+        gender: data.gender || null,
+        email: data.email || null,
+        phone: data.phone || null,
+        phone_secondary: data.phone_secondary || null,
+        address: data.address || null,
+        emergency_contact_name: data.emergency_contact_name || null,
+        emergency_contact_phone: data.emergency_contact_phone || null,
+        medical_info: data.medical_info || null,
+          previous_school: data.previous_school || null,
+          class_id: data.class_id || null,
+          photo_url: photoUrl || null,
+          birth_certificate_url: birthCertUrl || null,
+        };
+
+      if (student) {
+        const { error } = await supabase
+          .from('students')
+          .update(payload)
+          .eq('id', student.id);
+        if (error) throw error;
+      } else {
+        const insertPayload = {
+          ...payload,
+          student_id: '',
+        };
+        
+        const { error } = await supabase
+          .from('students')
+          .insert([insertPayload]);
+        if (error) throw error;
       }
-
-      // Upload birth certificate if selected
-      if (birthCertFile) {
-        const birthCertPath = `${Date.now()}_${birthCertFile.name}`;
-        const { error: birthCertError } = await supabase.storage
-          .from('birth-certificates')
-          .upload(birthCertPath, birthCertFile);
-
-        if (birthCertError) throw birthCertError;
-
-        const { data: birthCertData } = supabase.storage
-          .from('birth-certificates')
-          .getPublicUrl(birthCertPath);
-
-        birthCertUrl = birthCertData.publicUrl;
-      }
-
-      await onSubmit({
-        ...data,
-        photo_url: photoUrl,
-        birth_certificate_url: birthCertUrl,
-      } as any);
-    } catch (error) {
-      console.error('Error submitting form:', error);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: `Student ${student ? 'updated' : 'added'} successfully`,
+      });
+      onSuccess();
+    },
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to submit form. Please try again.",
-        variant: "destructive"
+        description: `Failed to ${student ? 'update' : 'add'} student: ${error.message}`,
+        variant: "destructive",
       });
     }
+  });
+
+  const onSubmit = (data: StudentFormData) => {
+    if (!photoPreview && !student?.photo_url) {
+      toast({
+        title: "Error",
+        description: "Student photo is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Check if birth certificate is required
+    if (!birthCertFile && !student?.birth_certificate_url) {
+      toast({
+        title: "Error",
+        description: "Birth certificate is required for all students",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    submitMutation.mutate(data);
+  };
+
+  const gradeOptions: { value: GradeLevel; label: string }[] = [
+    { value: 'pre_k', label: 'Pre-K' },
+    { value: 'kindergarten', label: 'Kindergarten' },
+    { value: 'grade_1', label: 'Grade 1' },
+    { value: 'grade_2', label: 'Grade 2' },
+    { value: 'grade_3', label: 'Grade 3' },
+    { value: 'grade_4', label: 'Grade 4' },
+    { value: 'grade_5', label: 'Grade 5' },
+    { value: 'grade_6', label: 'Grade 6' },
+    { value: 'grade_7', label: 'Grade 7' },
+    { value: 'grade_8', label: 'Grade 8' },
+    { value: 'grade_9', label: 'Grade 9' },
+    { value: 'grade_10', label: 'Grade 10' },
+    { value: 'grade_11', label: 'Grade 11' },
+    { value: 'grade_12', label: 'Grade 12' },
+  ];
+
+  const selectedGrade = form.watch('grade_level');
+  const availableClasses = classes?.filter(cls => 
+    cls.grade_levels?.grade === selectedGrade
+  ) || [];
+
+  const getInitials = (firstName: string) => {
+    return firstName.charAt(0).toUpperCase();
   };
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <UserPlus className="h-5 w-5" />
-          {student ? 'Edit Student' : 'Add New Student'}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-          {/* Student ID Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="student_id">Student ID</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="student_id"
-                  {...form.register('student_id')}
-                  placeholder="SCH-2025-0001"
-                  className="font-mono"
-                  readOnly={!!student}
-                />
-                {!student && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={generateNewStudentId}
-                    disabled={isGeneratingId}
-                  >
-                    {isGeneratingId ? 'Generating...' : 'Generate'}
-                  </Button>
-                )}
-              </div>
-              {form.formState.errors.student_id && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.student_id.message}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="first_name">First Name</Label>
-              <Input
-                id="first_name"
-                {...form.register('first_name')}
-                placeholder="Enter first name"
-              />
-              {form.formState.errors.first_name && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.first_name.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="last_name">Last Name</Label>
-              <Input
-                id="last_name"
-                {...form.register('last_name')}
-                placeholder="Enter last name"
-              />
-              {form.formState.errors.last_name && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.last_name.message}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="father_name">Father's Name</Label>
-              <Input
-                id="father_name"
-                {...form.register('father_name')}
-                placeholder="Enter father's name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="mother_name">Mother's Name</Label>
-              <Input
-                id="mother_name"
-                {...form.register('mother_name')}
-                placeholder="Enter mother's name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="grandfather_name">Grandfather's Name</Label>
-              <Input
-                id="grandfather_name"
-                {...form.register('grandfather_name')}
-                placeholder="Enter grandfather's name"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="date_of_birth">Date of Birth</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={'outline'}
-                    className={cn(
-                      'w-full justify-start text-left font-normal',
-                      !form.getValues('date_of_birth') && 'text-muted-foreground'
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {form.getValues('date_of_birth') ? (
-                      format(form.getValues('date_of_birth') as Date, 'PPP')
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={form.getValues('date_of_birth')}
-                    onSelect={(date) => form.setValue('date_of_birth', date)}
-                    disabled={(date) =>
-                      date > new Date() || date < new Date('1900-01-01')
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              {form.formState.errors.date_of_birth && (
-                <p className="text-sm text-destructive">
-                  {form.formState.errors.date_of_birth.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="gender">Gender</Label>
-              <Select {...form.register('gender')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select gender" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Male">Male</SelectItem>
-                  <SelectItem value="Female">Female</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="grade_level">Grade Level</Label>
-              <Select {...form.register('grade_level')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select grade" />
-                </SelectTrigger>
-                <SelectContent>
-                  {gradeLevels?.map((grade) => (
-                    <SelectItem key={grade.id} value={grade.grade_level}>
-                      {grade.grade}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="class_id">Class</Label>
-              <Select {...form.register('class_id')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select class" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes?.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id}>
-                      {cls.class_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                {...form.register('phone')}
-                placeholder="Enter phone number"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone_secondary">Secondary Phone</Label>
-              <Input
-                id="phone_secondary"
-                {...form.register('phone_secondary')}
-                placeholder="Enter secondary phone number"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              {...form.register('email')}
-              type="email"
-              placeholder="Enter email address"
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto">
+        {/* Photo Upload Section - Required */}
+        <div className="flex flex-col items-center space-y-4 p-4 border rounded-lg bg-gray-50">
+          <Avatar className="h-24 w-24">
+            <AvatarImage src={photoPreview} alt="Student photo" />
+            <AvatarFallback className="bg-primary/10 text-primary text-lg">
+              {form.watch('first_name') 
+                ? getInitials(form.watch('first_name'))
+                : <Camera className="h-8 w-8" />
+              }
+            </AvatarFallback>
+          </Avatar>
+          
+          <div className="flex items-center space-x-2">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoChange}
+              className="hidden"
+              id="photo-upload"
+              required={!student?.photo_url}
             />
-            {form.formState.errors.email && (
-              <p className="text-sm text-destructive">
-                {form.formState.errors.email.message}
+            <label htmlFor="photo-upload">
+              <Button type="button" variant="outline" size="sm" asChild>
+                <span className="cursor-pointer">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Photo *
+                </span>
+              </Button>
+            </label>
+          </div>
+          <p className="text-xs text-gray-500">Student photo is required</p>
+        </div>
+
+        {/* Birth Certificate Upload Section - Required */}
+        <div className="flex flex-col items-center space-y-4 p-4 border rounded-lg bg-red-50">
+          <div className="text-center">
+            <h3 className="font-semibold text-red-800 mb-2">Birth Certificate (Required)</h3>
+            <div className="flex items-center justify-center space-x-2">
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={handleBirthCertChange}
+                className="hidden"
+                id="birth-cert-upload"
+                required={!student?.birth_certificate_url}
+              />
+              <label htmlFor="birth-cert-upload">
+                <Button type="button" variant="outline" size="sm" asChild className="border-red-300 text-red-700 hover:bg-red-100">
+                  <span className="cursor-pointer">
+                    <Upload className="h-4 w-4 mr-2" />
+                    {student?.birth_certificate_url ? 'Replace' : 'Upload'} Birth Certificate *
+                  </span>
+                </Button>
+              </label>
+            </div>
+            {birthCertFile && (
+              <p className="text-sm text-green-600 mt-2">
+                Birth certificate selected: {birthCertFile.name}
               </p>
             )}
+            {student?.birth_certificate_url && !birthCertFile && (
+              <p className="text-sm text-green-600 mt-2">
+                Birth certificate already uploaded
+              </p>
+            )}
+            <p className="text-xs text-red-600 mt-2">* Birth certificate is required for all students</p>
           </div>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Input
-              id="address"
-              {...form.register('address')}
-              placeholder="Enter address"
-            />
-          </div>
+        {/* First Name - Required */}
+        <FormField
+          control={form.control}
+          name="first_name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>First Name *</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="emergency_contact_name">Emergency Contact Name</Label>
-              <Input
-                id="emergency_contact_name"
-                {...form.register('emergency_contact_name')}
-                placeholder="Enter emergency contact name"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="emergency_contact_phone">Emergency Contact Phone</Label>
-              <Input
-                id="emergency_contact_phone"
-                {...form.register('emergency_contact_phone')}
-                placeholder="Enter emergency contact phone"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="medical_info">Medical Info</Label>
-            <Textarea
-              id="medical_info"
-              {...form.register('medical_info')}
-              placeholder="Enter medical information"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="previous_school">Previous School</Label>
-            <Input
-              id="previous_school"
-              {...form.register('previous_school')}
-              placeholder="Enter previous school"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="admission_date">Admission Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={'outline'}
-                  className={cn(
-                    'w-full justify-start text-left font-normal',
-                    !form.getValues('admission_date') && 'text-muted-foreground'
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {form.getValues('admission_date') ? (
-                    format(form.getValues('admission_date') as Date, 'PPP')
-                  ) : (
-                    <span>Pick a date</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={form.getValues('admission_date')}
-                  onSelect={(date) => form.setValue('admission_date', date)}
-                  disabled={(date) => date > new Date()}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="photo">
-                Student Photo
-                {photoPreview && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={handlePhotoRemove}
-                    className="absolute top-2 right-2"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </Label>
-              {photoPreview ? (
-                <div className="relative">
-                  <img
-                    src={photoPreview}
-                    alt="Student Photo"
-                    className="rounded-md object-cover aspect-square w-32 h-32"
-                  />
-                </div>
-              ) : (
-                <div className="flex items-center justify-center w-32 h-32 rounded-md border-dashed border-2 border-gray-400 bg-gray-100">
-                  <Label htmlFor="photo-upload" className="cursor-pointer">
-                    <div className="flex flex-col items-center justify-center">
-                      <Upload className="h-5 w-5 text-gray-500" />
-                      <p className="text-sm text-gray-500">Upload</p>
-                    </div>
-                  </Label>
-                </div>
+        {/* Family Names - All Required */}
+        <div className="grid grid-cols-1 gap-4">
+          <FormField
+            control={form.control}
+            name="mother_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mother's Name *</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="father_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Father's Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              <Input
-                type="file"
-                id="photo-upload"
-                className="hidden"
-                onChange={handlePhotoUpload}
-                accept="image/*"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="birth_certificate">
-                Birth Certificate
-                {birthCertFile && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={handleBirthCertRemove}
-                    className="absolute top-2 right-2"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </Label>
-              {birthCertFile ? (
-                <div className="relative">
-                  <p className="text-sm text-gray-500">
-                    {birthCertFile.name}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center w-full h-32 rounded-md border-dashed border-2 border-gray-400 bg-gray-100">
-                  <Label htmlFor="birth-cert-upload" className="cursor-pointer">
-                    <div className="flex flex-col items-center justify-center">
-                      <Upload className="h-5 w-5 text-gray-500" />
-                      <p className="text-sm text-gray-500">Upload</p>
-                    </div>
-                  </Label>
-                </div>
+            />
+            <FormField
+              control={form.control}
+              name="grandfather_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Grandfather's Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              <Input
-                type="file"
-                id="birth-cert-upload"
-                className="hidden"
-                onChange={handleBirthCertUpload}
-                accept="application/pdf, image/*"
-              />
-            </div>
+            />
           </div>
+        </div>
 
-          <div className="flex justify-end space-x-4">
-            <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              <Save className="h-4 w-4 mr-2" />
-              {isLoading ? 'Saving...' : student ? 'Update Student' : 'Add Student'}
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="date_of_birth"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Date of Birth *</FormLabel>
+                <FormControl>
+                  <Input type="date" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="gender"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gender *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="Male">Male</SelectItem>
+                    <SelectItem value="Female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="grade_level"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Grade Level *</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select grade" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {gradeOptions.map((grade) => (
+                      <SelectItem key={grade.value} value={grade.value}>
+                        {grade.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="class_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Class</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {availableClasses.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.class_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Parent's/Guardian's Phone Number *</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="phone_secondary"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Secondary Phone Number (Optional)</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="address"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Address</FormLabel>
+              <FormControl>
+                <Textarea {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="emergency_contact_name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Emergency Contact Name</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="emergency_contact_phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Emergency Contact Phone</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="medical_info"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Medical Information</FormLabel>
+              <FormControl>
+                <Textarea {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="previous_school"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Previous School *</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button
+            type="submit"
+            disabled={submitMutation.isPending}
+          >
+            {submitMutation.isPending ? 'Saving...' : (student ? 'Update Student' : 'Add Student')}
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 };
