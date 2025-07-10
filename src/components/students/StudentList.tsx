@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { debounce } from 'lodash';
@@ -200,7 +201,9 @@ export const StudentList = () => {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell><Badge variant="secondary">{getHighlightedText(student.student_id, searchTerm)}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{getHighlightedText(student.student_id, searchTerm)}</Badge>
+                  </TableCell>
                   <TableCell>{student.grade_level}</TableCell>
                   <TableCell>{student.status}</TableCell>
                   <TableCell className="text-right">
