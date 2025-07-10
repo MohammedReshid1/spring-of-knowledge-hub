@@ -78,10 +78,10 @@ export const PaymentDashboard = () => {
 
       if (paymentsError) throw paymentsError;
 
-      // Get all active students for comparison
-      const { data: students, error: studentsError } = await supabase
+      // Get accurate count of active students using count query
+      const { count: activeStudentsCount, error: studentsError } = await supabase
         .from('students')
-        .select('id, status')
+        .select('*', { count: 'exact', head: true })
         .eq('status', 'Active');
 
       if (studentsError) throw studentsError;
@@ -89,7 +89,7 @@ export const PaymentDashboard = () => {
       // Calculate statistics - include ALL payments regardless of student status
       const totalRevenue = payments?.reduce((sum, p) => sum + (p.amount_paid || 0), 0) || 0;
       const totalPayments = payments?.length || 0;
-      const activeStudents = students?.length || 0;
+      const activeStudents = activeStudentsCount || 0;
       
       // Payment status breakdown
       const statusBreakdown = payments?.reduce((acc, payment) => {

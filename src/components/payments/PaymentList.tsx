@@ -141,6 +141,23 @@ export const PaymentList = () => {
         query = query.eq('payment_cycle', cycleFilter);
       }
 
+      // Apply server-side search filtering for better performance
+      if (searchTerm) {
+        // Search across student fields using OR conditions
+        query = query.or(
+          `students.student_id.ilike.%${searchTerm}%,` +
+          `students.first_name.ilike.%${searchTerm}%,` +
+          `students.last_name.ilike.%${searchTerm}%,` +
+          `students.mother_name.ilike.%${searchTerm}%`,
+          { foreignTable: 'students' }
+        );
+      }
+      
+      if (gradeFilter && gradeFilter !== 'all') {
+        query = query.eq('students.grade_level', gradeFilter as any);
+      }
+
+      // Remove any limits to get all matching payments
       const { data, error } = await query.order('payment_date', { ascending: false });
       
       if (error) {
@@ -148,52 +165,51 @@ export const PaymentList = () => {
         throw error;
       }
       
-      // Apply client-side search filtering after fetching all payments
-      let filteredData = data || [];
+      // Filter out payments for inactive students to keep the list clean
+      const activePayments = data?.filter(payment => 
+        payment.students && (payment.students.status === 'Active' || !payment.students.status)
+      ) || [];
       
-      if (searchTerm) {
-        filteredData = filteredData.filter(payment => {
-          const student = payment.students;
-          if (!student) return false;
-          
-          const searchFields = [
-            student.student_id,
-            student.first_name,
-            student.last_name, 
-            student.mother_name,
-            payment.payment_status,
-            payment.payment_cycle,
-            payment.academic_year
-          ].filter(Boolean).join(' ').toLowerCase();
-          
-          return searchFields.includes(searchTerm.toLowerCase());
-        });
-      }
-      
-      if (gradeFilter && gradeFilter !== 'all') {
-        filteredData = filteredData.filter(payment => 
-          payment.students?.grade_level === gradeFilter
-        );
-      }
-      
-      console.log('Payments fetched and filtered successfully:', filteredData.length);
-      return filteredData;
+      console.log('Payments fetched successfully:', activePayments.length);
+      return activePayments;
     }
   });
 
   const { data: stats } = useQuery({
     queryKey: ['payment-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('registration_payments')
-        .select('payment_status, amount_paid');
+      // Use count queries for accurate totals without row limits
+      const [totalResult, paidResult, unpaidResult, partialResult, revenueResult] = await Promise.all([
+        supabase
+          .from('registration_payments')
+          .select('*', { count: 'exact', head: true }),
+        supabase
+          .from('registration_payments')
+          .select('*', { count: 'exact', head: true })
+          .eq('payment_status', 'Paid'),
+        supabase
+          .from('registration_payments')
+          .select('*', { count: 'exact', head: true })
+          .eq('payment_status', 'Unpaid'),
+        supabase
+          .from('registration_payments')
+          .select('*', { count: 'exact', head: true })
+          .eq('payment_status', 'Partially Paid'),
+        supabase
+          .from('registration_payments')
+          .select('amount_paid')
+      ]);
+
+      if (totalResult.error) throw totalResult.error;
+      if (paidResult.error) throw paidResult.error;
+      if (unpaidResult.error) throw unpaidResult.error;
+      if (partialResult.error) throw partialResult.error;
+      if (revenueResult.error) throw revenueResult.error;
       
-      if (error) throw error;
-      
-      const totalPayments = data.length;
-      const totalRevenue = data.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0);
-      const paidPayments = data.filter(p => p.payment_status === 'Paid').length;
-      const pendingPayments = data.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length;
+      const totalPayments = totalResult.count || 0;
+      const totalRevenue = revenueResult.data?.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0) || 0;
+      const paidPayments = paidResult.count || 0;
+      const pendingPayments = (unpaidResult.count || 0) + (partialResult.count || 0);
       
       return {
         totalPayments,
@@ -243,8 +259,21 @@ export const PaymentList = () => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, cycleFilter, gradeFilter]);
 
-  // Get unique grade levels for filter
-  const gradeOptions = Array.from(new Set(payments?.map(payment => payment.students?.grade_level).filter(Boolean))) || [];
+  // Get all unique grade levels for filter
+  const { data: allGradeLevels } = useQuery({
+    queryKey: ['all-grade-levels'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('grade_levels')
+        .select('grade')
+        .order('grade');
+      
+      if (error) throw error;
+      return data?.map(g => g.grade) || [];
+    }
+  });
+
+  const gradeOptions = allGradeLevels || [];
 
   const getStatusColor = (status: string) => {
     const colors = {

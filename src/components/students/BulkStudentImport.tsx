@@ -271,14 +271,23 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           const gradeText = gradePart.toLowerCase();
           if (gradeText.includes('pre')) {
             gradeLevel = 'pre_k';
+            // Create proper class name for pre-k
+            const className = `PRE-KG - ${section.toUpperCase()}`;
+            return { className, gradeLevel };
           } else if (gradeText.includes('kg') || gradeText.includes('kindergarten')) {
             gradeLevel = 'kg';
+            // Create proper class name for kg
+            const className = `KG - ${section.toUpperCase()}`;
+            return { className, gradeLevel };
           } else if (gradeText.includes('prep')) {
             gradeLevel = 'prep';
+            // Create proper class name for prep
+            const className = `PREP - ${section.toUpperCase()}`;
+            return { className, gradeLevel };
           }
         }
         
-        // Create clean class name for text-based grades
+        // Fallback for other text-based grades
         const className = `${gradePart.toUpperCase().replace(/\s+/g, ' ')} - ${section.toUpperCase()}`;
         
         console.log(`Extracted class: ${className}, grade: ${gradeLevel}`);
