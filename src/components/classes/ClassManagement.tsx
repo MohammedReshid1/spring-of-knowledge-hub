@@ -176,7 +176,7 @@ export const ClassManagement = () => {
         throw gradeLevelsError;
       }
 
-      // Count active students for each grade level
+      // Count active students for each grade level and calculate real capacity
       const gradeStatsPromises = gradeLevelsData?.map(async (grade) => {
         const { count, error } = await supabase
           .from('students')
@@ -188,23 +188,45 @@ export const ClassManagement = () => {
           console.error(`Error counting students for grade ${grade.grade}:`, error);
           return {
             ...grade,
-            current_enrollment: 0
+            current_enrollment: 0,
+            max_capacity: grade.max_capacity
           };
         }
 
         const actualEnrollment = count || 0;
         console.log(`Grade ${grade.grade}: ${actualEnrollment} active students`);
 
-        // Update the grade level record with actual enrollment
+        // Calculate the real max capacity by summing all class capacities for this grade
+        const { data: classesData, error: classError } = await supabase
+          .from('classes')
+          .select(`
+            max_capacity,
+            grade_levels!inner (
+              grade
+            )
+          `)
+          .eq('grade_levels.grade', grade.grade);
+
+        if (classError) {
+          console.error(`Error fetching classes for grade ${grade.grade}:`, classError);
+        }
+
+        const totalClassCapacity = classesData?.reduce((sum, cls) => sum + cls.max_capacity, 0) || grade.max_capacity;
+        console.log(`Grade ${grade.grade}: Total class capacity = ${totalClassCapacity}`);
+
+        // Update the grade level record with actual enrollment and real capacity
         await supabase
           .from('grade_levels')
-          .update({ current_enrollment: actualEnrollment })
+          .update({ 
+            current_enrollment: actualEnrollment,
+            max_capacity: totalClassCapacity
+          })
           .eq('id', grade.id);
 
         return {
           ...grade,
           current_enrollment: actualEnrollment,
-          max_capacity: Math.max(grade.max_capacity, actualEnrollment)
+          max_capacity: totalClassCapacity
         };
       }) || [];
 
