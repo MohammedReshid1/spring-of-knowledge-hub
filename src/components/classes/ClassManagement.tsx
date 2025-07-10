@@ -341,6 +341,12 @@ export const ClassManagement = () => {
   }, [searchTerm, gradeFilter]);
 
   const gradeOptions = Array.from(new Set(classes?.map(cls => cls.grade_levels?.grade).filter(Boolean))) || [];
+  
+  // Sort grade options in proper order
+  const sortedGradeOptions = gradeOptions.sort((a, b) => {
+    const gradeOrder = ['pre_k', 'kg', 'prep', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
+    return gradeOrder.indexOf(a) - gradeOrder.indexOf(b);
+  });
 
   return (
     <div className="space-y-6 p-6">
@@ -483,7 +489,7 @@ export const ClassManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all-grades">All Grades</SelectItem>
-                  {gradeOptions.map((grade) => (
+                  {sortedGradeOptions.map((grade) => (
                     <SelectItem key={grade} value={grade}>
                       {formatGradeLevel(grade)}
                     </SelectItem>
