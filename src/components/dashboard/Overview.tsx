@@ -62,14 +62,31 @@ export const Overview = () => {
     queryFn: async () => {
       console.log('Fetching dashboard stats...');
       
-      // Use count queries for accurate totals
-      const [studentsCountResult, studentsResult, classesResult, gradeLevelsResult, paymentsResult] = await Promise.all([
+      // Use count queries for accurate totals and fetch all data without 1000-row limit
+      const [studentsCountResult, activeStudentsCountResult, newStudentsCountResult, pendingPaymentsCountResult, unpaidStudentsCountResult, studentsResult, classesResult, gradeLevelsResult, paymentsResult] = await Promise.all([
         supabase
           .from('students')
           .select('*', { count: 'exact', head: true }),
         supabase
           .from('students')
-          .select('status, grade_level, created_at, registration_payments(payment_status)'),
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'Active'),
+        supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+        supabase
+          .from('registration_payments')
+          .select('*', { count: 'exact', head: true })
+          .in('payment_status', ['Unpaid', 'Partially Paid']),
+        supabase
+          .from('registration_payments')
+          .select('*', { count: 'exact', head: true })
+          .eq('payment_status', 'Unpaid'),
+        supabase
+          .from('students')
+          .select('status, grade_level, created_at, registration_payments(payment_status)')
+          .limit(2000), // Increase limit to handle larger datasets
         supabase
           .from('classes')
           .select('id, current_enrollment, max_capacity'),
@@ -79,9 +96,14 @@ export const Overview = () => {
         supabase
           .from('registration_payments')
           .select('amount_paid, payment_status')
+          .limit(5000) // Increase limit for payments
       ]);
 
       if (studentsCountResult.error) throw studentsCountResult.error;
+      if (activeStudentsCountResult.error) throw activeStudentsCountResult.error;
+      if (newStudentsCountResult.error) throw newStudentsCountResult.error;
+      if (pendingPaymentsCountResult.error) throw pendingPaymentsCountResult.error;
+      if (unpaidStudentsCountResult.error) throw unpaidStudentsCountResult.error;
       if (studentsResult.error) throw studentsResult.error;
       if (classesResult.error) throw classesResult.error;
       if (gradeLevelsResult.error) throw gradeLevelsResult.error;
@@ -92,9 +114,12 @@ export const Overview = () => {
       const gradeLevels = gradeLevelsResult.data || [];
       const payments = paymentsResult.data || [];
 
-      // Calculate stats using accurate count
+      // Calculate stats using accurate counts from database
       const totalStudents = studentsCountResult.count || 0;
-      const activeStudents = students.filter(s => s.status === 'Active').length;
+      const activeStudents = activeStudentsCountResult.count || 0;
+      const recentRegistrations = newStudentsCountResult.count || 0;
+      const pendingPayments = pendingPaymentsCountResult.count || 0;
+      const unpaidStudents = unpaidStudentsCountResult.count || 0;
       const totalClasses = classes.length;
       
       // Calculate enrollment rate
@@ -105,22 +130,10 @@ export const Overview = () => {
       // Calculate total revenue from all payments
       const totalRevenue = payments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
 
-      // Payment statistics
+      // Payment statistics - calculate paid students from the sample data
       const paidStudents = students.filter(s => 
         s.registration_payments?.some(p => p.payment_status === 'Paid')
       ).length;
-      const unpaidStudents = students.filter(s => 
-        s.registration_payments?.some(p => p.payment_status === 'Unpaid') || 
-        !s.registration_payments?.length
-      ).length;
-
-      // Recent registrations (this month)
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      const recentRegistrations = students.filter(s => {
-        const createdDate = new Date(s.created_at);
-        return createdDate.getMonth() === currentMonth && createdDate.getFullYear() === currentYear;
-      }).length;
 
       // Status breakdown
       const statusCounts: Record<string, number> = students.reduce((acc, student) => {
@@ -147,6 +160,7 @@ export const Overview = () => {
         paidStudents,
         unpaidStudents,
         recentRegistrations,
+        pendingPayments,
         statusCounts,
         gradeUtilization: gradeUtilization.slice(0, 5)
       };
@@ -180,6 +194,7 @@ export const Overview = () => {
     paidStudents: 0,
     unpaidStudents: 0,
     recentRegistrations: 0,
+    pendingPayments: 0,
     statusCounts: {} as Record<string, number>,
     gradeUtilization: []
   };
@@ -394,11 +409,11 @@ export const Overview = () => {
                     <p className="text-xs text-gray-600">This month</p>
                   </div>
                 </div>
-                {stats.unpaidStudents > 0 && (
+                {stats.pendingPayments > 0 && (
                   <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg">
                     <AlertCircle className="h-5 w-5 text-orange-600" />
                     <div>
-                      <p className="text-sm font-medium">{stats.unpaidStudents} pending payment{stats.unpaidStudents !== 1 ? 's' : ''}</p>
+                      <p className="text-sm font-medium">{stats.pendingPayments} pending payment{stats.pendingPayments !== 1 ? 's' : ''}</p>
                       <p className="text-xs text-gray-600">Requires attention</p>
                     </div>
                   </div>

@@ -210,34 +210,34 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     const text = headerText.toString().trim();
     console.log(`Checking header text: "${text}"`);
     
-    // Enhanced patterns to handle Excel format like "Grade : _PRE KG - A_______________"
-    const classPatterns = [
-      // Handle Excel format with underscores and extra text
-      /Grade\s*:\s*_*(PRE\s*KG)\s*-\s*([A-E])_*.*$/i,
-      /Grade\s*:\s*_*(KG)\s*-\s*([A-E])_*.*$/i,
-      /Grade\s*:\s*_*(PREP)\s*-\s*([A-E])_*.*$/i,
-      /Grade\s*:\s*_*(GRADE|CLASS)\s*(\d+)\s*-\s*([A-E])_*.*$/i,
-      
-      // More flexible KG patterns with optional spaces and separators
-      /^(KG)\s*[-\s]*([A-E])\s*$/i,
-      /^(KG)\s+([A-E])\s*$/i,
-      /.*KG\s*[-\s]*([A-E]).*/i, // Very flexible KG pattern
-      
-      // Original patterns for direct class names
-      /^(PRE\s*KG)[\s\-]*([A-E])$/i,
-      /^(PREKG)[\s\-]*([A-E])$/i,
-      /^(PRE\s*K)[\s\-]*([A-E])$/i,
-      /^(KG)[\s\-]*([A-E])$/i,
-      /^(KINDERGARTEN)[\s\-]*([A-E])$/i,
-      /^(PREP)[\s\-]*([A-E])$/i,
-      /^(PREPARATORY)[\s\-]*([A-E])$/i,
-      /^(GRADE|CLASS)[\s\-]*(\d{1,2})[\s\-]*([A-E])$/i,
-      
-      // Additional patterns for common variations
-      /.*\b(KG)\s+([A-E])\b.*/i,
-      /.*\b(PRE\s*KG)\s+([A-E])\b.*/i,
-      /.*\b(PREP)\s+([A-E])\b.*/i,
-    ];
+      // Enhanced patterns to handle Excel format like "Grade : _PRE KG - A_______________"
+      const classPatterns = [
+        // Handle Excel format with underscores and extra text (A-Z support)
+        /Grade\s*:\s*_*(PRE\s*KG)\s*-\s*([A-Z])_*.*$/i,
+        /Grade\s*:\s*_*(KG)\s*-\s*([A-Z])_*.*$/i,
+        /Grade\s*:\s*_*(PREP)\s*-\s*([A-Z])_*.*$/i,
+        /Grade\s*:\s*_*(GRADE|CLASS)\s*(\d+)\s*-\s*([A-Z])_*.*$/i,
+        
+        // More flexible KG patterns with optional spaces and separators (A-Z support)
+        /^(KG)\s*[-\s]*([A-Z])\s*$/i,
+        /^(KG)\s+([A-Z])\s*$/i,
+        /.*KG\s*[-\s]*([A-Z]).*/i, // Very flexible KG pattern
+        
+        // Original patterns for direct class names (A-Z support)
+        /^(PRE\s*KG)[\s\-]*([A-Z])$/i,
+        /^(PREKG)[\s\-]*([A-Z])$/i,
+        /^(PRE\s*K)[\s\-]*([A-Z])$/i,
+        /^(KG)[\s\-]*([A-Z])$/i,
+        /^(KINDERGARTEN)[\s\-]*([A-Z])$/i,
+        /^(PREP)[\s\-]*([A-Z])$/i,
+        /^(PREPARATORY)[\s\-]*([A-Z])$/i,
+        /^(GRADE|CLASS)[\s\-]*(\d{1,2})[\s\-]*([A-Z])$/i,
+        
+        // Additional patterns for common variations (A-Z support)
+        /.*\b(KG)\s+([A-Z])\b.*/i,
+        /.*\b(PRE\s*KG)\s+([A-Z])\b.*/i,
+        /.*\b(PREP)\s+([A-Z])\b.*/i,
+      ];
 
     for (const pattern of classPatterns) {
       const match = text.match(pattern);
@@ -263,6 +263,9 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           const gradeNum = match[2];
           gradeLevel = `grade_${gradeNum}` as GradeLevel;
           section = match[3];
+          // Create proper class name with grade number
+          const className = `GRADE ${gradeNum} - ${section.toUpperCase()}`;
+          return { className, gradeLevel };
         } else {
           // Handle text-based grades
           const gradeText = gradePart.toLowerCase();
@@ -275,7 +278,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           }
         }
         
-        // Create clean class name
+        // Create clean class name for text-based grades
         const className = `${gradePart.toUpperCase().replace(/\s+/g, ' ')} - ${section.toUpperCase()}`;
         
         console.log(`Extracted class: ${className}, grade: ${gradeLevel}`);
@@ -667,7 +670,7 @@ Hassan Ali Ibrahim`;
             <li>• Put class names like "PRE KG - A", "KG - B", "PREP - A" in separate rows</li>
             <li>• List student names in rows below each class header</li>
             <li>• The system will automatically create classes and assign students</li>
-            <li>• Supports PRE KG, KG, PREP, and Grade 1-12 with sections A-E</li>
+            <li>• Supports PRE KG, KG, PREP, and Grade 1-12 with sections A-Z</li>
             <li>• Class capacity will be adjusted based on actual student count</li>
           </ul>
         </div>
