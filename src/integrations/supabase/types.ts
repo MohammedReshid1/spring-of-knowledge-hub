@@ -625,6 +625,10 @@ export type Database = {
         Args: { current_grade: Database["public"]["Enums"]["grade_level"] }
         Returns: Database["public"]["Enums"]["grade_level"]
       }
+      get_next_student_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       log_grade_transition: {
         Args: {
           p_academic_year: string

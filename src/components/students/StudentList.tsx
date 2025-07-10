@@ -149,9 +149,11 @@ export const StudentList = () => {
           )
         `);
 
-      // Apply server-side filtering for better performance
+      // Apply server-side filtering with enhanced name search
       if (searchTerm) {
-        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        // Create a comprehensive search across all name fields and other relevant fields
+        // This searches for the entire search term in each field
+        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       }
       
       if (statusFilter && statusFilter !== 'all') {
@@ -188,9 +190,9 @@ export const StudentList = () => {
         .from('students')
         .select('*', { count: 'exact', head: true });
 
-      // Apply the same filters as the main query
+      // Apply the same search logic as main query
       if (searchTerm) {
-        countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       }
       
       if (statusFilter && statusFilter !== 'all') {
