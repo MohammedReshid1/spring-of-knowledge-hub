@@ -293,6 +293,40 @@ export const PaymentList = () => {
     }
   });
 
+  // Get accurate total count for non-search queries
+  const { data: totalCount } = useQuery({
+    queryKey: ['payments-total-count', statusFilter, cycleFilter, gradeFilter],
+    queryFn: async () => {
+      // Skip count query if searching since we already have all results
+      if (searchTerm) return null;
+
+      let countQuery = supabase
+        .from('registration_payments')
+        .select('*, students!inner(*)', { count: 'exact', head: true });
+
+      // Apply same filters for count
+      if (statusFilter && statusFilter !== 'all') {
+        countQuery = countQuery.eq('payment_status', statusFilter);
+      }
+      
+      if (cycleFilter && cycleFilter !== 'all') {
+        countQuery = countQuery.eq('payment_cycle', cycleFilter);
+      }
+      
+      if (gradeFilter && gradeFilter !== 'all') {
+        countQuery = countQuery.eq('students.grade_level', gradeFilter as any);
+      }
+
+      // Filter for active students only
+      countQuery = countQuery.in('students.status', ['Active']);
+
+      const { count, error } = await countQuery;
+      
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !searchTerm // Only run when not searching
+  });
   const { data: stats } = useQuery({
     queryKey: ['payment-stats'],
     queryFn: async () => {
@@ -751,7 +785,7 @@ export const PaymentList = () => {
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">
-            Payments ({filteredPayments.length})
+            Payments ({searchTerm ? filteredPayments.length : (totalCount || filteredPayments.length)})
           </CardTitle>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
