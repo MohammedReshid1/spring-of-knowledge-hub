@@ -81,6 +81,38 @@ export const IDCardPrinting = () => {
     }
   });
 
+  // Get accurate total count with same filters
+  const { data: totalCount } = useQuery({
+    queryKey: ['students-total-count', debouncedSearchTerm, selectedGrade, selectedClass, statusFilter],
+    queryFn: async () => {
+      let countQuery = supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true });
+
+      // Apply same filters for count
+      if (debouncedSearchTerm) {
+        countQuery = countQuery.or(`student_id.ilike.%${debouncedSearchTerm}%,first_name.ilike.%${debouncedSearchTerm}%,last_name.ilike.%${debouncedSearchTerm}%,mother_name.ilike.%${debouncedSearchTerm}%,father_name.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%`);
+      }
+      
+      if (selectedGrade !== 'all') {
+        countQuery = countQuery.eq('grade_level', selectedGrade as any);
+      }
+      
+      if (selectedClass !== 'all') {
+        countQuery = countQuery.eq('class_id', selectedClass);
+      }
+      
+      if (statusFilter) {
+        countQuery = countQuery.eq('status', statusFilter as any);
+      }
+
+      const { count, error } = await countQuery;
+      
+      if (error) throw error;
+      return count || 0;
+    }
+  });
+
   const { data: classes } = useQuery({
     queryKey: ['classes-for-id-printing'],
     queryFn: async () => {
@@ -434,7 +466,7 @@ export const IDCardPrinting = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-lg">
-            Students ({filteredStudents.length} total, showing {paginatedStudents.length})
+            Students ({totalCount || 0} total, showing {paginatedStudents.length})
             </CardTitle>
             <div className="flex items-center space-x-2">
               <Checkbox
