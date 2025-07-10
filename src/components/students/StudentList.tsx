@@ -54,7 +54,7 @@ interface Student {
 export const StudentList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('Active');
+  const [statusFilter, setStatusFilter] = useState<'Active' | 'Inactive' | 'Transferred Out' | 'Dropped Out'>('Active');
   const queryClient = useQueryClient();
 
   // Debounced search function
@@ -162,7 +162,7 @@ export const StudentList = () => {
                 id="status"
                 className="w-full p-2 border rounded"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => setStatusFilter(e.target.value as 'Active' | 'Inactive' | 'Transferred Out' | 'Dropped Out')}
               >
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
