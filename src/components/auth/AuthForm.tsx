@@ -49,14 +49,14 @@ export const AuthForm = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6">
       <div className="flex-1 flex items-center justify-center">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md mx-auto">
           <CardHeader className="text-center">
             <div className="flex justify-center mb-4">
               <GraduationCap className="h-12 w-12 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Spring of Knowledge Academy</CardTitle>
+            <CardTitle className="text-xl sm:text-2xl">Spring of Knowledge Academy</CardTitle>
             <CardDescription>
               Registration Management System
             </CardDescription>
