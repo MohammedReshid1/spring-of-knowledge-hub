@@ -149,11 +149,19 @@ export const StudentList = () => {
           )
         `);
 
-      // Apply server-side filtering with enhanced name search
+      // Apply server-side filtering with enhanced multi-word name search
       if (searchTerm) {
-        // Create a comprehensive search across all name fields and other relevant fields
-        // This searches for the entire search term in each field
-        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        const searchWords = searchTerm.trim().split(/\s+/);
+        
+        if (searchWords.length === 1) {
+          // Single word search - search across all relevant fields
+          const singleWord = searchWords[0];
+          query = query.or(`student_id.ilike.%${singleWord}%,first_name.ilike.%${singleWord}%,last_name.ilike.%${singleWord}%,father_name.ilike.%${singleWord}%,grandfather_name.ilike.%${singleWord}%,mother_name.ilike.%${singleWord}%,phone.ilike.%${singleWord}%,email.ilike.%${singleWord}%`);
+        } else {
+          // Multi-word search - use a more complex approach
+          // We'll fetch all students and filter client-side for multi-word searches
+          // This ensures we can match "John Ahmed" against "first_name: John, father_name: Ahmed"
+        }
       }
       
       if (statusFilter && statusFilter !== 'all') {
@@ -168,31 +176,60 @@ export const StudentList = () => {
         query = query.eq('class_id', classFilter);
       }
 
-      // Remove any limits to fetch all matching students
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) {
         console.error('Error fetching students:', error);
         throw error;
       }
-      console.log('Students fetched successfully:', data?.length);
-      return data;
+
+      // Apply client-side multi-word filtering if needed
+      let filteredData = data;
+      if (searchTerm && searchTerm.trim().split(/\s+/).length > 1) {
+        const searchWords = searchTerm.trim().toLowerCase().split(/\s+/);
+        
+        filteredData = data?.filter(student => {
+          // Combine all searchable text fields
+          const searchableText = [
+            student.student_id,
+            student.first_name,
+            student.last_name,
+            student.father_name,
+            student.grandfather_name,
+            student.mother_name,
+            student.phone,
+            student.email,
+            student.classes?.class_name
+          ].filter(Boolean).join(' ').toLowerCase();
+          
+          // Check if all search words are present in the combined text
+          return searchWords.every(word => searchableText.includes(word));
+        }) || [];
+      }
+
+      console.log('Students fetched successfully:', filteredData?.length);
+      return filteredData;
     },
-    staleTime: 30000, // Cache for 30 seconds
-    refetchInterval: 60000 // Refetch every minute
+    staleTime: 30000,
+    refetchInterval: 60000
   });
 
   // Get accurate count of filtered students
   const { data: filteredStudentsCount } = useQuery({
     queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter],
     queryFn: async () => {
+      if (searchTerm && searchTerm.trim().split(/\s+/).length > 1) {
+        // For multi-word searches, return the count from the main query result
+        return students?.length || 0;
+      }
+
       let countQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true });
 
-      // Apply the same search logic as main query
       if (searchTerm) {
-        countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        const singleWord = searchTerm.trim();
+        countQuery = countQuery.or(`student_id.ilike.%${singleWord}%,first_name.ilike.%${singleWord}%,last_name.ilike.%${singleWord}%,father_name.ilike.%${singleWord}%,grandfather_name.ilike.%${singleWord}%,mother_name.ilike.%${singleWord}%,phone.ilike.%${singleWord}%,email.ilike.%${singleWord}%`);
       }
       
       if (statusFilter && statusFilter !== 'all') {
@@ -217,7 +254,8 @@ export const StudentList = () => {
       return count || 0;
     },
     staleTime: 30000,
-    refetchInterval: 60000
+    refetchInterval: 60000,
+    enabled: !!students // Only run after students query completes
   });
 
   const { data: classes } = useQuery({
@@ -497,16 +535,19 @@ export const StudentList = () => {
   const highlightSearchTerm = (text: string, searchTerm: string) => {
     if (!searchTerm || !text) return text;
     
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
-    const parts = text.split(regex);
+    const searchWords = searchTerm.trim().split(/\s+/);
+    let highlightedText = text;
     
-    return parts.map((part, index) => 
-      regex.test(part) ? (
-        <mark key={index} className="bg-yellow-200 px-1 rounded">
-          {part}
-        </mark>
-      ) : part
-    );
+    searchWords.forEach(word => {
+      if (word.length > 0) {
+        const regex = new RegExp(`(${word})`, 'gi');
+        highlightedText = highlightedText.replace(regex, (match) => 
+          `<mark class="bg-yellow-200 px-1 rounded">${match}</mark>`
+        );
+      }
+    });
+    
+    return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />;
   };
 
   // Since we're now filtering at the database level, we just need to sort the results
