@@ -17,6 +17,7 @@ export type Database = {
       attendance: {
         Row: {
           attendance_date: string
+          branch_id: string | null
           class_id: string | null
           created_at: string
           id: string
@@ -27,6 +28,7 @@ export type Database = {
         }
         Insert: {
           attendance_date?: string
+          branch_id?: string | null
           class_id?: string | null
           created_at?: string
           id?: string
@@ -37,6 +39,7 @@ export type Database = {
         }
         Update: {
           attendance_date?: string
+          branch_id?: string | null
           class_id?: string | null
           created_at?: string
           id?: string
@@ -46,6 +49,13 @@ export type Database = {
           student_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "attendance_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "attendance_class_id_fkey"
             columns: ["class_id"]
@@ -114,9 +124,43 @@ export type Database = {
         }
         Relationships: []
       }
+      branches: {
+        Row: {
+          address: string | null
+          contact_info: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          logo_url: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          contact_info?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          contact_info?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          logo_url?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       classes: {
         Row: {
           academic_year: string
+          branch_id: string | null
           class_name: string
           created_at: string
           current_enrollment: number
@@ -128,6 +172,7 @@ export type Database = {
         }
         Insert: {
           academic_year?: string
+          branch_id?: string | null
           class_name: string
           created_at?: string
           current_enrollment?: number
@@ -139,6 +184,7 @@ export type Database = {
         }
         Update: {
           academic_year?: string
+          branch_id?: string | null
           class_name?: string
           created_at?: string
           current_enrollment?: number
@@ -149,6 +195,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "classes_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "classes_grade_level_id_fkey"
             columns: ["grade_level_id"]
@@ -169,6 +222,7 @@ export type Database = {
         Row: {
           academic_year: string
           amount: number
+          branch_id: string | null
           created_at: string
           due_date: string
           fee_type: string
@@ -180,6 +234,7 @@ export type Database = {
         Insert: {
           academic_year?: string
           amount: number
+          branch_id?: string | null
           created_at?: string
           due_date: string
           fee_type: string
@@ -191,6 +246,7 @@ export type Database = {
         Update: {
           academic_year?: string
           amount?: number
+          branch_id?: string | null
           created_at?: string
           due_date?: string
           fee_type?: string
@@ -200,6 +256,13 @@ export type Database = {
           student_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fees_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fees_student_id_fkey"
             columns: ["student_id"]
@@ -311,6 +374,7 @@ export type Database = {
         Row: {
           academic_year: string | null
           amount_paid: number | null
+          branch_id: string | null
           created_at: string | null
           id: string
           notes: string | null
@@ -328,6 +392,7 @@ export type Database = {
         Insert: {
           academic_year?: string | null
           amount_paid?: number | null
+          branch_id?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
@@ -345,6 +410,7 @@ export type Database = {
         Update: {
           academic_year?: string | null
           amount_paid?: number | null
+          branch_id?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
@@ -360,6 +426,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "registration_payments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "registration_payments_payment_id_fkey"
             columns: ["payment_id"]
@@ -420,6 +493,7 @@ export type Database = {
           address: string | null
           admission_date: string | null
           birth_certificate_url: string | null
+          branch_id: string | null
           class_id: string | null
           created_at: string
           current_class: string | null
@@ -450,6 +524,7 @@ export type Database = {
           address?: string | null
           admission_date?: string | null
           birth_certificate_url?: string | null
+          branch_id?: string | null
           class_id?: string | null
           created_at?: string
           current_class?: string | null
@@ -480,6 +555,7 @@ export type Database = {
           address?: string | null
           admission_date?: string | null
           birth_certificate_url?: string | null
+          branch_id?: string | null
           class_id?: string | null
           created_at?: string
           current_class?: string | null
@@ -507,6 +583,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "students_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "students_class_id_fkey"
             columns: ["class_id"]
@@ -552,6 +635,7 @@ export type Database = {
       }
       users: {
         Row: {
+          branch_id: string | null
           created_at: string
           email: string
           full_name: string
@@ -561,6 +645,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           email: string
           full_name: string
@@ -570,6 +655,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           email?: string
           full_name?: string
@@ -578,7 +664,15 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -629,6 +723,13 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_user_accessible_branches: {
+        Args: { user_id: string }
+        Returns: {
+          branch_id: string
+          branch_name: string
+        }[]
+      }
       log_grade_transition: {
         Args: {
           p_academic_year: string
@@ -664,6 +765,10 @@ export type Database = {
           new_grade: Database["public"]["Enums"]["grade_level"]
           status: string
         }[]
+      }
+      user_can_access_branch: {
+        Args: { user_id: string; target_branch_id: string }
+        Returns: boolean
       }
     }
     Enums: {

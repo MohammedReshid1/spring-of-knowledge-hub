@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { BranchProvider } from "./contexts/BranchContext";
 import { AuthForm } from "./components/auth/AuthForm";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Overview } from "./components/dashboard/Overview";
@@ -15,6 +16,7 @@ import { PaymentList } from "./components/payments/PaymentList";
 import { PaymentDashboard } from "./components/payments/PaymentDashboard";
 import { AccountSettings } from "./components/settings/AccountSettings";
 import { IDCardManager } from "./components/students/IDCardManager";
+import { BranchManagement } from "./components/branches/BranchManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,7 +60,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
+      <BranchProvider>
+        <TooltipProvider>
         <Toaster />
         <Sonner />
         <BrowserRouter>
@@ -152,12 +155,23 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/branches"
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout>
+                    <BranchManagement />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
+    </BranchProvider>
+  </AuthProvider>
+</QueryClientProvider>
 );
 
 export default App;

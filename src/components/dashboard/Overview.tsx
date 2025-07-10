@@ -2,6 +2,8 @@
 import React, { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useBranch } from '@/contexts/BranchContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,6 +12,8 @@ import { Users, BookOpen, GraduationCap, TrendingUp, Calendar, CreditCard, Alert
 import { Link } from 'react-router-dom';
 
 export const Overview = () => {
+  const { isAdmin, isSuperAdmin } = useRoleAccess();
+  const { selectedBranch, userBranches } = useBranch();
   const queryClient = useQueryClient();
 
   // Real-time subscriptions for dashboard updates

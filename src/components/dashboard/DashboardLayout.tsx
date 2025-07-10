@@ -1,17 +1,17 @@
-
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Footer } from '@/components/layout/Footer';
+import { BranchSelector } from '@/components/branches/BranchSelector';
 import { 
   GraduationCap, 
   Users, 
   BookOpen, 
-  BarChart3, 
+  Building,
   LogOut,
   Home,
   CreditCard,
@@ -29,6 +29,7 @@ interface DashboardLayoutProps {
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, signOut } = useAuth();
+  const { isAdmin, isSuperAdmin } = useRoleAccess();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -54,15 +55,21 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   });
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: Home },
-    { name: 'Students', href: '/students', icon: Users },
-    { name: 'Classes', href: '/classes', icon: BookOpen },
-    { name: 'Teachers', href: '/teachers', icon: UserCheck },
-    { name: 'Payments', href: '/payments', icon: CreditCard },
-    { name: 'Payment Dashboard', href: '/payment-dashboard', icon: DollarSign },
-    { name: 'Student ID Cards', href: '/student-id-cards', icon: IdCard },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    { name: 'Dashboard', href: '/dashboard', icon: Home, adminOnly: false },
+    { name: 'Students', href: '/students', icon: Users, adminOnly: false },
+    { name: 'Classes', href: '/classes', icon: BookOpen, adminOnly: false },
+    { name: 'Teachers', href: '/teachers', icon: UserCheck, adminOnly: false },
+    { name: 'Payments', href: '/payments', icon: CreditCard, adminOnly: false },
+    { name: 'Payment Dashboard', href: '/payment-dashboard', icon: DollarSign, adminOnly: false },
+    { name: 'Student ID Cards', href: '/student-id-cards', icon: IdCard, adminOnly: false },
+    { name: 'Branches', href: '/branches', icon: Building, adminOnly: true },
+    { name: 'Settings', href: '/settings', icon: Settings, adminOnly: false },
   ];
+
+  // Filter navigation items based on user role
+  const filteredNavigation = navigation.filter(item => 
+    !item.adminOnly || isAdmin || isSuperAdmin
+  );
 
   const handleSignOut = async () => {
     await signOut();
@@ -99,6 +106,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             </div>
             
             <div className="flex items-center space-x-2 sm:space-x-4">
+              <BranchSelector />
               <span className="text-xs sm:text-sm text-gray-700 hidden sm:block">
                 Welcome, {displayName}
               </span>
@@ -119,7 +127,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         {isMobileMenuOpen && (
           <div className="lg:hidden absolute top-16 left-0 right-0 bg-white shadow-lg border-t z-40">
             <div className="px-4 py-2 space-y-1">
-              {navigation.map((item) => {
+              {filteredNavigation.map((item) => {
                 const isActive = location.pathname === item.href;
                 const Icon = item.icon;
                 
@@ -149,7 +157,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         <nav className="hidden lg:block w-64 bg-white shadow-sm">
           <div className="p-4">
             <ul className="space-y-2">
-              {navigation.map((item) => {
+              {filteredNavigation.map((item) => {
                 const isActive = location.pathname === item.href;
                 const Icon = item.icon;
                 
