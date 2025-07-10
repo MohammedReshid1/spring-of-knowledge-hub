@@ -180,6 +180,44 @@ export const StudentList = () => {
     refetchInterval: 60000 // Refetch every minute
   });
 
+  // Get accurate count of filtered students
+  const { data: filteredStudentsCount } = useQuery({
+    queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter],
+    queryFn: async () => {
+      let countQuery = supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true });
+
+      // Apply the same filters as the main query
+      if (searchTerm) {
+        countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      }
+      
+      if (statusFilter && statusFilter !== 'all') {
+        countQuery = countQuery.eq('status', statusFilter as any);
+      }
+      
+      if (gradeFilter && gradeFilter !== 'all') {
+        countQuery = countQuery.eq('grade_level', gradeFilter as any);
+      }
+      
+      if (classFilter && classFilter !== 'all') {
+        countQuery = countQuery.eq('class_id', classFilter);
+      }
+
+      const { count, error } = await countQuery;
+      
+      if (error) {
+        console.error('Error fetching filtered students count:', error);
+        throw error;
+      }
+      
+      return count || 0;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000
+  });
+
   const { data: classes } = useQuery({
     queryKey: ['classes'],
     queryFn: async () => {
@@ -860,10 +898,10 @@ export const StudentList = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle className="text-lg">
-              Students ({filteredStudents.length})
+              Students ({filteredStudentsCount || filteredStudents.length})
             </CardTitle>
             <div className="text-sm text-gray-600">
-              Showing {startIndex + 1}-{Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length} students
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredStudents.length)} of {filteredStudentsCount || filteredStudents.length} students
             </div>
           </div>
         </CardHeader>
