@@ -1,3 +1,4 @@
+
 import { Card, CardContent } from '@/components/ui/card';
 import { useState } from 'react';
 
@@ -96,7 +97,7 @@ export const StudentIDCard = ({
           <div className="absolute inset-0">
             {!frontImageLoaded && <LoadingAnimation />}
             <img 
-              src="/Green Blue Modern Student ID Card.svg" 
+              src="/Green%20Blue%20Modern%20Student%20ID%20Card.svg" 
               alt="Student ID Card Front Design"
               className={`w-full h-full object-cover transition-opacity duration-300 ${
                 frontImageLoaded ? 'opacity-100' : 'opacity-0'
@@ -106,10 +107,17 @@ export const StudentIDCard = ({
                 setFrontImageLoaded(true);
               }}
               onError={(e) => {
-                console.error('Front SVG failed to load, using fallback');
-                setFrontImageLoaded(true);
-                // Blue gradient fallback
-                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJhIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzI1NWM5NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzFhYmRiYiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSJ1cmwoI2EpIi8+PC9zdmc+';
+                console.error('Front SVG failed to load, trying alternative path');
+                // Try alternative path without spaces
+                const target = e.currentTarget;
+                if (target.src.includes('%20')) {
+                  target.src = '/green-blue-modern-student-id-card.svg';
+                } else {
+                  console.error('All SVG paths failed, using fallback gradient');
+                  setFrontImageLoaded(true);
+                  // Blue gradient fallback
+                  target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjI1MCIgdmlld0JveD0iMCAwIDQwMCAyNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJhIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzI1NWM5NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzFhYmRiYiIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMjUwIiBmaWxsPSJ1cmwoI2EpIi8+PC9zdmc+';
+                }
               }}
             />
           </div>
