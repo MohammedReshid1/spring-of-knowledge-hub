@@ -607,6 +607,16 @@ export type Database = {
         Args: { backup_log_id: string }
         Returns: boolean
       }
+      fix_student_class_assignments: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          student_id: string
+          student_name: string
+          old_class: string
+          new_class: string
+          action_taken: string
+        }[]
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
