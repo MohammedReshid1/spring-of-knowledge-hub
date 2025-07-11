@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { TeacherForm } from './TeacherForm';
 import { TeacherDetails } from './TeacherDetails';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useBranchData } from '@/hooks/useBranchData';
 
 export const TeacherManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +24,7 @@ export const TeacherManagement = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
+  const { getBranchFilter } = useBranchData();
 
   // Real-time subscription for teachers
   useEffect(() => {
@@ -49,10 +51,12 @@ export const TeacherManagement = () => {
   }, [queryClient]);
 
   const { data: teachers, isLoading, error } = useQuery({
-    queryKey: ['teachers'],
+    queryKey: ['teachers', getBranchFilter()],
     queryFn: async () => {
-      console.log('Fetching teachers...');
-      const { data, error } = await supabase
+      console.log('Fetching teachers with branch filter...');
+      const branchFilter = getBranchFilter();
+      
+      let query = supabase
         .from('users')
         .select(`
           *,
@@ -66,8 +70,16 @@ export const TeacherManagement = () => {
             )
           )
         `)
-        .eq('role', 'teacher')
-        .order('full_name');
+        .eq('role', 'teacher');
+
+      // Apply branch filter if needed
+      if (branchFilter) {
+        query = query.eq('branch_id', branchFilter);
+      }
+      
+      query = query.order('full_name');
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error('Error fetching teachers:', error);

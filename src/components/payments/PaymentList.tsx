@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt, Download, FileSpreadsheet, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useBranchData } from '@/hooks/useBranchData';
 import { toast } from '@/hooks/use-toast';
 import { EnhancedPaymentForm } from './EnhancedPaymentForm';
 import { Link } from 'react-router-dom';
@@ -35,6 +36,7 @@ export const PaymentList = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { isRegistrar, canDelete } = useRoleAccess();
+  const { usePayments } = useBranchData();
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -111,189 +113,44 @@ export const PaymentList = () => {
     };
   }, [queryClient]);
 
-  const { data: payments, isLoading, error } = useQuery({
-    queryKey: ['payments', searchTerm, statusFilter, cycleFilter, gradeFilter],
-    queryFn: async () => {
-      console.log('Fetching payments with filters...');
-      
-      let query = supabase
-        .from('registration_payments')
-        .select(`
-          *,
-          students:student_id (
-            id,
-            student_id,
-            first_name,
-            last_name,
-            mother_name,
-            father_name,
-            grandfather_name,
-            grade_level,
-            photo_url,
-            status
-          )
-        `);
+  // Use the branch-filtered payments query
+  const { data: allPayments, isLoading, error } = usePayments();
 
-      // Apply server-side filtering for better performance
-      if (statusFilter && statusFilter !== 'all') {
-        query = query.eq('payment_status', statusFilter);
-      }
-      
-      if (cycleFilter && cycleFilter !== 'all') {
-        query = query.eq('payment_cycle', cycleFilter);
-      }
-
-      // Apply server-side search filtering for better performance
-      if (searchTerm) {
-        // Create multiple queries for each search field and combine results
-        const searchQueries = await Promise.all([
-          supabase
-            .from('registration_payments')
-            .select(`
-              *,
-              students!inner (
-                id,
-                student_id,
-                first_name,
-                last_name,
-                mother_name,
-                father_name,
-                grandfather_name,
-                grade_level,
-                photo_url,
-                status
-              )
-            `)
-            .ilike('students.student_id', `%${searchTerm}%`),
-          supabase
-            .from('registration_payments')
-            .select(`
-              *,
-              students!inner (
-                id,
-                student_id,
-                first_name,
-                last_name,
-                mother_name,
-                father_name,
-                grandfather_name,
-                grade_level,
-                photo_url,
-                status
-              )
-            `)
-            .ilike('students.first_name', `%${searchTerm}%`),
-          supabase
-            .from('registration_payments')
-            .select(`
-              *,
-              students!inner (
-                id,
-                student_id,
-                first_name,
-                last_name,
-                mother_name,
-                father_name,
-                grandfather_name,
-                grade_level,
-                photo_url,
-                status
-              )
-            `)
-            .ilike('students.last_name', `%${searchTerm}%`),
-          supabase
-            .from('registration_payments')
-            .select(`
-              *,
-              students!inner (
-                id,
-                student_id,
-                first_name,
-                last_name,
-                mother_name,
-                father_name,
-                grandfather_name,
-                grade_level,
-                photo_url,
-                status
-              )
-            `)
-            .ilike('students.mother_name', `%${searchTerm}%`),
-          supabase
-            .from('registration_payments')
-            .select(`
-              *,
-              students!inner (
-                id,
-                student_id,
-                first_name,
-                last_name,
-                mother_name,
-                father_name,
-                grandfather_name,
-                grade_level,
-                photo_url,
-                status
-              )
-            `)
-            .ilike('students.father_name', `%${searchTerm}%`)
-        ]);
-
-        // Combine all results and remove duplicates
-        const allResults = searchQueries
-          .filter(result => result.data && !result.error)
-          .flatMap(result => result.data || []);
-
-        // Remove duplicates based on payment ID
-        const uniqueResults = allResults.filter((payment, index, arr) => 
-          arr.findIndex(p => p.id === payment.id) === index
-        );
-
-        // Apply additional filters to the search results
-        let filteredResults = uniqueResults;
-
-        if (statusFilter && statusFilter !== 'all') {
-          filteredResults = filteredResults.filter(p => p.payment_status === statusFilter);
-        }
-        
-        if (cycleFilter && cycleFilter !== 'all') {
-          filteredResults = filteredResults.filter(p => p.payment_cycle === cycleFilter);
-        }
-        
-        if (gradeFilter && gradeFilter !== 'all') {
-          filteredResults = filteredResults.filter(p => p.students?.grade_level === gradeFilter);
-        }
-
-        // Filter out payments for inactive students to keep the list clean
-        const activePayments = filteredResults.filter(payment => 
-          payment.students && (payment.students.status === 'Active' || !payment.students.status)
-        );
-
-        console.log('Search results found:', activePayments.length);
-        return activePayments.sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime());
-      }
-      
-      if (gradeFilter && gradeFilter !== 'all') {
-        query = query.eq('students.grade_level', gradeFilter as any);
-      }
-
-      // Remove any limits to get all matching payments
-      const { data, error } = await query.order('payment_date', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching payments:', error);
-        throw error;
-      }
-      
-      // Filter out payments for inactive students to keep the list clean
-      const activePayments = data?.filter(payment => 
-        payment.students && (payment.students.status === 'Active' || !payment.students.status)
-      ) || [];
-      
-      console.log('Payments fetched successfully:', activePayments.length);
-      return activePayments;
+  // Apply client-side filtering
+  const payments = useMemo(() => {
+    if (!allPayments) return [];
+    
+    let filtered = allPayments;
+    
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(payment =>
+        payment.students?.student_id?.toLowerCase().includes(searchLower) ||
+        payment.students?.first_name?.toLowerCase().includes(searchLower) ||
+        payment.students?.last_name?.toLowerCase().includes(searchLower) ||
+        payment.students?.mother_name?.toLowerCase().includes(searchLower) ||
+        payment.students?.father_name?.toLowerCase().includes(searchLower)
+      );
     }
-  });
+    
+    // Apply status filter
+    if (statusFilter && statusFilter !== 'all') {
+      filtered = filtered.filter(payment => payment.payment_status === statusFilter);
+    }
+    
+    // Apply cycle filter
+    if (cycleFilter && cycleFilter !== 'all') {
+      filtered = filtered.filter(payment => payment.payment_cycle === cycleFilter);
+    }
+    
+    // Apply grade filter
+    if (gradeFilter && gradeFilter !== 'all') {
+      filtered = filtered.filter(payment => payment.students?.grade_level === gradeFilter);
+    }
+    
+    return filtered;
+  }, [allPayments, searchTerm, statusFilter, cycleFilter, gradeFilter]);
 
   // Get accurate total count for non-search queries
   const { data: totalCount } = useQuery({

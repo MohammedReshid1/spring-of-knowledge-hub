@@ -67,7 +67,24 @@ export const useBranchData = () => {
       queryFn: async () => {
         let query = supabase
           .from('students')
-          .select('*')
+          .select(`
+            *,
+            classes:class_id (
+              id,
+              class_name,
+              grade_levels:grade_level_id (
+                grade
+              )
+            ),
+            registration_payments (
+              id,
+              payment_status,
+              amount_paid,
+              total_amount,
+              payment_cycle,
+              academic_year
+            )
+          `)
           .order('created_at', { ascending: false });
         
         // Apply branch filter if needed
@@ -93,7 +110,19 @@ export const useBranchData = () => {
       queryFn: async () => {
         let query = supabase
           .from('classes')
-          .select('*')
+          .select(`
+            *,
+            grade_levels:grade_level_id (
+              id,
+              grade,
+              max_capacity
+            ),
+            teacher:teacher_id (
+              id,
+              full_name,
+              email
+            )
+          `)
           .order('class_name');
         
         // Apply branch filter if needed
@@ -122,9 +151,16 @@ export const useBranchData = () => {
           .select(`
             *,
             students (
+              id,
+              student_id,
               first_name,
               last_name,
-              student_id
+              mother_name,
+              father_name,
+              grandfather_name,
+              grade_level,
+              photo_url,
+              status
             )
           `)
           .order('created_at', { ascending: false });

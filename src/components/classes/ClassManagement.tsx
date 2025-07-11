@@ -19,6 +19,7 @@ import { StudentClassAssignment } from './StudentClassAssignment';
 import { GradeMismatchFixer } from './GradeMismatchFixer';
 import { DuplicateClassCleaner } from './DuplicateClassCleaner';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useBranchData } from '@/hooks/useBranchData';
 import { getHighlightedText } from '@/utils/searchHighlight';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -35,6 +36,7 @@ export const ClassManagement = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
+  const { useClasses } = useBranchData();
 
   // Real-time subscriptions
   useEffect(() => {

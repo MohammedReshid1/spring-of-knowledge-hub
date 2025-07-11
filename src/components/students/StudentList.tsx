@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/pagination';
 import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown, UserCheck } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useBranchData } from '@/hooks/useBranchData';
 import { toast } from '@/hooks/use-toast';
 import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
@@ -52,6 +53,7 @@ export const StudentList = () => {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { canDelete, isSuperAdmin } = useRoleAccess();
+  const { useStudents } = useBranchData();
 
   // Bulk delete mutation for super admin
   const bulkDeleteMutation = useMutation({
@@ -126,59 +128,47 @@ export const StudentList = () => {
     };
   }, [queryClient]);
 
-  const { data: students, isLoading, error } = useQuery({
-    queryKey: ['students', searchTerm, statusFilter, gradeFilter, classFilter],
-    queryFn: async () => {
-      console.log('Fetching students with filters...');
-      
-      let query = supabase
-        .from('students')
-        .select(`
-          *,
-          classes:class_id (
-            id,
-            class_name,
-            grade_levels:grade_level_id (
-              grade
-            )
-          ),
-          registration_payments (
-            payment_status,
-            amount_paid,
-            payment_date
-          )
-        `);
+  // Use the branch-filtered students query
+  const { data: allStudents, isLoading, error } = useStudents();
 
-      // Apply server-side filtering
-      if (searchTerm) {
-        query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-      }
-      
-      if (statusFilter && statusFilter !== 'all') {
-        query = query.eq('status', statusFilter as any);
-      }
-      
-      if (gradeFilter && gradeFilter !== 'all') {
-        query = query.eq('grade_level', gradeFilter as any);
-      }
-      
-      if (classFilter && classFilter !== 'all') {
-        query = query.eq('class_id', classFilter);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching students:', error);
-        throw error;
-      }
-
-      console.log('Students fetched successfully:', data?.length);
-      return data;
-    },
-    staleTime: 30000,
-    refetchInterval: 60000
-  });
+  // Apply client-side filtering
+  const students = useMemo(() => {
+    if (!allStudents) return [];
+    
+    let filtered = allStudents;
+    
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter(student =>
+        student.student_id?.toLowerCase().includes(searchLower) ||
+        student.first_name?.toLowerCase().includes(searchLower) ||
+        student.last_name?.toLowerCase().includes(searchLower) ||
+        student.father_name?.toLowerCase().includes(searchLower) ||
+        student.grandfather_name?.toLowerCase().includes(searchLower) ||
+        student.mother_name?.toLowerCase().includes(searchLower) ||
+        student.phone?.toLowerCase().includes(searchLower) ||
+        student.email?.toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Apply status filter
+    if (statusFilter && statusFilter !== 'all') {
+      filtered = filtered.filter(student => student.status === statusFilter);
+    }
+    
+    // Apply grade filter
+    if (gradeFilter && gradeFilter !== 'all') {
+      filtered = filtered.filter(student => student.grade_level === gradeFilter);
+    }
+    
+    // Apply class filter
+    if (classFilter && classFilter !== 'all') {
+      filtered = filtered.filter(student => student.class_id === classFilter);
+    }
+    
+    return filtered;
+  }, [allStudents, searchTerm, statusFilter, gradeFilter, classFilter]);
 
   // Get accurate count of filtered students
   const { data: filteredStudentsCount } = useQuery({
