@@ -1,0 +1,194 @@
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useBranch } from '@/contexts/BranchContext';
+
+export const useBranchData = () => {
+  const { user } = useAuth();
+  const { selectedBranch, isHQRole } = useBranch();
+  const { canAccessAllBranches } = useRoleAccess();
+
+  // Get current user's branch for automatic assignment
+  const { data: currentUserBranch } = useQuery({
+    queryKey: ['current-user-branch', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('users')
+        .select('branch_id')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user branch:', error);
+        return null;
+      }
+      
+      return data?.branch_id;
+    },
+    enabled: !!user?.id
+  });
+
+  // Auto-assign branch_id for new records
+  const getDefaultBranchId = () => {
+    // HQ roles can choose which branch to assign to
+    if (canAccessAllBranches && selectedBranch && selectedBranch !== 'all') {
+      return selectedBranch;
+    }
+    
+    // Branch-restricted roles use their assigned branch
+    return currentUserBranch;
+  };
+
+  // Get effective branch filter for queries
+  const getBranchFilter = () => {
+    // HQ roles viewing all branches
+    if (canAccessAllBranches && selectedBranch === 'all') {
+      return null; // No filter - return all branches
+    }
+    
+    // HQ roles viewing specific branch
+    if (canAccessAllBranches && selectedBranch && selectedBranch !== 'all') {
+      return selectedBranch;
+    }
+    
+    // Branch-restricted roles see only their branch
+    return currentUserBranch;
+  };
+
+  // Students query with branch filtering
+  const useStudents = () => {
+    const branchFilter = getBranchFilter();
+    
+    return useQuery({
+      queryKey: ['students', branchFilter],
+      queryFn: async () => {
+        let query = supabase
+          .from('students')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        // Apply branch filter if needed
+        if (branchFilter) {
+          query = query.eq('branch_id', branchFilter);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        return data;
+      },
+      enabled: !!user?.id
+    });
+  };
+
+  // Classes query with branch filtering
+  const useClasses = () => {
+    const branchFilter = getBranchFilter();
+    
+    return useQuery({
+      queryKey: ['classes', branchFilter],
+      queryFn: async () => {
+        let query = supabase
+          .from('classes')
+          .select('*')
+          .order('class_name');
+        
+        // Apply branch filter if needed
+        if (branchFilter) {
+          query = query.eq('branch_id', branchFilter);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        return data;
+      },
+      enabled: !!user?.id
+    });
+  };
+
+  // Payments query with branch filtering
+  const usePayments = () => {
+    const branchFilter = getBranchFilter();
+    
+    return useQuery({
+      queryKey: ['payments', branchFilter],
+      queryFn: async () => {
+        let query = supabase
+          .from('registration_payments')
+          .select(`
+            *,
+            students (
+              first_name,
+              last_name,
+              student_id
+            )
+          `)
+          .order('created_at', { ascending: false });
+        
+        // Apply branch filter if needed
+        if (branchFilter) {
+          query = query.eq('branch_id', branchFilter);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        return data;
+      },
+      enabled: !!user?.id
+    });
+  };
+
+  // Attendance query with branch filtering
+  const useAttendance = () => {
+    const branchFilter = getBranchFilter();
+    
+    return useQuery({
+      queryKey: ['attendance', branchFilter],
+      queryFn: async () => {
+        let query = supabase
+          .from('attendance')
+          .select(`
+            *,
+            students (
+              first_name,
+              last_name,
+              student_id
+            ),
+            classes (
+              class_name
+            )
+          `)
+          .order('attendance_date', { ascending: false });
+        
+        // Apply branch filter if needed
+        if (branchFilter) {
+          query = query.eq('branch_id', branchFilter);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        return data;
+      },
+      enabled: !!user?.id
+    });
+  };
+
+  return {
+    useStudents,
+    useClasses,
+    usePayments,
+    useAttendance,
+    getDefaultBranchId,
+    getBranchFilter,
+    currentUserBranch,
+    selectedBranch,
+    canAccessAllBranches,
+    isHQRole
+  };
+};

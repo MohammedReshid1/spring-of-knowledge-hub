@@ -10,10 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { useBranch } from '@/contexts/BranchContext';
 
 export const BranchSelector = () => {
-  const { userBranches, selectedBranch, setSelectedBranch, canManageBranches } = useBranch();
+  const { userBranches, selectedBranch, setSelectedBranch, canSwitchBranches, isHQRole } = useBranch();
 
-  // Don't show selector if user has no branches or only one branch (and can't manage branches)
-  if (userBranches.length === 0 || (userBranches.length === 1 && !canManageBranches)) {
+  // Don't show selector if user has no branches or only one branch (and can't switch branches)
+  if (userBranches.length === 0 || (userBranches.length === 1 && !canSwitchBranches)) {
     return null;
   }
 
@@ -41,7 +41,7 @@ export const BranchSelector = () => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        {canManageBranches && userBranches.length > 1 && (
+        {isHQRole && userBranches.length > 1 && (
           <DropdownMenuItem
             onClick={() => setSelectedBranch('all')}
             className={selectedBranch === 'all' ? 'bg-accent' : ''}

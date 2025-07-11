@@ -18,6 +18,8 @@ interface BranchContextType {
   setSelectedBranch: (branchId: string | null) => void;
   isLoading: boolean;
   canManageBranches: boolean;
+  canSwitchBranches: boolean;
+  isHQRole: boolean;
   userBranches: Branch[];
 }
 
@@ -99,20 +101,23 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     enabled: !!user?.id
   });
 
-  const canManageBranches = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  // Updated role-based permissions
+  const canManageBranches = currentUser?.role === 'super_admin' || currentUser?.role === 'hq_admin';
+  const canSwitchBranches = currentUser?.role === 'super_admin' || currentUser?.role === 'hq_admin' || currentUser?.role === 'hq_registrar';
+  const isHQRole = currentUser?.role === 'super_admin' || currentUser?.role === 'hq_admin' || currentUser?.role === 'hq_registrar';
 
   // Set default selected branch when user branches load
   useEffect(() => {
     if (!selectedBranch && userBranches.length > 0) {
-      // If user can manage branches and there are multiple branches, default to "all"
-      if (canManageBranches && userBranches.length > 1) {
+      // HQ roles with multiple branches default to "all"
+      if (isHQRole && userBranches.length > 1) {
         setSelectedBranch('all');
       } else {
-        // Otherwise, select the first (or only) branch
+        // Branch-restricted roles or single branch users select their branch
         setSelectedBranch(userBranches[0]?.id || null);
       }
     }
-  }, [userBranches, canManageBranches, selectedBranch]);
+  }, [userBranches, isHQRole, selectedBranch]);
 
   // Restore selected branch from localStorage
   useEffect(() => {
@@ -135,6 +140,8 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSelectedBranch,
     isLoading,
     canManageBranches,
+    canSwitchBranches,
+    isHQRole,
     userBranches
   };
 
