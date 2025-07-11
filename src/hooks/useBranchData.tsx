@@ -74,30 +74,15 @@ export const useBranchData = () => {
     }
   }, [selectedBranch, queryClient]);
 
-  // Students query with branch filtering - bypassing 1000 row limit
-  const useStudents = () => {
+  // Students query with server-side search to handle large datasets
+  const useStudents = (searchTerm?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['students', selectedBranch, branchFilter, user?.id],
+      queryKey: ['students', selectedBranch, branchFilter, user?.id, searchTerm],
       queryFn: async () => {
-        console.log('Fetching ALL students for branch:', selectedBranch, 'filter:', branchFilter);
+        console.log('Fetching students with search:', searchTerm, 'branch:', selectedBranch);
         
-        // First get the count to ensure we're fetching all data
-        let countQuery = supabase
-          .from('students')
-          .select('*', { count: 'exact', head: true });
-        
-        if (branchFilter) {
-          countQuery = countQuery.eq('branch_id', branchFilter);
-        }
-        
-        const { count, error: countError } = await countQuery;
-        if (countError) throw countError;
-        
-        console.log('Total students to fetch:', count);
-        
-        // Fetch all students with explicit large range to bypass 1000 limit
         let query = supabase
           .from('students')
           .select(`
@@ -118,23 +103,31 @@ export const useBranchData = () => {
               academic_year
             )
           `)
-          .range(0, 9999) // Force a large range
-          .order('student_id'); // Change order to find our student easier
-        
+          .order('created_at', { ascending: false });
+
         // Apply branch filter if needed
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
+        }
+
+        // If searching, apply server-side search to get all matching results
+        if (searchTerm && searchTerm.trim()) {
+          query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+          // For search results, get more records
+          query = query.limit(500);
+        } else {
+          // For normal browsing, limit to recent records
+          query = query.limit(200);
         }
         
         const { data, error } = await query;
         
         if (error) throw error;
-        console.log('Students fetched:', data?.length || 0, 'of', count, 'total records');
+        console.log('Students fetched:', data?.length || 0, 'records');
         return data || [];
       },
       enabled: !!user?.id,
-      staleTime: 0, // Always refetch when branch changes
-      refetchOnMount: true
+      staleTime: searchTerm ? 0 : 30000, // Fresh search results, cache normal results
     });
   };
 

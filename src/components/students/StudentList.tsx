@@ -129,29 +129,16 @@ export const StudentList = () => {
     };
   }, [queryClient]);
 
-  // Use the branch-filtered students query with proper loading state
-  const { data: allStudents, isLoading, error } = useStudents();
+  // Use the branch-filtered students query with server-side search
+  const { data: allStudents, isLoading, error } = useStudents(searchTerm);
 
-  // Apply client-side filtering
+  // Apply client-side filtering for non-search filters only
   const students = useMemo(() => {
     if (!allStudents) return [];
     
     let filtered = allStudents;
     
-    // Apply search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(student =>
-        student.student_id?.toLowerCase().includes(searchLower) ||
-        student.first_name?.toLowerCase().includes(searchLower) ||
-        student.last_name?.toLowerCase().includes(searchLower) ||
-        student.father_name?.toLowerCase().includes(searchLower) ||
-        student.grandfather_name?.toLowerCase().includes(searchLower) ||
-        student.mother_name?.toLowerCase().includes(searchLower) ||
-        student.phone?.toLowerCase().includes(searchLower) ||
-        student.email?.toLowerCase().includes(searchLower)
-      );
-    }
+    // Skip search filter since it's now handled server-side
     
     // Apply status filter
     if (statusFilter && statusFilter !== 'all') {
@@ -169,7 +156,7 @@ export const StudentList = () => {
     }
     
     return filtered;
-  }, [allStudents, searchTerm, statusFilter, gradeFilter, classFilter]);
+  }, [allStudents, statusFilter, gradeFilter, classFilter]);
 
   // Get accurate count of filtered students using branch-aware counting
   const { getBranchFilter } = useBranchData();
