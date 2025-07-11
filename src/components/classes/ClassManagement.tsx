@@ -85,7 +85,7 @@ export const ClassManagement = () => {
     };
   }, [queryClient]);
 
-  const { data: classes, isLoading } = useQuery({
+  const { data: classes, isLoading: isClassesLoading } = useQuery({
     queryKey: ['classes'],
     queryFn: async () => {
       console.log('Fetching classes with student counts...');
@@ -152,7 +152,7 @@ export const ClassManagement = () => {
   });
 
   // Ensure all grade levels exist and have proper data
-  const { data: gradeStats } = useQuery({
+  const { data: gradeStats, isLoading: isGradeStatsLoading } = useQuery({
     queryKey: ['grade-stats'],
     queryFn: async () => {
       console.log('Fetching comprehensive grade stats...');
@@ -534,7 +534,7 @@ export const ClassManagement = () => {
           )}
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isClassesLoading || isGradeStatsLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="text-gray-600 mt-4">Loading classes...</p>

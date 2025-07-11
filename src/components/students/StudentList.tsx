@@ -129,7 +129,7 @@ export const StudentList = () => {
     };
   }, [queryClient]);
 
-  // Use the branch-filtered students query
+  // Use the branch-filtered students query with proper loading state
   const { data: allStudents, isLoading, error } = useStudents();
 
   // Apply client-side filtering

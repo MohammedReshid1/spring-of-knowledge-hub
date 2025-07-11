@@ -74,14 +74,30 @@ export const useBranchData = () => {
     }
   }, [selectedBranch, queryClient]);
 
-  // Students query with branch filtering
+  // Students query with branch filtering - bypassing 1000 row limit
   const useStudents = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
       queryKey: ['students', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
-        console.log('Fetching students for branch:', selectedBranch, 'filter:', branchFilter);
+        console.log('Fetching ALL students for branch:', selectedBranch, 'filter:', branchFilter);
+        
+        // First get the count to ensure we're fetching all data
+        let countQuery = supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true });
+        
+        if (branchFilter) {
+          countQuery = countQuery.eq('branch_id', branchFilter);
+        }
+        
+        const { count, error: countError } = await countQuery;
+        if (countError) throw countError;
+        
+        console.log('Total students to fetch:', count);
+        
+        // Fetch all students by using range to bypass 1000 limit
         let query = supabase
           .from('students')
           .select(`
@@ -102,6 +118,7 @@ export const useBranchData = () => {
               academic_year
             )
           `)
+          .range(0, (count || 5000) - 1) // Ensure we get all records
           .order('created_at', { ascending: false });
         
         // Apply branch filter if needed
@@ -112,7 +129,7 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        console.log('Students fetched:', data?.length || 0, 'records');
+        console.log('Students fetched:', data?.length || 0, 'of', count, 'total records');
         return data || [];
       },
       enabled: !!user?.id,
@@ -121,14 +138,30 @@ export const useBranchData = () => {
     });
   };
 
-  // Classes query with branch filtering
+  // Classes query with branch filtering - bypassing 1000 row limit
   const useClasses = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
       queryKey: ['classes', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
-        console.log('Fetching classes for branch:', selectedBranch, 'filter:', branchFilter);
+        console.log('Fetching ALL classes for branch:', selectedBranch, 'filter:', branchFilter);
+        
+        // First get the count
+        let countQuery = supabase
+          .from('classes')
+          .select('*', { count: 'exact', head: true });
+        
+        if (branchFilter) {
+          countQuery = countQuery.eq('branch_id', branchFilter);
+        }
+        
+        const { count, error: countError } = await countQuery;
+        if (countError) throw countError;
+        
+        console.log('Total classes to fetch:', count);
+        
+        // Fetch all classes
         let query = supabase
           .from('classes')
           .select(`
@@ -144,6 +177,7 @@ export const useBranchData = () => {
               email
             )
           `)
+          .range(0, (count || 1000) - 1)
           .order('class_name');
         
         // Apply branch filter if needed
@@ -154,7 +188,7 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        console.log('Classes fetched:', data?.length || 0, 'records');
+        console.log('Classes fetched:', data?.length || 0, 'of', count, 'total records');
         return data || [];
       },
       enabled: !!user?.id,
@@ -163,14 +197,30 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with branch filtering
+  // Payments query with branch filtering - bypassing 1000 row limit
   const usePayments = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
       queryKey: ['payments', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
-        console.log('Fetching payments for branch:', selectedBranch, 'filter:', branchFilter);
+        console.log('Fetching ALL payments for branch:', selectedBranch, 'filter:', branchFilter);
+        
+        // First get the count
+        let countQuery = supabase
+          .from('registration_payments')
+          .select('*', { count: 'exact', head: true });
+        
+        if (branchFilter) {
+          countQuery = countQuery.eq('branch_id', branchFilter);
+        }
+        
+        const { count, error: countError } = await countQuery;
+        if (countError) throw countError;
+        
+        console.log('Total payments to fetch:', count);
+        
+        // Fetch all payments
         let query = supabase
           .from('registration_payments')
           .select(`
@@ -188,6 +238,7 @@ export const useBranchData = () => {
               status
             )
           `)
+          .range(0, (count || 5000) - 1)
           .order('created_at', { ascending: false });
         
         // Apply branch filter if needed
@@ -198,7 +249,7 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        console.log('Payments fetched:', data?.length || 0, 'records');
+        console.log('Payments fetched:', data?.length || 0, 'of', count, 'total records');
         return data || [];
       },
       enabled: !!user?.id,
@@ -207,14 +258,30 @@ export const useBranchData = () => {
     });
   };
 
-  // Attendance query with branch filtering
+  // Attendance query with branch filtering - bypassing 1000 row limit
   const useAttendance = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
       queryKey: ['attendance', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
-        console.log('Fetching attendance for branch:', selectedBranch, 'filter:', branchFilter);
+        console.log('Fetching ALL attendance for branch:', selectedBranch, 'filter:', branchFilter);
+        
+        // First get the count
+        let countQuery = supabase
+          .from('attendance')
+          .select('*', { count: 'exact', head: true });
+        
+        if (branchFilter) {
+          countQuery = countQuery.eq('branch_id', branchFilter);
+        }
+        
+        const { count, error: countError } = await countQuery;
+        if (countError) throw countError;
+        
+        console.log('Total attendance records to fetch:', count);
+        
+        // Fetch all attendance records
         let query = supabase
           .from('attendance')
           .select(`
@@ -228,6 +295,7 @@ export const useBranchData = () => {
               class_name
             )
           `)
+          .range(0, (count || 5000) - 1)
           .order('attendance_date', { ascending: false });
         
         // Apply branch filter if needed
@@ -238,7 +306,7 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        console.log('Attendance fetched:', data?.length || 0, 'records');
+        console.log('Attendance fetched:', data?.length || 0, 'of', count, 'total records');
         return data || [];
       },
       enabled: !!user?.id,

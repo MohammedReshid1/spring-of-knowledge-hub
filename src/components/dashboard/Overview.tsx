@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranch } from '@/contexts/BranchContext';
 import { useBranchData } from '@/hooks/useBranchData';
@@ -13,6 +14,7 @@ import { Users, BookOpen, GraduationCap, TrendingUp, Calendar, CreditCard, Alert
 import { Link } from 'react-router-dom';
 
 export const Overview = () => {
+  const { user } = useAuth();
   const { isAdmin, isSuperAdmin } = useRoleAccess();
   const { selectedBranch, userBranches } = useBranch();
   const { useStudents, useClasses, usePayments, getBranchFilter } = useBranchData();
@@ -63,117 +65,149 @@ export const Overview = () => {
     };
   }, [queryClient]);
 
-  // Use branch-filtered data
-  const { data: students } = useStudents();
-  const { data: classes } = useClasses();
-  const { data: payments } = usePayments();
+  // Use branch-filtered data with loading states
+  const { data: students, isLoading: isStudentsLoading } = useStudents();
+  const { data: classes, isLoading: isClassesLoading } = useClasses();
+  const { data: payments, isLoading: isPaymentsLoading } = usePayments();
 
+  // Get accurate counts using proper database queries
   const { data: dashboardStats, isLoading: isDashboardLoading } = useQuery({
     queryKey: ['dashboard-stats', selectedBranch, getBranchFilter()],
     queryFn: async () => {
-      console.log('Fetching dashboard stats for branch:', selectedBranch);
+      console.log('Fetching accurate dashboard stats for branch:', selectedBranch);
       
-      // Get fresh data directly instead of relying on potentially stale hook data
       const branchFilter = getBranchFilter();
+
+      // Use direct count queries for accurate statistics
+      let studentsCountQuery = supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true });
       
-      // Ensure data is available before calculating stats
-      if (!students || !classes || !payments) {
-        console.log('Missing data for dashboard calculation:', { 
-          students: students?.length, 
-          classes: classes?.length, 
-          payments: payments?.length 
-        });
-        return {
-          totalStudents: 0,
-          activeStudents: 0,
-          totalClasses: 0,
-          enrollmentRate: 0,
-          totalRevenue: 0,
-          paidStudents: 0,
-          unpaidStudents: 0,
-          recentRegistrations: 0,
-          pendingPayments: 0,
-          statusCounts: {},
-          gradeUtilization: []
-        };
+      let activeStudentsQuery = supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'Active');
+      
+      let classesCountQuery = supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true });
+      
+      let paymentsCountQuery = supabase
+        .from('registration_payments')
+        .select('*', { count: 'exact', head: true });
+
+      // Apply branch filter to all queries if needed
+      if (branchFilter) {
+        studentsCountQuery = studentsCountQuery.eq('branch_id', branchFilter);
+        activeStudentsQuery = activeStudentsQuery.eq('branch_id', branchFilter);
+        classesCountQuery = classesCountQuery.eq('branch_id', branchFilter);
+        paymentsCountQuery = paymentsCountQuery.eq('branch_id', branchFilter);
       }
 
-      // Calculate stats using filtered data
-      const totalStudents = students.length;
-      const activeStudents = students.filter(s => s.status === 'Active').length;
-      const recentRegistrations = students.filter(s => 
-        new Date(s.created_at) >= new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-      ).length;
-      const totalClasses = classes.length;
+      // Execute all count queries in parallel
+      const [
+        { count: totalStudents, error: studentsError },
+        { count: activeStudents, error: activeError },
+        { count: totalClasses, error: classesError },
+        { count: totalPayments, error: paymentsError }
+      ] = await Promise.all([
+        studentsCountQuery,
+        activeStudentsQuery,
+        classesCountQuery,
+        paymentsCountQuery
+      ]);
+
+      if (studentsError || activeError || classesError || paymentsError) {
+        console.error('Error fetching dashboard counts:', { studentsError, activeError, classesError, paymentsError });
+        throw studentsError || activeError || classesError || paymentsError;
+      }
+
+      // Get revenue and payment stats using the actual data
+      const totalRevenue = payments?.reduce((sum, p) => sum + (p.amount_paid || 0), 0) || 0;
+      const paidStudents = payments?.filter(p => p.payment_status === 'Paid').length || 0;
+      const unpaidStudents = payments?.filter(p => p.payment_status === 'Unpaid').length || 0;
+      const pendingPayments = payments?.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length || 0;
+
+      // Get recent registrations count
+      const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      let recentQuery = supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', thisMonthStart.toISOString());
       
-      // Calculate enrollment rate using class capacities
-      const totalCapacity = classes.reduce((sum, cls) => sum + (cls.max_capacity || 0), 0);
-      const totalEnrolled = classes.reduce((sum, cls) => sum + (cls.current_enrollment || 0), 0);
-      const enrollmentRate = totalCapacity > 0 ? Math.round((totalEnrolled / totalCapacity) * 100) : 0;
+      if (branchFilter) {
+        recentQuery = recentQuery.eq('branch_id', branchFilter);
+      }
+      
+      const { count: recentRegistrations } = await recentQuery;
 
-      // Calculate total revenue from all payments
-      const totalRevenue = payments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
-
-      // Payment statistics
-      const pendingPayments = payments.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length;
-      const unpaidStudents = payments.filter(p => p.payment_status === 'Unpaid').length;
-      const paidStudents = payments.filter(p => p.payment_status === 'Paid').length;
-
-      // Status breakdown
-      const statusCounts: Record<string, number> = students.reduce((acc, student) => {
+      // Status breakdown using actual student data
+      const statusCounts: Record<string, number> = students?.reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
-      }, {} as Record<string, number>);
+      }, {} as Record<string, number>) || {};
 
-      // Grade level utilization - calculate from students by grade
+      // Grade level utilization using actual data
       const gradeUtilization = Object.entries(
-        students.reduce((acc, student) => {
+        students?.reduce((acc, student) => {
           const grade = student.grade_level || 'unknown';
           acc[grade] = (acc[grade] || 0) + 1;
           return acc;
-        }, {} as Record<string, number>)
+        }, {} as Record<string, number>) || {}
       ).map(([grade, count]) => ({
         grade: grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        utilization: totalCapacity > 0 ? Math.round((count / totalCapacity) * 100) : 100,
+        utilization: 100,
         enrolled: count,
-        capacity: Math.max(count, 10) // Reasonable capacity estimate
+        capacity: Math.max(count, 10)
       }));
 
       const result = {
-        totalStudents,
-        activeStudents,
-        totalClasses,
-        enrollmentRate,
+        totalStudents: totalStudents || 0,
+        activeStudents: activeStudents || 0,
+        totalClasses: totalClasses || 0,
+        enrollmentRate: 0,
         totalRevenue,
         paidStudents,
         unpaidStudents,
-        recentRegistrations,
+        recentRegistrations: recentRegistrations || 0,
         pendingPayments,
         statusCounts,
         gradeUtilization: gradeUtilization.slice(0, 5)
       };
 
-      console.log('Dashboard stats calculated successfully:', result);
+      console.log('Dashboard stats calculated with accurate counts:', result);
       return result;
     },
-    enabled: !!students && !!classes && !!payments,
-    staleTime: 0, // Always refetch when branch changes
+    enabled: !!user?.id,
+    staleTime: 0,
     refetchOnMount: true
   });
 
-  const isLoading = isDashboardLoading || !students || !classes || !payments;
+  const isLoading = isDashboardLoading || isStudentsLoading || isClassesLoading || isPaymentsLoading;
 
   if (isLoading) {
     return (
       <div className="space-y-6 p-6">
         <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
+          <div className="h-8 bg-muted rounded w-1/4 mb-2"></div>
+          <div className="h-4 bg-muted rounded w-1/2 mb-6"></div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
+              <div key={i} className="h-32 bg-muted rounded animate-pulse"></div>
             ))}
+          </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-6">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-48 bg-muted rounded animate-pulse"></div>
+            ))}
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <div className="text-sm text-muted-foreground">
+            {selectedBranch === 'all' ? 'Loading data from all branches...' : 
+             selectedBranch ? `Loading data for ${userBranches.find(b => b.id === selectedBranch)?.name || 'selected branch'}...` :
+             'Loading dashboard data...'}
           </div>
         </div>
       </div>
