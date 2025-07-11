@@ -97,7 +97,7 @@ export const useBranchData = () => {
         
         console.log('Total students to fetch:', count);
         
-        // Fetch all students without any range limit - let Supabase handle pagination
+        // Fetch all students with explicit large range to bypass 1000 limit
         let query = supabase
           .from('students')
           .select(`
@@ -118,6 +118,7 @@ export const useBranchData = () => {
               academic_year
             )
           `)
+          .range(0, Math.max((count || 10000) - 1, 9999)) // Ensure we get all records
           .order('created_at', { ascending: false });
         
         // Apply branch filter if needed
