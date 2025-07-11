@@ -119,6 +119,7 @@ export const StudentList = () => {
           console.log('Students table changed, refetching...');
           queryClient.invalidateQueries({ queryKey: ['students'] });
           queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         }
       )
       .subscribe();

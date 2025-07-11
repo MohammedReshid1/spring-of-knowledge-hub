@@ -68,13 +68,34 @@ export const Overview = () => {
   const { data: classes } = useClasses();
   const { data: payments } = usePayments();
 
-  const { data: dashboardStats, isLoading } = useQuery({
-    queryKey: ['dashboard-stats', getBranchFilter()],
+  const { data: dashboardStats, isLoading: isDashboardLoading } = useQuery({
+    queryKey: ['dashboard-stats', selectedBranch, getBranchFilter()],
     queryFn: async () => {
-      console.log('Fetching dashboard stats...');
+      console.log('Fetching dashboard stats for branch:', selectedBranch);
       
+      // Get fresh data directly instead of relying on potentially stale hook data
+      const branchFilter = getBranchFilter();
+      
+      // Ensure data is available before calculating stats
       if (!students || !classes || !payments) {
-        return null;
+        console.log('Missing data for dashboard calculation:', { 
+          students: students?.length, 
+          classes: classes?.length, 
+          payments: payments?.length 
+        });
+        return {
+          totalStudents: 0,
+          activeStudents: 0,
+          totalClasses: 0,
+          enrollmentRate: 0,
+          totalRevenue: 0,
+          paidStudents: 0,
+          unpaidStudents: 0,
+          recentRegistrations: 0,
+          pendingPayments: 0,
+          statusCounts: {},
+          gradeUtilization: []
+        };
       }
 
       // Calculate stats using filtered data
@@ -114,13 +135,12 @@ export const Overview = () => {
         }, {} as Record<string, number>)
       ).map(([grade, count]) => ({
         grade: grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        utilization: 100, // Will be calculated properly later when we have grade capacity data
+        utilization: totalCapacity > 0 ? Math.round((count / totalCapacity) * 100) : 100,
         enrolled: count,
-        capacity: count + 10 // Placeholder calculation
+        capacity: Math.max(count, 10) // Reasonable capacity estimate
       }));
 
-      console.log('Dashboard stats calculated successfully');
-      return {
+      const result = {
         totalStudents,
         activeStudents,
         totalClasses,
@@ -133,10 +153,16 @@ export const Overview = () => {
         statusCounts,
         gradeUtilization: gradeUtilization.slice(0, 5)
       };
+
+      console.log('Dashboard stats calculated successfully:', result);
+      return result;
     },
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    enabled: !!students && !!classes && !!payments,
+    staleTime: 0, // Always refetch when branch changes
+    refetchOnMount: true
   });
+
+  const isLoading = isDashboardLoading || !students || !classes || !payments;
 
   if (isLoading) {
     return (
@@ -196,6 +222,16 @@ export const Overview = () => {
         <p className="text-gray-600 mt-1">
           Welcome to the Spring of Knowledge Academy Registration Management System
         </p>
+        {selectedBranch && selectedBranch !== 'all' && userBranches.length > 1 && (
+          <p className="text-sm text-blue-600 mt-1">
+            Currently viewing: {userBranches.find(b => b.id === selectedBranch)?.name || 'Selected Branch'}
+          </p>
+        )}
+        {selectedBranch === 'all' && (
+          <p className="text-sm text-green-600 mt-1">
+            Currently viewing: All Branches Combined
+          </p>
+        )}
       </div>
 
       {/* Main Statistics Cards */}

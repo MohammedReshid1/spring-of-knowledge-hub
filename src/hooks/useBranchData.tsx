@@ -1,13 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranch } from '@/contexts/BranchContext';
+import { useEffect } from 'react';
 
 export const useBranchData = () => {
   const { user } = useAuth();
   const { selectedBranch, isHQRole } = useBranch();
   const { canAccessAllBranches } = useRoleAccess();
+  const queryClient = useQueryClient();
 
   // Get current user's branch for automatic assignment
   const { data: currentUserBranch } = useQuery({
@@ -58,13 +60,28 @@ export const useBranchData = () => {
     return currentUserBranch;
   };
 
+  // Invalidate all queries when branch changes
+  useEffect(() => {
+    if (selectedBranch !== null) {
+      console.log('Branch changed to:', selectedBranch, 'invalidating queries...');
+      // Invalidate all branch-dependent queries
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+    }
+  }, [selectedBranch, queryClient]);
+
   // Students query with branch filtering
   const useStudents = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['students', branchFilter],
+      queryKey: ['students', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
+        console.log('Fetching students for branch:', selectedBranch, 'filter:', branchFilter);
         let query = supabase
           .from('students')
           .select(`
@@ -95,9 +112,12 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        return data;
+        console.log('Students fetched:', data?.length || 0, 'records');
+        return data || [];
       },
-      enabled: !!user?.id
+      enabled: !!user?.id,
+      staleTime: 0, // Always refetch when branch changes
+      refetchOnMount: true
     });
   };
 
@@ -106,8 +126,9 @@ export const useBranchData = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['classes', branchFilter],
+      queryKey: ['classes', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
+        console.log('Fetching classes for branch:', selectedBranch, 'filter:', branchFilter);
         let query = supabase
           .from('classes')
           .select(`
@@ -133,9 +154,12 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        return data;
+        console.log('Classes fetched:', data?.length || 0, 'records');
+        return data || [];
       },
-      enabled: !!user?.id
+      enabled: !!user?.id,
+      staleTime: 0,
+      refetchOnMount: true
     });
   };
 
@@ -144,8 +168,9 @@ export const useBranchData = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['payments', branchFilter],
+      queryKey: ['payments', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
+        console.log('Fetching payments for branch:', selectedBranch, 'filter:', branchFilter);
         let query = supabase
           .from('registration_payments')
           .select(`
@@ -173,9 +198,12 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        return data;
+        console.log('Payments fetched:', data?.length || 0, 'records');
+        return data || [];
       },
-      enabled: !!user?.id
+      enabled: !!user?.id,
+      staleTime: 0,
+      refetchOnMount: true
     });
   };
 
@@ -184,8 +212,9 @@ export const useBranchData = () => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['attendance', branchFilter],
+      queryKey: ['attendance', selectedBranch, branchFilter, user?.id],
       queryFn: async () => {
+        console.log('Fetching attendance for branch:', selectedBranch, 'filter:', branchFilter);
         let query = supabase
           .from('attendance')
           .select(`
@@ -209,9 +238,12 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        return data;
+        console.log('Attendance fetched:', data?.length || 0, 'records');
+        return data || [];
       },
-      enabled: !!user?.id
+      enabled: !!user?.id,
+      staleTime: 0,
+      refetchOnMount: true
     });
   };
 
