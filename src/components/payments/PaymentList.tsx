@@ -152,9 +152,10 @@ export const PaymentList = () => {
     return filtered;
   }, [allPayments, searchTerm, statusFilter, cycleFilter, gradeFilter]);
 
-  // Get accurate total count for non-search queries
+  // Get accurate total count for non-search queries using branch-aware counting
+  const { getBranchFilter } = useBranchData();
   const { data: totalCount } = useQuery({
-    queryKey: ['payments-total-count', statusFilter, cycleFilter, gradeFilter],
+    queryKey: ['payments-total-count', statusFilter, cycleFilter, gradeFilter, getBranchFilter()],
     queryFn: async () => {
       // Skip count query if searching since we already have all results
       if (searchTerm) return null;
@@ -162,6 +163,12 @@ export const PaymentList = () => {
       let countQuery = supabase
         .from('registration_payments')
         .select('*, students!inner(*)', { count: 'exact', head: true });
+
+      // Apply branch filter first (same logic as useBranchData)
+      const branchFilter = getBranchFilter();
+      if (branchFilter) {
+        countQuery = countQuery.eq('branch_id', branchFilter);
+      }
 
       // Apply same filters for count
       if (statusFilter && statusFilter !== 'all') {

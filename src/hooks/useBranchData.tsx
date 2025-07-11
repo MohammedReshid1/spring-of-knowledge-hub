@@ -161,7 +161,7 @@ export const useBranchData = () => {
         
         console.log('Total classes to fetch:', count);
         
-        // Fetch all classes
+        // Fetch all classes with student counts
         let query = supabase
           .from('classes')
           .select(`
@@ -188,8 +188,43 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        console.log('Classes fetched:', data?.length || 0, 'of', count, 'total records');
-        return data || [];
+
+        // Get actual student counts for each class and update capacities if needed
+        const classesWithCounts = await Promise.all(data?.map(async (cls) => {
+          const { count: studentCount, error: countError } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('class_id', cls.id)
+            .eq('status', 'Active');
+
+          if (countError) {
+            console.error(`Error counting students for class ${cls.id}:`, countError);
+          }
+
+          const currentEnrollment = studentCount || 0;
+          
+          // Automatically increase capacity if enrollment exceeds current capacity
+          let adjustedCapacity = cls.max_capacity;
+          if (currentEnrollment > cls.max_capacity) {
+            // Round up to nearest 5 to give some buffer
+            adjustedCapacity = Math.ceil(currentEnrollment / 5) * 5;
+            
+            // Update the capacity in the database
+            await supabase
+              .from('classes')
+              .update({ max_capacity: adjustedCapacity })
+              .eq('id', cls.id);
+          }
+
+          return {
+            ...cls,
+            current_enrollment: currentEnrollment,
+            max_capacity: adjustedCapacity
+          };
+        }) || []);
+
+        console.log('Classes fetched with student counts:', classesWithCounts?.length || 0, 'of', count, 'total records');
+        return classesWithCounts || [];
       },
       enabled: !!user?.id,
       staleTime: 0,

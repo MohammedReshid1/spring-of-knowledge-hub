@@ -85,71 +85,8 @@ export const ClassManagement = () => {
     };
   }, [queryClient]);
 
-  const { data: classes, isLoading: isClassesLoading } = useQuery({
-    queryKey: ['classes'],
-    queryFn: async () => {
-      console.log('Fetching classes with student counts...');
-      const { data, error } = await supabase
-        .from('classes')
-        .select(`
-          *,
-          grade_levels:grade_level_id (
-            id,
-            grade,
-            max_capacity
-          ),
-          teacher:teacher_id (
-            id,
-            full_name
-          )
-        `)
-        .order('academic_year', { ascending: false });
-      
-      if (error) {
-        console.error('Error fetching classes:', error);
-        throw error;
-      }
-
-      // Get actual student counts for each class
-      const classesWithCounts = await Promise.all(data?.map(async (cls) => {
-        const { count, error: countError } = await supabase
-          .from('students')
-          .select('*', { count: 'exact', head: true })
-          .eq('class_id', cls.id)
-          .eq('status', 'Active');
-
-        if (countError) {
-          console.error(`Error counting students for class ${cls.id}:`, countError);
-        }
-
-        const currentEnrollment = count || 0;
-        
-        // Automatically increase capacity if enrollment exceeds current capacity
-        let adjustedCapacity = cls.max_capacity;
-        if (currentEnrollment > cls.max_capacity) {
-          // Round up to nearest 5 to give some buffer
-          adjustedCapacity = Math.ceil(currentEnrollment / 5) * 5;
-          
-          // Update the capacity in the database
-          await supabase
-            .from('classes')
-            .update({ max_capacity: adjustedCapacity })
-            .eq('id', cls.id);
-        }
-
-        return {
-          ...cls,
-          current_enrollment: currentEnrollment,
-          max_capacity: adjustedCapacity
-        };
-      }) || []);
-
-      console.log('Classes fetched with actual student counts:', classesWithCounts.length);
-      return classesWithCounts;
-    },
-    staleTime: 0,
-    refetchInterval: 30000
-  });
+  // Use the branch-filtered classes query
+  const { data: classes, isLoading: isClassesLoading } = useClasses();
 
   // Ensure all grade levels exist and have proper data
   const { data: gradeStats, isLoading: isGradeStatsLoading } = useQuery({

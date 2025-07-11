@@ -171,13 +171,20 @@ export const StudentList = () => {
     return filtered;
   }, [allStudents, searchTerm, statusFilter, gradeFilter, classFilter]);
 
-  // Get accurate count of filtered students
+  // Get accurate count of filtered students using branch-aware counting
+  const { getBranchFilter } = useBranchData();
   const { data: filteredStudentsCount } = useQuery({
-    queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter],
+    queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter, getBranchFilter()],
     queryFn: async () => {
       let countQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true });
+
+      // Apply branch filter first (same logic as useBranchData)
+      const branchFilter = getBranchFilter();
+      if (branchFilter) {
+        countQuery = countQuery.eq('branch_id', branchFilter);
+      }
 
       if (searchTerm) {
         countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
