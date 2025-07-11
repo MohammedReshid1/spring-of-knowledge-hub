@@ -118,8 +118,8 @@ export const useBranchData = () => {
               academic_year
             )
           `)
-          .range(0, Math.max((count || 10000) - 1, 9999)) // Ensure we get all records
-          .order('created_at', { ascending: false });
+          .range(0, 9999) // Force a large range
+          .order('student_id'); // Change order to find our student easier
         
         // Apply branch filter if needed
         if (branchFilter) {
