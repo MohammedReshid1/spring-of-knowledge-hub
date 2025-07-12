@@ -82,6 +82,7 @@ export const useBranchData = () => {
         queryClient.invalidateQueries({ queryKey: ['attendance'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
         queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['filtered-students-count'] });
       }, 100); // Small debounce to prevent rapid invalidations
 
       return () => clearTimeout(timeoutId);

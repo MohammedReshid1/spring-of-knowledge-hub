@@ -159,9 +159,9 @@ export const StudentList = () => {
   }, [allStudents, statusFilter, gradeFilter, classFilter]);
 
   // Get accurate count of filtered students using branch-aware counting
-  const { getBranchFilter } = useBranchData();
+  const { getBranchFilter, selectedBranch } = useBranchData();
   const { data: filteredStudentsCount } = useQuery({
-    queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter, getBranchFilter()],
+    queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter, selectedBranch],
     queryFn: async () => {
       let countQuery = supabase
         .from('students')
@@ -198,8 +198,9 @@ export const StudentList = () => {
       
       return count || 0;
     },
-    staleTime: 30000,
-    refetchInterval: 60000
+    enabled: selectedBranch !== null, // Only run when branch is selected
+    staleTime: 5000, // Shorter cache time for more accurate counts
+    refetchInterval: false // Disable auto-refetch since we invalidate on changes
   });
 
   const { data: classes } = useQuery({
