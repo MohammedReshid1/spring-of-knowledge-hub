@@ -129,10 +129,10 @@ export const useBranchData = () => {
         if (searchTerm && searchTerm.trim()) {
           query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
           // For search results, get more records
-          query = query.limit(500);
+          query = query.limit(5000);
         } else {
           // For normal browsing, get more records to show all students
-          query = query.limit(500);
+          query = query.limit(5000);
         }
         
         const { data, error } = await query;
