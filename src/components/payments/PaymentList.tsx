@@ -113,26 +113,16 @@ export const PaymentList = () => {
     };
   }, [queryClient]);
 
-  // Use the branch-filtered payments query
-  const { data: allPayments, isLoading, error } = usePayments();
+  // Use the branch-filtered payments query with server-side search
+  const { data: allPayments, isLoading, error } = usePayments(searchTerm);
 
-  // Apply client-side filtering
+  // Apply client-side filtering for non-search filters only
   const payments = useMemo(() => {
     if (!allPayments) return [];
     
     let filtered = allPayments;
     
-    // Apply search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(payment =>
-        payment.students?.student_id?.toLowerCase().includes(searchLower) ||
-        payment.students?.first_name?.toLowerCase().includes(searchLower) ||
-        payment.students?.last_name?.toLowerCase().includes(searchLower) ||
-        payment.students?.mother_name?.toLowerCase().includes(searchLower) ||
-        payment.students?.father_name?.toLowerCase().includes(searchLower)
-      );
-    }
+    // Skip search filter since it's now handled server-side
     
     // Apply status filter
     if (statusFilter && statusFilter !== 'all') {
@@ -150,7 +140,7 @@ export const PaymentList = () => {
     }
     
     return filtered;
-  }, [allPayments, searchTerm, statusFilter, cycleFilter, gradeFilter]);
+  }, [allPayments, statusFilter, cycleFilter, gradeFilter]);
 
   // Get accurate total count for non-search queries using branch-aware counting
   const { getBranchFilter } = useBranchData();

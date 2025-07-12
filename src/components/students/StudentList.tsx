@@ -163,12 +163,16 @@ export const StudentList = () => {
   const { data: filteredStudentsCount } = useQuery({
     queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter, selectedBranch],
     queryFn: async () => {
+      console.log('COUNT QUERY - Branch:', selectedBranch, 'Grade:', gradeFilter, 'Search:', searchTerm);
+      
       let countQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true });
 
       // Apply branch filter first (same logic as useBranchData)
       const branchFilter = getBranchFilter();
+      console.log('COUNT QUERY - Branch filter result:', branchFilter);
+      
       if (branchFilter) {
         countQuery = countQuery.eq('branch_id', branchFilter);
       }
@@ -182,6 +186,7 @@ export const StudentList = () => {
       }
       
       if (gradeFilter && gradeFilter !== 'all') {
+        console.log('COUNT QUERY - Applying grade filter:', gradeFilter);
         countQuery = countQuery.eq('grade_level', gradeFilter as any);
       }
       
@@ -196,6 +201,7 @@ export const StudentList = () => {
         throw error;
       }
       
+      console.log('COUNT QUERY RESULT:', count);
       return count || 0;
     },
     enabled: selectedBranch !== null, // Only run when branch is selected

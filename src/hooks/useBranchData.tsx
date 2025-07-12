@@ -245,35 +245,21 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with branch filtering - bypassing 1000 row limit
-  const usePayments = () => {
+  // Payments query with branch filtering and server-side search
+  const usePayments = (searchTerm?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['payments', selectedBranch, branchFilter, user?.id],
+      queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm],
       queryFn: async () => {
-        console.log('Fetching ALL payments for branch:', selectedBranch, 'filter:', branchFilter);
+        console.log('Fetching payments for branch:', selectedBranch, 'search:', searchTerm);
         
-        // First get the count
-        let countQuery = supabase
-          .from('registration_payments')
-          .select('*', { count: 'exact', head: true });
-        
-        if (branchFilter) {
-          countQuery = countQuery.eq('branch_id', branchFilter);
-        }
-        
-        const { count, error: countError } = await countQuery;
-        if (countError) throw countError;
-        
-        console.log('Total payments to fetch:', count);
-        
-        // Fetch all payments
+        // Build the main query with joins
         let query = supabase
           .from('registration_payments')
           .select(`
             *,
-            students (
+            students!inner (
               id,
               student_id,
               first_name,
@@ -285,23 +271,29 @@ export const useBranchData = () => {
               photo_url,
               status
             )
-          `)
-          .range(0, (count || 5000) - 1)
-          .order('created_at', { ascending: false });
+          `);
         
         // Apply branch filter if needed
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
         }
+
+        // Server-side search across multiple student fields
+        if (searchTerm && searchTerm.trim()) {
+          query = query.or(`students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%,students.father_name.ilike.%${searchTerm}%`);
+        }
+
+        // Filter for active students only
+        query = query.in('students.status', ['Active']);
         
-        const { data, error } = await query;
+        const { data, error } = await query.order('created_at', { ascending: false });
         
         if (error) throw error;
-        console.log('Payments fetched:', data?.length || 0, 'of', count, 'total records');
+        console.log('Payments fetched:', data?.length || 0, 'records');
         return data || [];
       },
       enabled: !!user?.id,
-      staleTime: 30000, // Increased cache for payments
+      staleTime: 30000,
       gcTime: 600000,
       refetchOnMount: false,
       refetchOnWindowFocus: false

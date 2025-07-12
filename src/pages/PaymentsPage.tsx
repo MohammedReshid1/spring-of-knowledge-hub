@@ -1,10 +1,10 @@
-import { PaymentDashboard } from '@/components/payments/PaymentDashboard';
+import { PaymentList } from '@/components/payments/PaymentList';
 import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 
 const PaymentsPage = () => {
   return (
-    <BranchLoadingWrapper loadingMessage="Loading payment data...">
-      <PaymentDashboard />
+    <BranchLoadingWrapper loadingMessage="Loading payments...">
+      <PaymentList />
     </BranchLoadingWrapper>
   );
 };
