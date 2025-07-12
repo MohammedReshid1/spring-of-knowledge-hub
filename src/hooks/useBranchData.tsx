@@ -281,7 +281,7 @@ export const useBranchData = () => {
         // Server-side search across multiple student fields  
         if (searchTerm && searchTerm.trim()) {
           const escapedSearch = searchTerm.trim();
-          query = query.or(`students.student_id.ilike.%${escapedSearch}%,students.first_name.ilike.%${escapedSearch}%,students.last_name.ilike.%${escapedSearch}%,students.mother_name.ilike.%${escapedSearch}%,students.father_name.ilike.%${escapedSearch}%`);
+          query = query.or(`student_id.ilike.%${escapedSearch}%,students.student_id.ilike.%${escapedSearch}%,students.first_name.ilike.%${escapedSearch}%,students.last_name.ilike.%${escapedSearch}%,students.mother_name.ilike.%${escapedSearch}%,students.father_name.ilike.%${escapedSearch}%`);
         }
 
         // Filter for active students only

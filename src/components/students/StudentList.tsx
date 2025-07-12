@@ -526,6 +526,25 @@ export const StudentList = () => {
     return sortOrder === 'asc' ? comparison : -comparison;
   }) || [];
 
+  // Debug logging for Grade 2 filter issue
+  useEffect(() => {
+    if (gradeFilter === 'grade_2') {
+      console.log('GRADE 2 DEBUG:', {
+        gradeFilter,
+        studentsCount: students?.length || 0,
+        filteredCount: filteredStudents.length,
+        grade2InData: students?.filter(s => s.grade_level === 'grade_2').length || 0,
+        branchFilter: getBranchFilter(),
+        searchTerm,
+        sampleStudents: students?.slice(0, 3).map(s => ({ 
+          id: s.student_id, 
+          grade: s.grade_level, 
+          branch: s.branch_id 
+        })) || []
+      });
+    }
+  }, [gradeFilter, students, filteredStudents.length, getBranchFilter, searchTerm]);
+
   // Pagination calculations
   const totalPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
   const startIndex = (currentPage - 1) * STUDENTS_PER_PAGE;
