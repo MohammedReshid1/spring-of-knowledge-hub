@@ -204,6 +204,43 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     return defaultDate.toISOString().split('T')[0];
   };
 
+  const extractClassFromFilename = (filename: string): { className: string; gradeLevel: GradeLevel } | null => {
+    if (!filename) return null;
+    
+    // Remove file extension and normalize
+    const name = filename.replace(/\.(xlsx|xls|csv)$/i, '').trim();
+    console.log(`Extracting class from filename: "${name}"`);
+    
+    // Handle patterns like "5AA", "5BB", etc. for Grade 5
+    const gradePatterns = [
+      /^(\d{1,2})([A-Z]{2})$/i,  // 5AA, 5BB, etc.
+      /^(\d{1,2})([A-Z])$/i,     // 5A, 5B, etc.
+      /^Grade\s*(\d{1,2})\s*([A-Z])$/i, // Grade 5 A
+      /^(\d{1,2})([A-Z])\s*$/i,  // 5A with space
+    ];
+    
+    for (const pattern of gradePatterns) {
+      const match = name.match(pattern);
+      if (match) {
+        const gradeNum = match[1];
+        let section = match[2];
+        
+        // Handle double letter sections (AA = A, BB = B, etc.)
+        if (section.length === 2 && section[0] === section[1]) {
+          section = section[0];
+        }
+        
+        const gradeLevel = `grade_${gradeNum}` as GradeLevel;
+        const className = `GRADE ${gradeNum} - ${section.toUpperCase()}`;
+        
+        console.log(`Filename pattern matched: Grade ${gradeNum}, Section ${section} -> ${className}`);
+        return { className, gradeLevel };
+      }
+    }
+    
+    return null;
+  };
+
   const extractClassFromHeader = (headerText: string): { className: string; gradeLevel: GradeLevel } | null => {
     if (!headerText || typeof headerText !== 'string') return null;
     
@@ -351,7 +388,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     }
   };
 
-  const processExcelData = async (jsonData: any[]) => {
+  const processExcelData = async (jsonData: any[], filename: string = '') => {
     if (!jsonData || jsonData.length === 0) {
       throw new Error('No data found in the Excel file');
     }
@@ -368,6 +405,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     };
 
     console.log('Raw Excel data:', jsonData);
+    console.log('Processing file:', filename);
 
     // First pass: Identify classes from headers and group students
     const classes: Map<string, ClassInfo> = new Map();
@@ -375,31 +413,46 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
 
     updateProgress(10, 100, 'Analyzing Excel structure and identifying classes...');
 
+    // Try to extract class info from filename first
+    const filenameClassInfo = extractClassFromFilename(filename);
+    if (filenameClassInfo) {
+      console.log(`Found class from filename: ${filenameClassInfo.className} (${filenameClassInfo.gradeLevel})`);
+      currentClass = {
+        name: filenameClassInfo.className,
+        gradeLevel: filenameClassInfo.gradeLevel,
+        students: []
+      };
+      classes.set(filenameClassInfo.className, currentClass);
+    }
+
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
       
-      // Check all values in the row for class headers
-      const allValues = Object.values(row);
-      let classFound = false;
-      
-      for (const value of allValues) {
-        if (value && typeof value === 'string') {
-          const classInfo = extractClassFromHeader(value.toString());
-          if (classInfo) {
-            console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
-            currentClass = {
-              name: classInfo.className,
-              gradeLevel: classInfo.gradeLevel,
-              students: []
-            };
-            classes.set(classInfo.className, currentClass);
-            classFound = true;
-            break;
+      // If we don't have a class from filename, check headers in the content
+      if (!currentClass) {
+        // Check all values in the row for class headers
+        const allValues = Object.values(row);
+        let classFound = false;
+        
+        for (const value of allValues) {
+          if (value && typeof value === 'string') {
+            const classInfo = extractClassFromHeader(value.toString());
+            if (classInfo) {
+              console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
+              currentClass = {
+                name: classInfo.className,
+                gradeLevel: classInfo.gradeLevel,
+                students: []
+              };
+              classes.set(classInfo.className, currentClass);
+              classFound = true;
+              break;
+            }
           }
         }
+        
+        if (classFound) continue;
       }
-      
-      if (classFound) continue;
 
       // Look for student data - check for student name in the row
       const studentName = row['__EMPTY'] || row['Student\'s Name'] || Object.values(row).find(val => 
@@ -438,7 +491,16 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     })));
 
     if (classes.size === 0) {
-      throw new Error('No class headers found in the Excel file. Please ensure your Excel file has class headers like "Grade : _PRE KG - A___" or "PRE KG - A"');
+      throw new Error(`No class headers found in the Excel file "${filename}". 
+      
+      For filename-based detection, use patterns like:
+      • 5AA.xlsx for "GRADE 5 - A"
+      • 5BB.xlsx for "GRADE 5 - B"
+      
+      Or ensure your Excel file has class headers like:
+      • "Grade : _PRE KG - A___" 
+      • "PRE KG - A"
+      • "GRADE 5 - A"`);
     }
 
     updateProgress(25, 100, 'Creating classes in database...');
@@ -604,7 +666,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
         console.log('Excel file processed:', jsonData.length, 'rows found');
-        await processExcelData(jsonData);
+        await processExcelData(jsonData, file.name);
       } catch (error) {
         console.error('Error processing file:', error);
         setIsImporting(false);
@@ -676,8 +738,9 @@ Hassan Ali Ibrahim`;
         <div className="bg-blue-50 p-4 rounded-lg">
           <h4 className="font-medium text-blue-800 mb-2">How it works:</h4>
           <ul className="text-sm text-blue-700 space-y-1">
-            <li>• Put class names like "PRE KG - A", "KG - B", "PREP - A" in separate rows</li>
-            <li>• List student names in rows below each class header</li>
+            <li>• <strong>Filename Method:</strong> Name your files like "5AA.xlsx" for "GRADE 5 - A", "5BB.xlsx" for "GRADE 5 - B"</li>
+            <li>• <strong>Header Method:</strong> Put class names like "PRE KG - A", "KG - B", "PREP - A" in separate rows</li>
+            <li>• List student names in rows below each class header (or entire file for filename method)</li>
             <li>• The system will automatically create classes and assign students</li>
             <li>• Supports PRE KG, KG, PREP, and Grade 1-12 with sections A-Z</li>
             <li>• Class capacity will be adjusted based on actual student count</li>
