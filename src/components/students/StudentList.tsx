@@ -526,24 +526,8 @@ export const StudentList = () => {
     return sortOrder === 'asc' ? comparison : -comparison;
   }) || [];
 
-  // Debug logging for Grade 2 filter issue
-  useEffect(() => {
-    if (gradeFilter === 'grade_2') {
-      console.log('GRADE 2 DEBUG:', {
-        gradeFilter,
-        studentsCount: students?.length || 0,
-        filteredCount: filteredStudents.length,
-        grade2InData: students?.filter(s => s.grade_level === 'grade_2').length || 0,
-        branchFilter: getBranchFilter(),
-        searchTerm,
-        sampleStudents: students?.slice(0, 3).map(s => ({ 
-          id: s.student_id, 
-          grade: s.grade_level, 
-          branch: s.branch_id 
-        })) || []
-      });
-    }
-  }, [gradeFilter, students, filteredStudents.length, getBranchFilter, searchTerm]);
+  // Show helpful message when filter shows count but no results
+  const showBranchSwitchMessage = gradeFilter && filteredStudents.length === 0 && (filteredStudentsCount || 0) > 0;
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
@@ -928,7 +912,18 @@ export const StudentList = () => {
             <div className="text-center py-12">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 font-medium">No students found</p>
-              <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
+              {showBranchSwitchMessage ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4 mx-auto max-w-md">
+                  <p className="text-blue-800 text-sm font-medium">
+                    Found {filteredStudentsCount} {gradeFilter?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} students in other branches
+                  </p>
+                  <p className="text-blue-600 text-xs mt-1">
+                    Switch to a different branch to view these students
+                  </p>
+                </div>
+              ) : (
+                <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
+              )}
             </div>
           ) : (
             <>

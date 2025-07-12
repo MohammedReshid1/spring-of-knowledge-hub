@@ -278,10 +278,11 @@ export const useBranchData = () => {
           query = query.eq('branch_id', branchFilter);
         }
 
-        // Server-side search across multiple student fields  
+        // Server-side search - use simple approach without problematic OR clause
         if (searchTerm && searchTerm.trim()) {
           const escapedSearch = searchTerm.trim();
-          query = query.or(`student_id.ilike.%${escapedSearch}%,students.student_id.ilike.%${escapedSearch}%,students.first_name.ilike.%${escapedSearch}%,students.last_name.ilike.%${escapedSearch}%,students.mother_name.ilike.%${escapedSearch}%,students.father_name.ilike.%${escapedSearch}%`);
+          // Use multiple individual filters instead of complex OR with joins
+          query = query.or(`students.student_id.ilike.%${escapedSearch}%,students.first_name.ilike.%${escapedSearch}%,students.last_name.ilike.%${escapedSearch}%,students.mother_name.ilike.%${escapedSearch}%,students.father_name.ilike.%${escapedSearch}%`);
         }
 
         // Filter for active students only
