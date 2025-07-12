@@ -9,13 +9,13 @@ import { BranchProvider } from "./contexts/BranchContext";
 import { AuthForm } from "./components/auth/AuthForm";
 import { DashboardLayout } from "./components/dashboard/DashboardLayout";
 import { Overview } from "./components/dashboard/Overview";
-import { StudentList } from "./components/students/StudentList";
-import { ClassManagement } from "./components/classes/ClassManagement";
+import StudentsPage from "./pages/StudentsPage";
+import ClassesPage from "./pages/ClassesPage";
+import PaymentsPage from "./pages/PaymentsPage";
+import IDCardsPage from "./pages/IDCardsPage";
 import { TeacherManagement } from "./components/teachers/TeacherManagement";
-import { PaymentList } from "./components/payments/PaymentList";
 import { PaymentDashboard } from "./components/payments/PaymentDashboard";
 import { AccountSettings } from "./components/settings/AccountSettings";
-import { IDCardManager } from "./components/students/IDCardManager";
 import { BranchManagement } from "./components/branches/BranchManagement";
 import NotFound from "./pages/NotFound";
 
@@ -90,7 +90,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DashboardLayout>
-                    <StudentList />
+                    <StudentsPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
@@ -100,7 +100,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DashboardLayout>
-                    <ClassManagement />
+                    <ClassesPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
@@ -120,7 +120,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DashboardLayout>
-                    <PaymentList />
+                    <PaymentsPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               }
@@ -140,7 +140,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <DashboardLayout>
-                    <IDCardManager />
+                    <IDCardsPage />
                   </DashboardLayout>
                 </ProtectedRoute>
               }

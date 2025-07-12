@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { BranchSwitchDialog } from '@/components/common/BranchSwitchDialog';
+import { FullScreenLoading } from '@/components/common/FullScreenLoading';
 
 interface Branch {
   id: string;
@@ -36,8 +38,12 @@ export const useBranch = () => {
 
 export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [pendingBranchId, setPendingBranchId] = useState<string | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isDebouncing, setIsDebouncing] = useState(false);
 
   // Get all branches (for admins) or user's accessible branches
   const { data: userBranches = [], isLoading } = useQuery({
@@ -136,18 +142,44 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [selectedBranch]);
 
-  // Enhanced setSelectedBranch with loading state and debouncing
   const handleSetSelectedBranch = (branchId: string | null) => {
-    // Only trigger if the branch is actually changing
-    if (branchId !== selectedBranch) {
-      setIsSwitching(true);
-      setSelectedBranch(branchId);
-      
-      // Reset switching state after data loads
+    // Prevent rapid successive switches
+    if (isDebouncing || isSwitching) return;
+    
+    // Don't show dialog if it's the same branch
+    if (branchId === selectedBranch) return;
+    
+    // Show confirmation dialog for branch switch
+    setPendingBranchId(branchId);
+    setShowConfirmDialog(true);
+  };
+
+  const confirmBranchSwitch = () => {
+    if (!pendingBranchId) return;
+    
+    setIsDebouncing(true);
+    setIsSwitching(true);
+    setShowConfirmDialog(false);
+    
+    // Aggressively clear all cached data
+    queryClient.clear();
+    
+    // Set the new branch
+    setSelectedBranch(pendingBranchId);
+    setPendingBranchId(null);
+    
+    // Reset states after data loading
+    setTimeout(() => {
+      setIsSwitching(false);
       setTimeout(() => {
-        setIsSwitching(false);
-      }, 1000); // Increased timeout to allow for data fetching
-    }
+        setIsDebouncing(false);
+      }, 500);
+    }, 2000);
+  };
+
+  const cancelBranchSwitch = () => {
+    setShowConfirmDialog(false);
+    setPendingBranchId(null);
   };
 
   const value: BranchContextType = {
@@ -163,8 +195,26 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   return (
-    <BranchContext.Provider value={value}>
-      {children}
-    </BranchContext.Provider>
+    <>
+      <BranchContext.Provider value={value}>
+        {children}
+      </BranchContext.Provider>
+      
+      <BranchSwitchDialog
+        isOpen={showConfirmDialog}
+        onClose={cancelBranchSwitch}
+        onConfirm={confirmBranchSwitch}
+        branchName={
+          pendingBranchId === 'all' 
+            ? 'All Branches' 
+            : allBranches?.find(b => b.id === pendingBranchId)?.name || 'Unknown Branch'
+        }
+      />
+      
+      <FullScreenLoading
+        isOpen={isSwitching}
+        message="Switching branch and loading fresh data..."
+      />
+    </>
   );
 };

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useBranchData } from '@/hooks/useBranchData';
+import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -36,6 +38,7 @@ export const PaymentDashboard = () => {
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
   const queryClient = useQueryClient();
+  const { usePayments, getBranchFilter } = useBranchData();
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -81,49 +84,46 @@ export const PaymentDashboard = () => {
     };
   }, [queryClient]);
 
+  // Use branch-filtered payments data
+  const { data: payments } = usePayments();
+
   const { data: paymentStats } = useQuery({
-    queryKey: ['payment-dashboard-stats'],
+    queryKey: ['payment-dashboard-stats', getBranchFilter()],
     queryFn: async () => {
-      console.log('Fetching payment dashboard stats...');
+      console.log('Fetching payment dashboard stats with branch filter...');
       
-      // Get all payments with student info (including inactive students)
-      const { data: payments, error: paymentsError } = await supabase
-        .from('registration_payments')
-        .select(`
-          *,
-          students:student_id (
-            id,
-            first_name,
-            last_name,
-            grade_level,
-            status
-          )
-        `);
+      if (!payments) return null;
 
-      if (paymentsError) throw paymentsError;
+      const branchFilter = getBranchFilter();
 
-      // Get accurate count of active students using count query
-      const { count: activeStudentsCount, error: studentsError } = await supabase
+      // Get accurate count of active students using branch-filtered count query
+      let studentsCountQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Active');
 
+      if (branchFilter) {
+        studentsCountQuery = studentsCountQuery.eq('branch_id', branchFilter);
+      }
+
+      const { count: activeStudentsCount, error: studentsError } = await studentsCountQuery;
+
       if (studentsError) throw studentsError;
 
       // Calculate statistics - include ALL payments regardless of student status
-      const totalRevenue = payments?.reduce((sum, p) => sum + (p.amount_paid || 0), 0) || 0;
-      const totalPayments = payments?.length || 0;
+      const totalRevenue = payments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
+      const totalPayments = payments.length;
       const activeStudents = activeStudentsCount || 0;
       
       // Payment status breakdown
-      const statusBreakdown = payments?.reduce((acc, payment) => {
+      const statusBreakdown = payments.reduce((acc, payment) => {
         const status = payment.payment_status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
-      }, {} as Record<string, number>) || {};
+      }, {} as Record<string, number>);
 
       // Monthly revenue (last 6 months)
-      const monthlyRevenue = payments?.reduce((acc, payment) => {
+      const monthlyRevenue = payments.reduce((acc, payment) => {
         if (!payment.payment_date) return acc;
         
         const date = new Date(payment.payment_date);
@@ -137,10 +137,10 @@ export const PaymentDashboard = () => {
         acc[monthKey].count += 1;
         
         return acc;
-      }, {} as Record<string, { amount: number; count: number }>) || {};
+      }, {} as Record<string, { amount: number; count: number }>);
 
       // Grade level payment analysis
-      const gradePayments = payments?.reduce((acc, payment) => {
+      const gradePayments = payments.reduce((acc, payment) => {
         const grade = payment.students?.grade_level || 'Unknown';
         if (!acc[grade]) {
           acc[grade] = { amount: 0, count: 0, students: new Set() };
@@ -151,7 +151,7 @@ export const PaymentDashboard = () => {
           acc[grade].students.add(payment.students.id);
         }
         return acc;
-      }, {} as Record<string, { amount: number; count: number; students: Set<string> }>) || {};
+      }, {} as Record<string, { amount: number; count: number; students: Set<string> }>);
 
       // Convert sets to counts
       const gradeStats = Object.entries(gradePayments).map(([grade, stats]) => ({
@@ -163,23 +163,16 @@ export const PaymentDashboard = () => {
 
       // Recent payments (last 10)
       const recentPayments = payments
-        ?.sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime())
-        ?.slice(0, 10) || [];
+        .sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime())
+        .slice(0, 10);
 
-      // Students with payment issues - get actual count from database
-      const { count: paymentIssuesCount, error: issuesError } = await supabase
-        .from('registration_payments')
-        .select('*', { count: 'exact', head: true })
-        .in('payment_status', ['Unpaid', 'Partially Paid']);
-
-      if (issuesError) {
-        console.error('Error fetching payment issues count:', issuesError);
-      }
-
-      const studentsWithIssues = paymentIssuesCount || 0;
+      // Students with payment issues from branch-filtered data
+      const studentsWithIssues = payments.filter(p => 
+        p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid'
+      ).length;
 
       // Payment completion rate
-      const paidPayments = payments?.filter(p => p.payment_status === 'Paid').length || 0;
+      const paidPayments = payments.filter(p => p.payment_status === 'Paid').length;
       const completionRate = totalPayments > 0 ? (paidPayments / totalPayments) * 100 : 0;
 
       console.log('Payment dashboard stats calculated successfully');
@@ -194,11 +187,12 @@ export const PaymentDashboard = () => {
         studentsWithIssues,
         completionRate,
         paidPayments,
-        allPayments: payments || []
+        allPayments: payments
       };
     },
-    staleTime: 5000, // 5 seconds for real-time feel
-    refetchInterval: 15000, // Refetch every 15 seconds
+    enabled: !!payments,
+    staleTime: 30000,
+    gcTime: 0
   });
 
   const getDateRange = () => {
@@ -426,7 +420,8 @@ export const PaymentDashboard = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <BranchLoadingWrapper loadingMessage="Loading payment dashboard data...">
+      <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -746,6 +741,7 @@ export const PaymentDashboard = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </BranchLoadingWrapper>
   );
 };

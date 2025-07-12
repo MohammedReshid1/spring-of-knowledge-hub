@@ -334,7 +334,25 @@ export const IDCardPrinting = () => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
-  const gradeOptions = [...new Set(students?.map(s => s.grade_level) || [])];
+  // Get all grade levels available in the system, not just those with students
+  const { data: allGradeLevels } = useQuery({
+    queryKey: ['all-grade-levels'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('grade_levels')
+        .select('grade')
+        .order('grade');
+      
+      if (error) throw error;
+      return data.map(g => g.grade);
+    }
+  });
+
+  // Combine available grades from students and all system grades
+  const gradeOptions = [...new Set([
+    ...(students?.map(s => s.grade_level) || []),
+    ...(allGradeLevels || [])
+  ])].sort();
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -474,8 +492,10 @@ export const IDCardPrinting = () => {
                       <TableHead className="font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {paginatedStudents.map((student) => (
+                   <TableBody>
+                     {paginatedStudents
+                       .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
+                       .map((student) => (
                       <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
                         <TableCell>
                           <Checkbox
