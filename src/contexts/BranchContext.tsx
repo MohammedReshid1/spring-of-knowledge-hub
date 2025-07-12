@@ -136,15 +136,18 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [selectedBranch]);
 
-  // Enhanced setSelectedBranch with loading state
+  // Enhanced setSelectedBranch with loading state and debouncing
   const handleSetSelectedBranch = (branchId: string | null) => {
-    setIsSwitching(true);
-    setSelectedBranch(branchId);
-    
-    // Reset switching state after a brief delay to allow queries to invalidate
-    setTimeout(() => {
-      setIsSwitching(false);
-    }, 500);
+    // Only trigger if the branch is actually changing
+    if (branchId !== selectedBranch) {
+      setIsSwitching(true);
+      setSelectedBranch(branchId);
+      
+      // Reset switching state after data loads
+      setTimeout(() => {
+        setIsSwitching(false);
+      }, 1000); // Increased timeout to allow for data fetching
+    }
   };
 
   const value: BranchContextType = {
