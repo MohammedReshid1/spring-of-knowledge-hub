@@ -116,8 +116,8 @@ export const useBranchData = () => {
           // For search results, get more records
           query = query.limit(500);
         } else {
-          // For normal browsing, limit to recent records
-          query = query.limit(200);
+          // For normal browsing, get more records to show all students
+          query = query.limit(500);
         }
         
         const { data, error } = await query;
