@@ -21,6 +21,7 @@ interface BranchContextType {
   canSwitchBranches: boolean;
   isHQRole: boolean;
   userBranches: Branch[];
+  isSwitching: boolean;
 }
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
@@ -36,6 +37,7 @@ export const useBranch = () => {
 export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [isSwitching, setIsSwitching] = useState(false);
 
   // Get all branches (for admins) or user's accessible branches
   const { data: userBranches = [], isLoading } = useQuery({
@@ -134,15 +136,27 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [selectedBranch]);
 
+  // Enhanced setSelectedBranch with loading state
+  const handleSetSelectedBranch = (branchId: string | null) => {
+    setIsSwitching(true);
+    setSelectedBranch(branchId);
+    
+    // Reset switching state after a brief delay to allow queries to invalidate
+    setTimeout(() => {
+      setIsSwitching(false);
+    }, 500);
+  };
+
   const value: BranchContextType = {
     branches: allBranches,
     selectedBranch,
-    setSelectedBranch,
-    isLoading,
+    setSelectedBranch: handleSetSelectedBranch,
+    isLoading: isLoading || isSwitching,
     canManageBranches,
     canSwitchBranches,
     isHQRole,
-    userBranches
+    userBranches,
+    isSwitching
   };
 
   return (

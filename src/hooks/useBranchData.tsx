@@ -60,17 +60,39 @@ export const useBranchData = () => {
     return currentUserBranch;
   };
 
-  // Invalidate all queries when branch changes
+  // Enhanced query invalidation on branch change with immediate data clearing
   useEffect(() => {
     if (selectedBranch !== null) {
       console.log('Branch changed to:', selectedBranch, 'invalidating queries...');
-      // Invalidate all branch-dependent queries
+      
+      // Clear all existing query data immediately
+      queryClient.setQueryData(['students'], () => []);
+      queryClient.setQueryData(['classes'], () => []);
+      queryClient.setQueryData(['payments'], () => []);
+      queryClient.setQueryData(['attendance'], () => []);
+      queryClient.setQueryData(['dashboard-stats'], () => null);
+      queryClient.setQueryData(['student-stats'], () => null);
+      queryClient.setQueryData(['students-for-id-cards'], () => []);
+      queryClient.setQueryData(['students-total-count'], () => 0);
+      queryClient.setQueryData(['filtered-students-count'], () => 0);
+      
+      // Aggressively invalidate all branch-dependent queries
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['classes'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['students-for-id-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['students-total-count'] });
+      queryClient.invalidateQueries({ queryKey: ['filtered-students-count'] });
+      queryClient.invalidateQueries({ queryKey: ['classes-for-id-printing'] });
+      
+      // Remove all cached queries that might contain branch-specific data
+      queryClient.removeQueries({ queryKey: ['students'] });
+      queryClient.removeQueries({ queryKey: ['classes'] });
+      queryClient.removeQueries({ queryKey: ['payments'] });
+      queryClient.removeQueries({ queryKey: ['attendance'] });
     }
   }, [selectedBranch, queryClient]);
 
@@ -127,7 +149,9 @@ export const useBranchData = () => {
         return data || [];
       },
       enabled: !!user?.id,
-      staleTime: searchTerm ? 0 : 30000, // Fresh search results, cache normal results
+      staleTime: searchTerm ? 0 : 10000, // Reduced cache time for faster branch switching
+      gcTime: 300000, // 5 minutes cache time
+      refetchOnWindowFocus: false
     });
   };
 
@@ -220,8 +244,10 @@ export const useBranchData = () => {
         return classesWithCounts || [];
       },
       enabled: !!user?.id,
-      staleTime: 0,
-      refetchOnMount: true
+      staleTime: 5000, // Short cache for classes
+      gcTime: 300000,
+      refetchOnMount: true,
+      refetchOnWindowFocus: false
     });
   };
 
@@ -281,8 +307,10 @@ export const useBranchData = () => {
         return data || [];
       },
       enabled: !!user?.id,
-      staleTime: 0,
-      refetchOnMount: true
+      staleTime: 10000, // Cache payments for 10 seconds
+      gcTime: 300000,
+      refetchOnMount: true,
+      refetchOnWindowFocus: false
     });
   };
 
@@ -338,8 +366,10 @@ export const useBranchData = () => {
         return data || [];
       },
       enabled: !!user?.id,
-      staleTime: 0,
-      refetchOnMount: true
+      staleTime: 15000, // Cache attendance for 15 seconds
+      gcTime: 300000,
+      refetchOnMount: true,
+      refetchOnWindowFocus: false
     });
   };
 

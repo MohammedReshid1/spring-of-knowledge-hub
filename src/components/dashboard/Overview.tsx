@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranch } from '@/contexts/BranchContext';
 import { useBranchData } from '@/hooks/useBranchData';
+import { BranchLoadingWrapper, CardsLoadingSkeleton } from '@/components/common/BranchLoadingWrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -250,7 +251,11 @@ export const Overview = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <BranchLoadingWrapper
+      loadingMessage="Loading dashboard data..."
+      customSkeleton={<CardsLoadingSkeleton />}
+    >
+      <div className="space-y-6 p-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight text-gray-900">Dashboard</h2>
         <p className="text-gray-600 mt-1">
@@ -494,6 +499,7 @@ export const Overview = () => {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </BranchLoadingWrapper>
   );
 };

@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { debounce } from 'lodash';
 import { supabase } from '@/integrations/supabase/client';
+import { useBranchData } from '@/hooks/useBranchData';
+import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -31,6 +33,9 @@ export const IDCardPrinting = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const studentsPerPage = 15;
 
+  // Use branch-aware data hooks
+  const { useStudents, useClasses, getBranchFilter } = useBranchData();
+
   // Debounced search function
   const debouncedSearch = useCallback(
     debounce((term: string) => {
@@ -39,55 +44,36 @@ export const IDCardPrinting = () => {
     []
   );
 
-  const { data: students, isLoading } = useQuery({
-    queryKey: ['students-for-id-cards', debouncedSearchTerm, selectedGrade, selectedClass, statusFilter],
-    queryFn: async () => {
-      let query = supabase
-        .from('students')
-        .select(`
-          *,
-          classes:class_id (
-            id,
-            class_name,
-            grade_levels:grade_level_id (
-              grade
-            )
-          )
-        `);
+  // Use branch-aware students query
+  const { data: allStudents, isLoading } = useStudents(debouncedSearchTerm);
 
-      // Apply server-side filtering for better performance
-      if (debouncedSearchTerm) {
-        query = query.or(`student_id.ilike.%${debouncedSearchTerm}%,first_name.ilike.%${debouncedSearchTerm}%,last_name.ilike.%${debouncedSearchTerm}%,mother_name.ilike.%${debouncedSearchTerm}%,father_name.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%`);
-      }
-      
-      if (selectedGrade !== 'all') {
-        query = query.eq('grade_level', selectedGrade as any);
-      }
-      
-      if (selectedClass !== 'all') {
-        query = query.eq('class_id', selectedClass);
-      }
-      
-      if (statusFilter) {
-        query = query.eq('status', statusFilter as any);
-      }
-
-      const { data, error } = await query
-        .order('grade_level')
-        .order('first_name');
-      
-      if (error) throw error;
-      return data;
+  // Apply client-side filtering for ID card specific filters
+  const students = allStudents?.filter(student => {
+    if (selectedGrade !== 'all' && student.grade_level !== selectedGrade) {
+      return false;
     }
-  });
+    if (selectedClass !== 'all' && student.class_id !== selectedClass) {
+      return false;
+    }
+    if (statusFilter && student.status !== statusFilter) {
+      return false;
+    }
+    return true;
+  }) || [];
 
-  // Get accurate total count with same filters
+  // Get accurate total count with branch filtering
   const { data: totalCount } = useQuery({
-    queryKey: ['students-total-count', debouncedSearchTerm, selectedGrade, selectedClass, statusFilter],
+    queryKey: ['students-id-cards-total-count', getBranchFilter(), debouncedSearchTerm, selectedGrade, selectedClass, statusFilter],
     queryFn: async () => {
       let countQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true });
+
+      // Apply branch filter first
+      const branchFilter = getBranchFilter();
+      if (branchFilter) {
+        countQuery = countQuery.eq('branch_id', branchFilter);
+      }
 
       // Apply same filters for count
       if (debouncedSearchTerm) {
@@ -113,20 +99,9 @@ export const IDCardPrinting = () => {
     }
   });
 
-  const { data: classes } = useQuery({
-    queryKey: ['classes-for-id-printing'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .order('class_name');
-      
-      if (error) throw error;
-      return data;
-    }
-  });
+  // Use branch-aware classes query
+  const { data: classes } = useClasses();
 
-  // Since filtering is now done at database level, just use the students directly
   const filteredStudents = students || [];
 
   const totalPages = Math.ceil(filteredStudents.length / studentsPerPage);
@@ -366,16 +341,12 @@ export const IDCardPrinting = () => {
     setSelectedStudents(new Set()); // Clear selections when changing pages
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <BranchLoadingWrapper 
+      loadingMessage="Loading student data for ID cards..."
+      showLoadingCard={true}
+    >
+      <div className="space-y-6">
       {/* Configuration Section */}
       <Card>
         <CardHeader>
@@ -720,6 +691,7 @@ export const IDCardPrinting = () => {
           onClose={() => setSelectedStudent(null)}
         />
       )}
-    </div>
+      </div>
+    </BranchLoadingWrapper>
   );
 };
