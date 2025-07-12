@@ -138,6 +138,21 @@ export const StudentList = () => {
     
     let filtered = allStudents;
     
+    // Debug logging for Grade 2 issue
+    if (gradeFilter === 'grade_2') {
+      console.log('GRADE 2 FILTERING DEBUG:', {
+        totalStudents: allStudents.length,
+        gradeFilter,
+        grade2StudentsInData: allStudents.filter(s => s.grade_level === 'grade_2').length,
+        sampleGrade2Students: allStudents.filter(s => s.grade_level === 'grade_2').slice(0, 3).map(s => ({
+          student_id: s.student_id,
+          name: `${s.first_name} ${s.last_name}`,
+          grade_level: s.grade_level,
+          status: s.status
+        }))
+      });
+    }
+    
     // Skip search filter since it's now handled server-side
     
     // Apply status filter
@@ -153,6 +168,21 @@ export const StudentList = () => {
     // Apply class filter
     if (classFilter && classFilter !== 'all') {
       filtered = filtered.filter(student => student.class_id === classFilter);
+    }
+    
+    // More debug logging after filtering
+    if (gradeFilter === 'grade_2') {
+      console.log('GRADE 2 AFTER FILTERING:', {
+        filteredCount: filtered.length,
+        statusFilter,
+        classFilter,
+        filteredStudents: filtered.slice(0, 3).map(s => ({
+          student_id: s.student_id,
+          name: `${s.first_name} ${s.last_name}`,
+          grade_level: s.grade_level,
+          status: s.status
+        }))
+      });
     }
     
     return filtered;

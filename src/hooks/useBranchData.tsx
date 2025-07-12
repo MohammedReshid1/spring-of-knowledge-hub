@@ -278,15 +278,15 @@ export const useBranchData = () => {
           query = query.eq('branch_id', branchFilter);
         }
 
-        // Server-side search - use simple approach without problematic OR clause
+        // Server-side search - fix OR clause syntax for joins
         if (searchTerm && searchTerm.trim()) {
           const escapedSearch = searchTerm.trim();
-          // Use multiple individual filters instead of complex OR with joins
-          query = query.or(`students.student_id.ilike.%${escapedSearch}%,students.first_name.ilike.%${escapedSearch}%,students.last_name.ilike.%${escapedSearch}%,students.mother_name.ilike.%${escapedSearch}%,students.father_name.ilike.%${escapedSearch}%`);
+          // Use the correct syntax for OR with joined tables in PostgREST
+          query = query.or(`students(student_id.ilike.%${escapedSearch}%),students(first_name.ilike.%${escapedSearch}%),students(last_name.ilike.%${escapedSearch}%),students(mother_name.ilike.%${escapedSearch}%),students(father_name.ilike.%${escapedSearch}%)`);
         }
 
-        // Filter for active students only
-        query = query.in('students.status', ['Active']);
+        // Filter for active students only - fix syntax
+        query = query.eq('students.status', 'Active');
         
         const { data, error } = await query.order('created_at', { ascending: false });
         
