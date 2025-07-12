@@ -90,11 +90,11 @@ export const useBranchData = () => {
   }, [selectedBranch, queryClient]);
 
   // Students query with server-side search to handle large datasets
-  const useStudents = (searchTerm?: string) => {
+  const useStudents = (searchTerm?: string, gradeFilter?: string, statusFilter?: string, classFilter?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['students', selectedBranch, branchFilter, user?.id, searchTerm],
+      queryKey: ['students', selectedBranch, branchFilter, user?.id, searchTerm, gradeFilter, statusFilter, classFilter],
       queryFn: async () => {
         console.log('Fetching students with search:', searchTerm, 'branch:', selectedBranch);
         
@@ -125,15 +125,28 @@ export const useBranchData = () => {
           query = query.eq('branch_id', branchFilter);
         }
 
-        // If searching, apply server-side search to get all matching results
+        // Apply server-side filters for better performance
         if (searchTerm && searchTerm.trim()) {
           query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-          // For search results, get more records
-          query = query.limit(5000);
-        } else {
-          // For normal browsing, get more records to show all students
-          query = query.limit(5000);
         }
+        
+        // Apply grade filter server-side
+        if (gradeFilter && gradeFilter !== 'all') {
+          query = query.eq('grade_level', gradeFilter as any);
+        }
+        
+        // Apply status filter server-side  
+        if (statusFilter && statusFilter !== 'all') {
+          query = query.eq('status', statusFilter as any);
+        }
+        
+        // Apply class filter server-side
+        if (classFilter && classFilter !== 'all') {
+          query = query.eq('class_id', classFilter);
+        }
+        
+        // Get all matching records (remove arbitrary limit)
+        query = query.limit(5000);
         
         const { data, error } = await query;
         
@@ -278,11 +291,11 @@ export const useBranchData = () => {
           query = query.eq('branch_id', branchFilter);
         }
 
-        // Server-side search - use simple field search without joins
+        // Server-side search across student fields using proper PostgREST syntax for joins
         if (searchTerm && searchTerm.trim()) {
           const escapedSearch = `%${searchTerm.trim()}%`;
-          // Use simple OR clause on payment fields only
-          query = query.or(`student_id.ilike.${escapedSearch},notes.ilike.${escapedSearch}`);
+          // Search in joined student fields using dot notation
+          query = query.or(`students.first_name.ilike.${escapedSearch},students.last_name.ilike.${escapedSearch},students.mother_name.ilike.${escapedSearch},students.father_name.ilike.${escapedSearch},students.grandfather_name.ilike.${escapedSearch},students.student_id.ilike.${escapedSearch},notes.ilike.${escapedSearch}`);
         }
         
         const { data, error } = await query.order('created_at', { ascending: false });
