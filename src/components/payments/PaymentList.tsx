@@ -36,7 +36,7 @@ export const PaymentList = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { isRegistrar, canDelete } = useRoleAccess();
-  const { usePayments } = useBranchData();
+  const { usePayments, getBranchFilter } = useBranchData();
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -113,100 +113,40 @@ export const PaymentList = () => {
     };
   }, [queryClient]);
 
-  // Use the branch-filtered payments query with server-side search
-  const { data: allPayments, isLoading, error } = usePayments(searchTerm);
+  // Use the branch-filtered payments query with server-side search and filtering
+  const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
 
-  // Apply client-side filtering for non-search filters only
+  // All filtering is now handled server-side, so we just use the results directly
   const payments = useMemo(() => {
-    if (!allPayments) return [];
-    
-    let filtered = allPayments;
-    
-    // Skip search filter since it's now handled server-side
-    
-    // Apply status filter
-    if (statusFilter && statusFilter !== 'all') {
-      filtered = filtered.filter(payment => payment.payment_status === statusFilter);
-    }
-    
-    // Apply cycle filter
-    if (cycleFilter && cycleFilter !== 'all') {
-      filtered = filtered.filter(payment => payment.payment_cycle === cycleFilter);
-    }
-    
-    // Apply grade filter
-    if (gradeFilter && gradeFilter !== 'all') {
-      filtered = filtered.filter(payment => payment.students?.grade_level === gradeFilter);
-    }
-    
-    return filtered;
-  }, [allPayments, statusFilter, cycleFilter, gradeFilter]);
+    return allPayments || [];
+  }, [allPayments]);
 
-  // Get accurate total count for non-search queries using branch-aware counting
-  const { getBranchFilter } = useBranchData();
-  const { data: totalCount } = useQuery({
-    queryKey: ['payments-total-count', statusFilter, cycleFilter, gradeFilter, getBranchFilter()],
-    queryFn: async () => {
-      // Skip count query if searching since we already have all results
-      if (searchTerm) return null;
-
-      let countQuery = supabase
-        .from('registration_payments')
-        .select('*, students!inner(*)', { count: 'exact', head: true });
-
-      // Apply branch filter first (same logic as useBranchData)
-      const branchFilter = getBranchFilter();
-      if (branchFilter) {
-        countQuery = countQuery.eq('branch_id', branchFilter);
-      }
-
-      // Apply same filters for count
-      if (statusFilter && statusFilter !== 'all') {
-        countQuery = countQuery.eq('payment_status', statusFilter);
-      }
-      
-      if (cycleFilter && cycleFilter !== 'all') {
-        countQuery = countQuery.eq('payment_cycle', cycleFilter);
-      }
-      
-      if (gradeFilter && gradeFilter !== 'all') {
-        countQuery = countQuery.eq('students.grade_level', gradeFilter as any);
-      }
-
-      // Filter for active students only
-      countQuery = countQuery.in('students.status', ['Active']);
-
-      const { count, error } = await countQuery;
-      
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: !searchTerm // Only run when not searching
-  });
+  // Stats query with branch filtering
   const { data: stats } = useQuery({
-    queryKey: ['payment-stats'],
+    queryKey: ['payment-stats', getBranchFilter()],
     queryFn: async () => {
+      // Apply same branch filter to stats queries for consistency
+      const branchFilter = getBranchFilter();
+      
       // Use count queries for accurate totals without row limits
-      const [totalResult, paidResult, unpaidResult, partialResult, revenueResult] = await Promise.all([
-        supabase
-          .from('registration_payments')
-          .select('*', { count: 'exact', head: true }),
-        supabase
-          .from('registration_payments')
-          .select('*', { count: 'exact', head: true })
-          .eq('payment_status', 'Paid'),
-        supabase
-          .from('registration_payments')
-          .select('*', { count: 'exact', head: true })
-          .eq('payment_status', 'Unpaid'),
-        supabase
-          .from('registration_payments')
-          .select('*', { count: 'exact', head: true })
-          .eq('payment_status', 'Partially Paid'),
-        supabase
-          .from('registration_payments')
-          .select('amount_paid')
-      ]);
+      const baseQueries = [
+        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }),
+        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }).eq('payment_status', 'Paid'),
+        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }).eq('payment_status', 'Unpaid'),
+        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }).eq('payment_status', 'Partially Paid'),
+        supabase.from('registration_payments').select('amount_paid, students!inner(*)'),
+      ];
+      
+      // Apply branch filter to all queries if needed
+      const queries = baseQueries.map(query => {
+        let filteredQuery = query.in('students.status', ['Active']);
+        if (branchFilter) {
+          filteredQuery = filteredQuery.eq('branch_id', branchFilter);
+        }
+        return filteredQuery;
+      });
+      
+      const [totalResult, paidResult, unpaidResult, partialResult, revenueResult] = await Promise.all(queries);
 
       if (totalResult.error) throw totalResult.error;
       if (paidResult.error) throw paidResult.error;
@@ -641,7 +581,7 @@ export const PaymentList = () => {
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">
-            Payments ({searchTerm ? filteredPayments.length : (totalCount || filteredPayments.length)})
+            Payments ({filteredPayments.length})
           </CardTitle>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">

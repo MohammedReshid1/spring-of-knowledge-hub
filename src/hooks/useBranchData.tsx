@@ -258,14 +258,14 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with branch filtering and server-side search
-  const usePayments = (searchTerm?: string) => {
+  // Payments query with server-side search and filtering to handle large datasets  
+  const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm],
+      queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm, statusFilter, cycleFilter, gradeFilter],
       queryFn: async () => {
-        console.log('Fetching payments for branch:', selectedBranch, 'search:', searchTerm);
+        console.log('Fetching payments with filters:', { searchTerm, statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
         
         // Build the main query with joins
         let query = supabase
@@ -284,24 +284,49 @@ export const useBranchData = () => {
               photo_url,
               status
             )
-          `);
+          `)
+          .in('students.status', ['Active']); // Only active students
         
         // Apply branch filter if needed
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
         }
 
-        // Server-side search across student fields using proper PostgREST syntax for joins
+        // Server-side search - Use subquery approach to avoid invalid PostgREST syntax
         if (searchTerm && searchTerm.trim()) {
-          const escapedSearch = `%${searchTerm.trim()}%`;
-          // Search in joined student fields using dot notation
-          query = query.or(`students.first_name.ilike.${escapedSearch},students.last_name.ilike.${escapedSearch},students.mother_name.ilike.${escapedSearch},students.father_name.ilike.${escapedSearch},students.grandfather_name.ilike.${escapedSearch},students.student_id.ilike.${escapedSearch},notes.ilike.${escapedSearch}`);
+          // First get student IDs that match the search term
+          const { data: matchingStudents } = await supabase
+            .from('students')
+            .select('id')
+            .or(`first_name.ilike.%${searchTerm.trim()}%,last_name.ilike.%${searchTerm.trim()}%,mother_name.ilike.%${searchTerm.trim()}%,father_name.ilike.%${searchTerm.trim()}%,grandfather_name.ilike.%${searchTerm.trim()}%,student_id.ilike.%${searchTerm.trim()}%`);
+          
+          const studentIds = matchingStudents?.map(s => s.id) || [];
+          
+          // Then filter payments by those student IDs or notes containing search term
+          if (studentIds.length > 0) {
+            query = query.or(`student_id.in.(${studentIds.join(',')}),notes.ilike.%${searchTerm.trim()}%`);
+          } else {
+            query = query.ilike('notes', `%${searchTerm.trim()}%`);
+          }
+        }
+        
+        // Apply server-side filters
+        if (statusFilter && statusFilter !== 'all') {
+          query = query.eq('payment_status', statusFilter);
+        }
+        
+        if (cycleFilter && cycleFilter !== 'all') {
+          query = query.eq('payment_cycle', cycleFilter);
+        }
+        
+        if (gradeFilter && gradeFilter !== 'all') {
+          query = query.eq('students.grade_level', gradeFilter as any);
         }
         
         const { data, error } = await query.order('created_at', { ascending: false });
         
         if (error) throw error;
-        console.log('Payments fetched:', data?.length || 0, 'records');
+        console.log('Payments fetched:', data?.length || 0, 'records with filters applied');
         return data || [];
       },
       enabled: !!user?.id,
