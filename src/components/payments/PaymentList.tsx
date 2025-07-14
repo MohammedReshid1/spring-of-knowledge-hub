@@ -121,43 +121,33 @@ export const PaymentList = () => {
     return allPayments || [];
   }, [allPayments]);
 
-  // Stats query with branch filtering
+  // Stats query with same filtering logic as main query
   const { data: stats } = useQuery({
     queryKey: ['payment-stats', getBranchFilter()],
     queryFn: async () => {
-      // Apply same branch filter to stats queries for consistency
       const branchFilter = getBranchFilter();
       
-      // Use count queries for accurate totals without row limits
-      const baseQueries = [
-        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }),
-        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }).eq('payment_status', 'Paid'),
-        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }).eq('payment_status', 'Unpaid'),
-        supabase.from('registration_payments').select('*, students!inner(*)', { count: 'exact', head: true }).eq('payment_status', 'Partially Paid'),
-        supabase.from('registration_payments').select('amount_paid, students!inner(*)'),
-      ];
+      // Build query exactly like main data query for consistency
+      let baseQuery = supabase
+        .from('registration_payments')
+        .select('*, students!inner(*)')
+        .in('students.status', ['Active']);
       
-      // Apply branch filter to all queries if needed
-      const queries = baseQueries.map(query => {
-        let filteredQuery = query.in('students.status', ['Active']);
-        if (branchFilter) {
-          filteredQuery = filteredQuery.eq('branch_id', branchFilter);
-        }
-        return filteredQuery;
-      });
+      if (branchFilter) {
+        baseQuery = baseQuery.eq('branch_id', branchFilter);
+      }
       
-      const [totalResult, paidResult, unpaidResult, partialResult, revenueResult] = await Promise.all(queries);
-
-      if (totalResult.error) throw totalResult.error;
-      if (paidResult.error) throw paidResult.error;
-      if (unpaidResult.error) throw unpaidResult.error;
-      if (partialResult.error) throw partialResult.error;
-      if (revenueResult.error) throw revenueResult.error;
+      // Get all payments data to calculate accurate stats
+      const { data: allPayments, error } = await baseQuery.limit(5000);
       
-      const totalPayments = totalResult.count || 0;
-      const totalRevenue = revenueResult.data?.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0) || 0;
-      const paidPayments = paidResult.count || 0;
-      const pendingPayments = (unpaidResult.count || 0) + (partialResult.count || 0);
+      if (error) throw error;
+      
+      const totalPayments = allPayments?.length || 0;
+      const totalRevenue = allPayments?.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0) || 0;
+      const paidPayments = allPayments?.filter(p => p.payment_status === 'Paid').length || 0;
+      const unpaidPayments = allPayments?.filter(p => p.payment_status === 'Unpaid').length || 0;
+      const partialPayments = allPayments?.filter(p => p.payment_status === 'Partially Paid').length || 0;
+      const pendingPayments = unpaidPayments + partialPayments;
       
       return {
         totalPayments,

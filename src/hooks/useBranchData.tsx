@@ -258,7 +258,7 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with server-side search and filtering to handle large datasets  
+  // Payments query with simplified search and proper limits
   const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
     const branchFilter = getBranchFilter();
     
@@ -267,7 +267,7 @@ export const useBranchData = () => {
       queryFn: async () => {
         console.log('Fetching payments with filters:', { searchTerm, statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
         
-        // Build the main query with joins
+        // Build the main query with joins and high limit
         let query = supabase
           .from('registration_payments')
           .select(`
@@ -285,29 +285,17 @@ export const useBranchData = () => {
               status
             )
           `)
-          .in('students.status', ['Active']); // Only active students
+          .in('students.status', ['Active'])
+          .limit(5000); // Ensure we get all records
         
         // Apply branch filter if needed
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
         }
 
-        // Server-side search - Use subquery approach to avoid invalid PostgREST syntax
+        // Simple server-side search on payment fields only
         if (searchTerm && searchTerm.trim()) {
-          // First get student IDs that match the search term
-          const { data: matchingStudents } = await supabase
-            .from('students')
-            .select('id')
-            .or(`first_name.ilike.%${searchTerm.trim()}%,last_name.ilike.%${searchTerm.trim()}%,mother_name.ilike.%${searchTerm.trim()}%,father_name.ilike.%${searchTerm.trim()}%,grandfather_name.ilike.%${searchTerm.trim()}%,student_id.ilike.%${searchTerm.trim()}%`);
-          
-          const studentIds = matchingStudents?.map(s => s.id) || [];
-          
-          // Then filter payments by those student IDs or notes containing search term
-          if (studentIds.length > 0) {
-            query = query.or(`student_id.in.(${studentIds.join(',')}),notes.ilike.%${searchTerm.trim()}%`);
-          } else {
-            query = query.ilike('notes', `%${searchTerm.trim()}%`);
-          }
+          query = query.ilike('notes', `%${searchTerm.trim()}%`);
         }
         
         // Apply server-side filters
@@ -326,8 +314,29 @@ export const useBranchData = () => {
         const { data, error } = await query.order('created_at', { ascending: false });
         
         if (error) throw error;
-        console.log('Payments fetched:', data?.length || 0, 'records with filters applied');
-        return data || [];
+        
+        // Apply client-side search for student fields if search term exists
+        let finalData = data || [];
+        if (searchTerm && searchTerm.trim()) {
+          const searchLower = searchTerm.trim().toLowerCase();
+          finalData = finalData.filter(payment => {
+            const student = payment.students;
+            if (!student) return false;
+            
+            return (
+              student.first_name?.toLowerCase().includes(searchLower) ||
+              student.last_name?.toLowerCase().includes(searchLower) ||
+              student.mother_name?.toLowerCase().includes(searchLower) ||
+              student.father_name?.toLowerCase().includes(searchLower) ||
+              student.grandfather_name?.toLowerCase().includes(searchLower) ||
+              student.student_id?.toLowerCase().includes(searchLower) ||
+              payment.notes?.toLowerCase().includes(searchLower)
+            );
+          });
+        }
+        
+        console.log('Payments fetched:', finalData.length, 'records after filtering');
+        return finalData;
       },
       enabled: !!user?.id,
       staleTime: 30000,
