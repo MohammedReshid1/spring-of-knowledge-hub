@@ -247,7 +247,14 @@ export const Overview = () => {
       'EUR': '€',
       'GBP': '£'
     };
-    return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
+    const symbol = symbols[currency as keyof typeof symbols] || currency;
+    
+    // For ETB, show the symbol after the amount (consistent with PaymentList)
+    if (currency === 'ETB') {
+      return `${amount.toFixed(2)} ${symbol}`;
+    }
+    
+    return `${symbol} ${amount.toFixed(2)}`;
   };
 
   return (

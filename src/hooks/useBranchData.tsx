@@ -258,16 +258,16 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with simplified search and proper limits
+  // Payments query with client-side search only to avoid PostgREST syntax issues
   const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm, statusFilter, cycleFilter, gradeFilter],
+      queryKey: ['payments', selectedBranch, branchFilter, user?.id, statusFilter, cycleFilter, gradeFilter],
       queryFn: async () => {
-        console.log('Fetching payments with filters:', { searchTerm, statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
+        console.log('Fetching ALL payments with server-side filters:', { statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
         
-        // Build the main query with joins and high limit
+        // Build the main query with joins and high limit - NO search term applied server-side
         let query = supabase
           .from('registration_payments')
           .select(`
@@ -281,6 +281,7 @@ export const useBranchData = () => {
               father_name,
               grandfather_name,
               grade_level,
+              phone,
               photo_url,
               status
             )
@@ -292,13 +293,8 @@ export const useBranchData = () => {
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
         }
-
-        // Simple server-side search on payment fields only
-        if (searchTerm && searchTerm.trim()) {
-          query = query.ilike('notes', `%${searchTerm.trim()}%`);
-        }
         
-        // Apply server-side filters
+        // Apply server-side filters ONLY
         if (statusFilter && statusFilter !== 'all') {
           query = query.eq('payment_status', statusFilter);
         }
@@ -315,7 +311,7 @@ export const useBranchData = () => {
         
         if (error) throw error;
         
-        // Apply client-side search for student fields if search term exists
+        // Apply client-side search for ALL searchable fields after data is fetched
         let finalData = data || [];
         if (searchTerm && searchTerm.trim()) {
           const searchLower = searchTerm.trim().toLowerCase();
@@ -330,12 +326,14 @@ export const useBranchData = () => {
               student.father_name?.toLowerCase().includes(searchLower) ||
               student.grandfather_name?.toLowerCase().includes(searchLower) ||
               student.student_id?.toLowerCase().includes(searchLower) ||
-              payment.notes?.toLowerCase().includes(searchLower)
+              student.phone?.toLowerCase().includes(searchLower) ||
+              payment.notes?.toLowerCase().includes(searchLower) ||
+              payment.payment_id?.toLowerCase().includes(searchLower)
             );
           });
         }
         
-        console.log('Payments fetched:', finalData.length, 'records after filtering');
+        console.log('Payments fetched:', finalData.length, 'records after client-side filtering');
         return finalData;
       },
       enabled: !!user?.id,

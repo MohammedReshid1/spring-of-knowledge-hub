@@ -113,7 +113,7 @@ export const PaymentList = () => {
     };
   }, [queryClient]);
 
-  // Use the branch-filtered payments query with server-side search and filtering
+  // Use the branch-filtered payments query - search is now handled client-side in the hook
   const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
 
   // All filtering is now handled server-side, so we just use the results directly
@@ -121,42 +121,24 @@ export const PaymentList = () => {
     return allPayments || [];
   }, [allPayments]);
 
-  // Stats query with same filtering logic as main query
-  const { data: stats } = useQuery({
-    queryKey: ['payment-stats', getBranchFilter()],
-    queryFn: async () => {
-      const branchFilter = getBranchFilter();
-      
-      // Build query exactly like main data query for consistency
-      let baseQuery = supabase
-        .from('registration_payments')
-        .select('*, students!inner(*)')
-        .in('students.status', ['Active']);
-      
-      if (branchFilter) {
-        baseQuery = baseQuery.eq('branch_id', branchFilter);
-      }
-      
-      // Get all payments data to calculate accurate stats
-      const { data: allPayments, error } = await baseQuery.limit(5000);
-      
-      if (error) throw error;
-      
-      const totalPayments = allPayments?.length || 0;
-      const totalRevenue = allPayments?.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0) || 0;
-      const paidPayments = allPayments?.filter(p => p.payment_status === 'Paid').length || 0;
-      const unpaidPayments = allPayments?.filter(p => p.payment_status === 'Unpaid').length || 0;
-      const partialPayments = allPayments?.filter(p => p.payment_status === 'Partially Paid').length || 0;
-      const pendingPayments = unpaidPayments + partialPayments;
-      
-      return {
-        totalPayments,
-        totalRevenue,
-        paidPayments,
-        pendingPayments
-      };
-    }
-  });
+  // Stats calculated directly from the same data source for consistency
+  const stats = useMemo(() => {
+    if (!allPayments) return null;
+    
+    const totalPayments = allPayments.length;
+    const totalRevenue = allPayments.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0);
+    const paidPayments = allPayments.filter(p => p.payment_status === 'Paid').length;
+    const unpaidPayments = allPayments.filter(p => p.payment_status === 'Unpaid').length;
+    const partialPayments = allPayments.filter(p => p.payment_status === 'Partially Paid').length;
+    const pendingPayments = unpaidPayments + partialPayments;
+    
+    return {
+      totalPayments,
+      totalRevenue,
+      paidPayments,
+      pendingPayments
+    };
+  }, [allPayments]);
 
   const deletePaymentMutation = useMutation({
     mutationFn: async (paymentId: string) => {
@@ -571,7 +553,7 @@ export const PaymentList = () => {
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">
-            Payments ({filteredPayments.length})
+            Payments ({payments.length})
           </CardTitle>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
