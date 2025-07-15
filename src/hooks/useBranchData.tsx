@@ -145,9 +145,7 @@ export const useBranchData = () => {
           query = query.eq('class_id', classFilter);
         }
         
-        // Get all matching records (remove arbitrary limit)
-        query = query.limit(5000);
-        
+        // Get all matching records (no artificial limits)
         const { data, error } = await query;
         
         if (error) throw error;
@@ -258,16 +256,16 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with server-side search
+  // Payments query with client-side search and NO artificial limits
   const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
       queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm, statusFilter, cycleFilter, gradeFilter],
       queryFn: async () => {
-        console.log('Fetching payments with server-side search:', { searchTerm, statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
+        console.log('Fetching ALL payments without limits:', { statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
         
-        // Build the main query with joins
+        // Build the main query with joins - NO LIMITS to get all records
         let query = supabase
           .from('registration_payments')
           .select(`
@@ -286,18 +284,11 @@ export const useBranchData = () => {
               status
             )
           `)
-          .in('students.status', ['Active'])
-          .limit(5000);
+          .in('students.status', ['Active']);
         
         // Apply branch filter if needed
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
-        }
-        
-        // Apply server-side search across multiple fields
-        if (searchTerm && searchTerm.trim()) {
-          const searchPattern = `%${searchTerm.trim()}%`;
-          query = query.or(`students.first_name.ilike.${searchPattern},students.last_name.ilike.${searchPattern},students.mother_name.ilike.${searchPattern},students.father_name.ilike.${searchPattern},students.grandfather_name.ilike.${searchPattern},students.student_id.ilike.${searchPattern},students.phone.ilike.${searchPattern},notes.ilike.${searchPattern},payment_id.ilike.${searchPattern}`);
         }
         
         // Apply server-side filters
@@ -317,8 +308,30 @@ export const useBranchData = () => {
         
         if (error) throw error;
         
-        console.log('Payments fetched:', data?.length || 0, 'records with server-side search');
-        return data || [];
+        // Apply comprehensive client-side search AFTER fetching all data
+        let finalData = data || [];
+        if (searchTerm && searchTerm.trim()) {
+          const searchLower = searchTerm.trim().toLowerCase();
+          finalData = finalData.filter(payment => {
+            const student = payment.students;
+            if (!student) return false;
+            
+            return (
+              student.first_name?.toLowerCase().includes(searchLower) ||
+              student.last_name?.toLowerCase().includes(searchLower) ||
+              student.mother_name?.toLowerCase().includes(searchLower) ||
+              student.father_name?.toLowerCase().includes(searchLower) ||
+              student.grandfather_name?.toLowerCase().includes(searchLower) ||
+              student.student_id?.toLowerCase().includes(searchLower) ||
+              student.phone?.toLowerCase().includes(searchLower) ||
+              payment.notes?.toLowerCase().includes(searchLower) ||
+              payment.payment_id?.toLowerCase().includes(searchLower)
+            );
+          });
+        }
+        
+        console.log('Payments fetched:', finalData.length, 'records after client-side search');
+        return finalData;
       },
       enabled: !!user?.id,
       staleTime: 30000,
