@@ -258,16 +258,16 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with client-side search only to avoid PostgREST syntax issues
+  // Payments query with server-side search
   const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
-      queryKey: ['payments', selectedBranch, branchFilter, user?.id, statusFilter, cycleFilter, gradeFilter],
+      queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm, statusFilter, cycleFilter, gradeFilter],
       queryFn: async () => {
-        console.log('Fetching ALL payments with server-side filters:', { statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
+        console.log('Fetching payments with server-side search:', { searchTerm, statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
         
-        // Build the main query with joins and high limit - NO search term applied server-side
+        // Build the main query with joins
         let query = supabase
           .from('registration_payments')
           .select(`
@@ -287,14 +287,20 @@ export const useBranchData = () => {
             )
           `)
           .in('students.status', ['Active'])
-          .limit(5000); // Ensure we get all records
+          .limit(5000);
         
         // Apply branch filter if needed
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
         }
         
-        // Apply server-side filters ONLY
+        // Apply server-side search across multiple fields
+        if (searchTerm && searchTerm.trim()) {
+          const searchPattern = `%${searchTerm.trim()}%`;
+          query = query.or(`students.first_name.ilike.${searchPattern},students.last_name.ilike.${searchPattern},students.mother_name.ilike.${searchPattern},students.father_name.ilike.${searchPattern},students.grandfather_name.ilike.${searchPattern},students.student_id.ilike.${searchPattern},students.phone.ilike.${searchPattern},notes.ilike.${searchPattern},payment_id.ilike.${searchPattern}`);
+        }
+        
+        // Apply server-side filters
         if (statusFilter && statusFilter !== 'all') {
           query = query.eq('payment_status', statusFilter);
         }
@@ -311,30 +317,8 @@ export const useBranchData = () => {
         
         if (error) throw error;
         
-        // Apply client-side search for ALL searchable fields after data is fetched
-        let finalData = data || [];
-        if (searchTerm && searchTerm.trim()) {
-          const searchLower = searchTerm.trim().toLowerCase();
-          finalData = finalData.filter(payment => {
-            const student = payment.students;
-            if (!student) return false;
-            
-            return (
-              student.first_name?.toLowerCase().includes(searchLower) ||
-              student.last_name?.toLowerCase().includes(searchLower) ||
-              student.mother_name?.toLowerCase().includes(searchLower) ||
-              student.father_name?.toLowerCase().includes(searchLower) ||
-              student.grandfather_name?.toLowerCase().includes(searchLower) ||
-              student.student_id?.toLowerCase().includes(searchLower) ||
-              student.phone?.toLowerCase().includes(searchLower) ||
-              payment.notes?.toLowerCase().includes(searchLower) ||
-              payment.payment_id?.toLowerCase().includes(searchLower)
-            );
-          });
-        }
-        
-        console.log('Payments fetched:', finalData.length, 'records after client-side filtering');
-        return finalData;
+        console.log('Payments fetched:', data?.length || 0, 'records with server-side search');
+        return data || [];
       },
       enabled: !!user?.id,
       staleTime: 30000,
