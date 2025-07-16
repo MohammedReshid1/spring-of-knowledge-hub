@@ -71,11 +71,11 @@ export const Overview = () => {
   const { data: classes, isLoading: isClassesLoading } = useClasses();
   const { data: payments, isLoading: isPaymentsLoading } = usePayments();
 
-  // Get accurate counts using proper database queries
+  // Get accurate counts using proper database queries with branch-aware reset handling
   const { data: dashboardStats, isLoading: isDashboardLoading } = useQuery({
     queryKey: ['dashboard-stats', selectedBranch, getBranchFilter()],
     queryFn: async () => {
-      console.log('Fetching accurate dashboard stats for branch:', selectedBranch);
+      console.log('Fetching dashboard stats for branch:', selectedBranch, 'Filter:', getBranchFilter());
       
       const branchFilter = getBranchFilter();
 
@@ -92,44 +92,45 @@ export const Overview = () => {
       let classesCountQuery = supabase
         .from('classes')
         .select('*', { count: 'exact', head: true });
-      
-      let paymentsCountQuery = supabase
-        .from('registration_payments')
-        .select('*', { count: 'exact', head: true });
 
-      // Apply branch filter to all queries if needed
+      // Apply branch filter to all queries with proper NULL handling
       if (branchFilter) {
         studentsCountQuery = studentsCountQuery.eq('branch_id', branchFilter);
         activeStudentsQuery = activeStudentsQuery.eq('branch_id', branchFilter);
         classesCountQuery = classesCountQuery.eq('branch_id', branchFilter);
-        paymentsCountQuery = paymentsCountQuery.eq('branch_id', branchFilter);
+      } else if (selectedBranch === 'all') {
+        // For "all branches" view, exclude NULL values to avoid orphaned data
+        classesCountQuery = classesCountQuery.not('branch_id', 'is', null);
       }
 
       // Execute all count queries in parallel
       const [
         { count: totalStudents, error: studentsError },
         { count: activeStudents, error: activeError },
-        { count: totalClasses, error: classesError },
-        { count: totalPayments, error: paymentsError }
+        { count: totalClasses, error: classesError }
       ] = await Promise.all([
         studentsCountQuery,
         activeStudentsQuery,
-        classesCountQuery,
-        paymentsCountQuery
+        classesCountQuery
       ]);
 
-      if (studentsError || activeError || classesError || paymentsError) {
-        console.error('Error fetching dashboard counts:', { studentsError, activeError, classesError, paymentsError });
-        throw studentsError || activeError || classesError || paymentsError;
+      if (studentsError || activeError || classesError) {
+        console.error('Error fetching dashboard counts:', { studentsError, activeError, classesError });
+        throw studentsError || activeError || classesError;
       }
 
-      // Get revenue and payment stats using the actual data
-      const totalRevenue = payments?.reduce((sum, p) => sum + (p.amount_paid || 0), 0) || 0;
-      const paidStudents = payments?.filter(p => p.payment_status === 'Paid').length || 0;
-      const unpaidStudents = payments?.filter(p => p.payment_status === 'Unpaid').length || 0;
-      const pendingPayments = payments?.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length || 0;
+      // Calculate payment stats from actual payment data (branch-filtered)
+      const branchPayments = payments?.filter(p => {
+        if (!branchFilter) return selectedBranch === 'all' ? p.branch_id : true;
+        return p.branch_id === branchFilter;
+      }) || [];
+      
+      const totalRevenue = branchPayments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
+      const paidStudents = branchPayments.filter(p => p.payment_status === 'Paid').length;
+      const unpaidStudents = branchPayments.filter(p => p.payment_status === 'Unpaid').length;
+      const pendingPayments = branchPayments.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length;
 
-      // Get recent registrations count
+      // Get recent registrations count with branch filter
       const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       let recentQuery = supabase
         .from('students')
@@ -142,20 +143,25 @@ export const Overview = () => {
       
       const { count: recentRegistrations } = await recentQuery;
 
-      // Status breakdown using actual student data
-      const statusCounts: Record<string, number> = students?.reduce((acc, student) => {
+      // Status breakdown using branch-filtered student data
+      const branchStudents = students?.filter(s => {
+        if (!branchFilter) return selectedBranch === 'all' ? s.branch_id : true;
+        return s.branch_id === branchFilter;
+      }) || [];
+
+      const statusCounts: Record<string, number> = branchStudents.reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
-      }, {} as Record<string, number>) || {};
+      }, {} as Record<string, number>);
 
-      // Grade level utilization using actual data
+      // Grade level utilization using branch-filtered data
       const gradeUtilization = Object.entries(
-        students?.reduce((acc, student) => {
+        branchStudents.reduce((acc, student) => {
           const grade = student.grade_level || 'unknown';
           acc[grade] = (acc[grade] || 0) + 1;
           return acc;
-        }, {} as Record<string, number>) || {}
+        }, {} as Record<string, number>)
       ).map(([grade, count]) => ({
         grade: grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
         utilization: 100,
@@ -177,12 +183,13 @@ export const Overview = () => {
         gradeUtilization: gradeUtilization.slice(0, 5)
       };
 
-      console.log('Dashboard stats calculated with accurate counts:', result);
+      console.log('Dashboard stats with branch-aware filtering:', result);
       return result;
     },
     enabled: !!user?.id,
-    staleTime: 0,
-    refetchOnMount: true
+    staleTime: 0, // Always fresh data for accurate branch switching
+    refetchOnMount: true,
+    refetchOnWindowFocus: false
   });
 
   const isLoading = isDashboardLoading || isStudentsLoading || isClassesLoading || isPaymentsLoading;

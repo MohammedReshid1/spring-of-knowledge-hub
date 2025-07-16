@@ -202,25 +202,22 @@ export const StudentList = () => {
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['student-stats'],
+    queryKey: ['student-stats', selectedBranch, getBranchFilter()],
     queryFn: async () => {
-      // Get total students count
-      const { count: totalCount, error: totalError } = await supabase
+      console.log('Fetching student stats for branch:', selectedBranch);
+      const branchFilter = getBranchFilter();
+
+      // Build queries with proper branch filtering
+      let totalCountQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true });
       
-      if (totalError) throw totalError;
-
-      // Get active students count
-      const { count: activeCount, error: activeError } = await supabase
+      let activeCountQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Active');
-      
-      if (activeError) throw activeError;
 
-      // Get pending payments count - students with unpaid registration payments
-      const { count: pendingPaymentsCount, error: pendingError } = await supabase
+      let pendingPaymentsQuery = supabase
         .from('students')
         .select(`
           *,
@@ -231,28 +228,55 @@ export const StudentList = () => {
         .eq('registration_payments.payment_status', 'Unpaid')
         .eq('status', 'Active');
       
-      if (pendingError) throw pendingError;
-
-      // Get status counts for each status
-      const { data: statusData, error: statusError } = await supabase
+      let statusDataQuery = supabase
         .from('students')
         .select('status');
-      
-      if (statusError) throw statusError;
 
-      const statusCounts: Record<string, number> = statusData.reduce((acc, student) => {
+      // Apply branch filter to all queries if needed
+      if (branchFilter) {
+        totalCountQuery = totalCountQuery.eq('branch_id', branchFilter);
+        activeCountQuery = activeCountQuery.eq('branch_id', branchFilter);
+        pendingPaymentsQuery = pendingPaymentsQuery.eq('branch_id', branchFilter);
+        statusDataQuery = statusDataQuery.eq('branch_id', branchFilter);
+      }
+
+      // Execute queries in parallel
+      const [
+        { count: totalCount, error: totalError },
+        { count: activeCount, error: activeError },
+        { count: pendingPaymentsCount, error: pendingError },
+        { data: statusData, error: statusError }
+      ] = await Promise.all([
+        totalCountQuery,
+        activeCountQuery,
+        pendingPaymentsQuery,
+        statusDataQuery
+      ]);
+      
+      if (totalError || activeError || pendingError || statusError) {
+        console.error('Error fetching student stats:', { totalError, activeError, pendingError, statusError });
+        throw totalError || activeError || pendingError || statusError;
+      }
+
+      const statusCounts: Record<string, number> = (statusData || []).reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       
-      return {
+      const result = {
         totalStudents: totalCount || 0,
         activeStudents: activeCount || 0,
         pendingPayments: pendingPaymentsCount || 0,
         statusCounts
       };
-    }
+
+      console.log('Student stats with branch filtering:', result);
+      return result;
+    },
+    enabled: !!selectedBranch,
+    staleTime: 0,
+    refetchOnMount: true
   });
 
   const deleteStudentMutation = useMutation({

@@ -123,7 +123,15 @@ export const PaymentList = () => {
 
   // Stats calculated directly from the same data source for consistency
   const stats = useMemo(() => {
-    if (!allPayments) return null;
+    // Return zeros when no payments data (handles branch switching properly)
+    if (!allPayments || allPayments.length === 0) {
+      return {
+        totalPayments: 0,
+        totalRevenue: 0,
+        paidPayments: 0,
+        pendingPayments: 0
+      };
+    }
     
     const totalPayments = allPayments.length;
     const totalRevenue = allPayments.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0);
