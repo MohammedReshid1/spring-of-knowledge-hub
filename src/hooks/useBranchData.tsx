@@ -293,10 +293,10 @@ export const useBranchData = () => {
           query = query.eq('branch_id', branchFilter);
         }
         
-        // Apply server-side search - FIXED syntax without 'students.' prefix
+        // Apply server-side search - exactly like students search but for payment-related fields
         if (searchTerm && searchTerm.trim()) {
-          // Remove table prefixes from or clause - fields are available due to join
-          query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%,payment_id.ilike.%${searchTerm}%`);
+          // Search only on text fields, not UUID fields like payment_id
+          query = query.or(`students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.father_name.ilike.%${searchTerm}%,students.grandfather_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%,students.phone.ilike.%${searchTerm}%,students.email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
         }
         
         // Apply server-side filters
