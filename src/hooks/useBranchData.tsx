@@ -1,3 +1,4 @@
+
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -256,14 +257,14 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with client-side search and NO artificial limits
+  // Payments query with IDENTICAL server-side search to students - NO LIMITS
   const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
     const branchFilter = getBranchFilter();
     
     return useQuery({
       queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm, statusFilter, cycleFilter, gradeFilter],
       queryFn: async () => {
-        console.log('Fetching ALL payments without limits:', { statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
+        console.log('Fetching ALL payments with server-side search:', { searchTerm, statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
         
         // Build the main query with joins - NO LIMITS to get all records
         let query = supabase
@@ -280,6 +281,7 @@ export const useBranchData = () => {
               grandfather_name,
               grade_level,
               phone,
+              email,
               photo_url,
               status
             )
@@ -289,6 +291,12 @@ export const useBranchData = () => {
         // Apply branch filter if needed
         if (branchFilter) {
           query = query.eq('branch_id', branchFilter);
+        }
+        
+        // Apply server-side search IDENTICAL to students - this is the key fix
+        if (searchTerm && searchTerm.trim()) {
+          // Use the exact same search logic as students
+          query = query.or(`students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.father_name.ilike.%${searchTerm}%,students.grandfather_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%,students.phone.ilike.%${searchTerm}%,students.email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%,payment_id.ilike.%${searchTerm}%`);
         }
         
         // Apply server-side filters
@@ -308,30 +316,8 @@ export const useBranchData = () => {
         
         if (error) throw error;
         
-        // Apply comprehensive client-side search AFTER fetching all data
-        let finalData = data || [];
-        if (searchTerm && searchTerm.trim()) {
-          const searchLower = searchTerm.trim().toLowerCase();
-          finalData = finalData.filter(payment => {
-            const student = payment.students;
-            if (!student) return false;
-            
-            return (
-              student.first_name?.toLowerCase().includes(searchLower) ||
-              student.last_name?.toLowerCase().includes(searchLower) ||
-              student.mother_name?.toLowerCase().includes(searchLower) ||
-              student.father_name?.toLowerCase().includes(searchLower) ||
-              student.grandfather_name?.toLowerCase().includes(searchLower) ||
-              student.student_id?.toLowerCase().includes(searchLower) ||
-              student.phone?.toLowerCase().includes(searchLower) ||
-              payment.notes?.toLowerCase().includes(searchLower) ||
-              payment.payment_id?.toLowerCase().includes(searchLower)
-            );
-          });
-        }
-        
-        console.log('Payments fetched:', finalData.length, 'records after client-side search');
-        return finalData;
+        console.log('Payments fetched with server-side search:', data?.length || 0, 'records');
+        return data || [];
       },
       enabled: !!user?.id,
       staleTime: 30000,

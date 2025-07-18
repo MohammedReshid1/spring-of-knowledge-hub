@@ -113,15 +113,15 @@ export const PaymentList = () => {
     };
   }, [queryClient]);
 
-  // Use the branch-filtered payments query - search is now handled client-side in the hook
+  // Use the branch-filtered payments query - now with server-side search identical to students
   const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
 
-  // All filtering is now handled server-side, so we just use the results directly
+  // All filtering and search is now handled server-side, so we use the results directly
   const payments = useMemo(() => {
     return allPayments || [];
   }, [allPayments]);
 
-  // Stats calculated directly from the same data source for consistency
+  // Stats calculated directly from the server-side filtered data for consistency
   const stats = useMemo(() => {
     // Return zeros when no payments data (handles branch switching properly)
     if (!allPayments || allPayments.length === 0) {
@@ -437,7 +437,7 @@ export const PaymentList = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Now showing real counts from server-side data */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <CardContent className="p-6">
