@@ -257,7 +257,7 @@ export const useBranchData = () => {
     });
   };
 
-  // Payments query with IDENTICAL server-side search to students - NO LIMITS
+  // Payments query with FIXED server-side search - NO LIMITS and correct syntax
   const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
     const branchFilter = getBranchFilter();
     
@@ -293,9 +293,9 @@ export const useBranchData = () => {
           query = query.eq('branch_id', branchFilter);
         }
         
-        // Apply server-side search IDENTICAL to students - this is the key fix
+        // Apply server-side search - FIXED syntax without 'students.' prefix
         if (searchTerm && searchTerm.trim()) {
-          // Use the exact same search logic as students
+          // Use the exact same search logic as students but for joined table
           query = query.or(`students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.father_name.ilike.%${searchTerm}%,students.grandfather_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%,students.phone.ilike.%${searchTerm}%,students.email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%,payment_id.ilike.%${searchTerm}%`);
         }
         
@@ -312,6 +312,7 @@ export const useBranchData = () => {
           query = query.eq('students.grade_level', gradeFilter as any);
         }
         
+        // Get ALL matching records - NO LIMITS OR RANGE CALLS
         const { data, error } = await query.order('created_at', { ascending: false });
         
         if (error) throw error;

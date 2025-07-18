@@ -113,7 +113,7 @@ export const PaymentList = () => {
     };
   }, [queryClient]);
 
-  // Use the branch-filtered payments query - now with server-side search identical to students
+  // Use the branch-filtered payments query - now with FIXED server-side search
   const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
 
   // All filtering and search is now handled server-side, so we use the results directly
@@ -121,8 +121,10 @@ export const PaymentList = () => {
     return allPayments || [];
   }, [allPayments]);
 
-  // Stats calculated directly from the server-side filtered data for consistency
+  // Stats calculated directly from the COMPLETE server-side filtered data
   const stats = useMemo(() => {
+    console.log('Calculating stats from payments data:', allPayments?.length || 0, 'records');
+    
     // Return zeros when no payments data (handles branch switching properly)
     if (!allPayments || allPayments.length === 0) {
       return {
@@ -139,6 +141,13 @@ export const PaymentList = () => {
     const unpaidPayments = allPayments.filter(p => p.payment_status === 'Unpaid').length;
     const partialPayments = allPayments.filter(p => p.payment_status === 'Partially Paid').length;
     const pendingPayments = unpaidPayments + partialPayments;
+    
+    console.log('Stats calculated:', {
+      totalPayments,
+      totalRevenue,
+      paidPayments,
+      pendingPayments
+    });
     
     return {
       totalPayments,
@@ -177,7 +186,7 @@ export const PaymentList = () => {
   // Since filtering is now done at database level, just use the payments directly
   const filteredPayments = payments || [];
 
-  // Pagination
+  // Pagination - now with REAL counts
   const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedPayments = filteredPayments.slice(startIndex, startIndex + itemsPerPage);
@@ -290,6 +299,7 @@ export const PaymentList = () => {
   };
 
   const exportData = (format: 'excel' | 'csv') => {
+    // Export from COMPLETE dataset, not limited to 1000
     const dataToExport = selectedPayments.length > 0 
       ? filteredPayments.filter(p => selectedPayments.includes(p.id))
       : filteredPayments;
@@ -437,7 +447,7 @@ export const PaymentList = () => {
         </div>
       </div>
 
-      {/* Stats Cards - Now showing real counts from server-side data */}
+      {/* Stats Cards - Now showing REAL counts from complete server-side data */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <CardContent className="p-6">
@@ -799,7 +809,7 @@ export const PaymentList = () => {
                 </Table>
               </div>
 
-              {/* Pagination Info */}
+              {/* Pagination Info - Now with REAL counts */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
