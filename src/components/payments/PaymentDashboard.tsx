@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useBranchData } from '@/hooks/useBranchData';
 import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

@@ -1,6 +1,6 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranch } from '@/contexts/BranchContext';
@@ -17,386 +17,245 @@ export const useBranchData = () => {
     queryKey: ['current-user-branch', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('branch_id')
-        .eq('id', user.id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user branch:', error);
-        return null;
-      }
-      
-      return data?.branch_id;
+      return user.branch_id; // User data already contains branch_id
     },
     enabled: !!user?.id
   });
 
-  // Auto-assign branch_id for new records
-  const getDefaultBranchId = () => {
-    // HQ roles can choose which branch to assign to
-    if (canAccessAllBranches && selectedBranch && selectedBranch !== 'all') {
-      return selectedBranch;
-    }
-    
-    // Branch-restricted roles use their assigned branch
-    return currentUserBranch;
-  };
-
-  // Get effective branch filter for queries
+  // Branch filter helper
   const getBranchFilter = () => {
-    // HQ roles viewing all branches
-    if (canAccessAllBranches && selectedBranch === 'all') {
-      return null; // No filter - return all branches
+    if (selectedBranch === 'all' || !selectedBranch) {
+      return {}; // No filter for "all branches"
     }
-    
-    // HQ roles viewing specific branch
-    if (canAccessAllBranches && selectedBranch && selectedBranch !== 'all') {
-      return selectedBranch;
-    }
-    
-    // Branch-restricted roles see only their branch
-    return currentUserBranch;
+    return { branch_id: selectedBranch };
   };
 
-  // Enhanced query invalidation on branch change with debouncing to prevent infinite loops
-  useEffect(() => {
-    if (selectedBranch !== null) {
-      console.log('Branch changed to:', selectedBranch, 'invalidating queries...');
-      
-      // Use a timeout to debounce rapid branch changes and prevent infinite loops
-      const timeoutId = setTimeout(() => {
-        // Clear all existing query data immediately
-        queryClient.setQueryData(['students'], () => []);
-        queryClient.setQueryData(['classes'], () => []);
-        queryClient.setQueryData(['payments'], () => []);
-        queryClient.setQueryData(['attendance'], () => []);
-        queryClient.setQueryData(['dashboard-stats'], () => null);
-        queryClient.setQueryData(['student-stats'], () => null);
+  // Students data
+  const useStudents = () => {
+    return useQuery({
+      queryKey: ['students', selectedBranch],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getStudents();
+        if (error) {
+          console.error('Error fetching students:', error);
+          return [];
+        }
         
-        // Invalidate all branch-dependent queries (but don't remove them to prevent infinite loops)
-        queryClient.invalidateQueries({ queryKey: ['students'] });
-        queryClient.invalidateQueries({ queryKey: ['classes'] });
-        queryClient.invalidateQueries({ queryKey: ['payments'] });
-        queryClient.invalidateQueries({ queryKey: ['attendance'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['student-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['filtered-students-count'] });
-      }, 100); // Small debounce to prevent rapid invalidations
+        // Filter by branch if needed
+        if (selectedBranch && selectedBranch !== 'all') {
+          return data?.filter((student: any) => student.branch_id === selectedBranch) || [];
+        }
+        
+        return data || [];
+      },
+      enabled: !!selectedBranch
+    });
+  };
 
-      return () => clearTimeout(timeoutId);
+  // Classes data
+  const useClasses = () => {
+    return useQuery({
+      queryKey: ['classes', selectedBranch],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getClasses();
+        if (error) {
+          console.error('Error fetching classes:', error);
+          return [];
+        }
+        
+        // Filter by branch if needed
+        if (selectedBranch && selectedBranch !== 'all') {
+          return data?.filter((cls: any) => cls.branch_id === selectedBranch) || [];
+        }
+        
+        return data || [];
+      },
+      enabled: !!selectedBranch
+    });
+  };
+
+  // Attendance data
+  const useAttendance = () => {
+    return useQuery({
+      queryKey: ['attendance', selectedBranch],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getAttendance();
+        if (error) {
+          console.error('Error fetching attendance:', error);
+          return [];
+        }
+        
+        // Filter by branch if needed
+        if (selectedBranch && selectedBranch !== 'all') {
+          return data?.filter((attendance: any) => attendance.branch_id === selectedBranch) || [];
+        }
+        
+        return data || [];
+      },
+      enabled: !!selectedBranch
+    });
+  };
+
+  // Fees data
+  const useFees = () => {
+    return useQuery({
+      queryKey: ['fees', selectedBranch],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getFees();
+        if (error) {
+          console.error('Error fetching fees:', error);
+          return [];
+        }
+        
+        return data || [];
+      },
+      enabled: !!selectedBranch
+    });
+  };
+
+  // Payments data (using registration payments as a proxy)
+  const usePayments = () => {
+    return useQuery({
+      queryKey: ['payments', selectedBranch],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getRegistrationPayments();
+        if (error) {
+          console.error('Error fetching payments:', error);
+          return [];
+        }
+        
+        // Filter by branch if needed
+        if (selectedBranch && selectedBranch !== 'all') {
+          return data?.filter((payment: any) => payment.branch_id === selectedBranch) || [];
+        }
+        
+        return data || [];
+      },
+      enabled: !!selectedBranch
+    });
+  };
+
+  // Grade levels data
+  const useGradeLevels = () => {
+    return useQuery({
+      queryKey: ['grade-levels'],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getGradeLevels();
+        if (error) {
+          console.error('Error fetching grade levels:', error);
+          return [];
+        }
+        
+        return data || [];
+      }
+    });
+  };
+
+  // Subjects data
+  const useSubjects = () => {
+    return useQuery({
+      queryKey: ['subjects'],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getSubjects();
+        if (error) {
+          console.error('Error fetching subjects:', error);
+          return [];
+        }
+        
+        return data || [];
+      }
+    });
+  };
+
+  // Student enrollments data
+  const useStudentEnrollments = () => {
+    return useQuery({
+      queryKey: ['student-enrollments', selectedBranch],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getStudentEnrollments();
+        if (error) {
+          console.error('Error fetching student enrollments:', error);
+          return [];
+        }
+        
+        return data || [];
+      },
+      enabled: !!selectedBranch
+    });
+  };
+
+  // Payment modes data
+  const usePaymentModes = () => {
+    return useQuery({
+      queryKey: ['payment-modes'],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getPaymentModes();
+        if (error) {
+          console.error('Error fetching payment modes:', error);
+          return [];
+        }
+        
+        return data || [];
+      }
+    });
+  };
+
+  // Backup logs data
+  const useBackupLogs = () => {
+    return useQuery({
+      queryKey: ['backup-logs'],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getBackupLogs();
+        if (error) {
+          console.error('Error fetching backup logs:', error);
+          return [];
+        }
+        
+        return data || [];
+      }
+    });
+  };
+
+  // Grade transitions data
+  const useGradeTransitions = () => {
+    return useQuery({
+      queryKey: ['grade-transitions'],
+      queryFn: async () => {
+        const { data, error } = await apiClient.getGradeTransitions();
+        if (error) {
+          console.error('Error fetching grade transitions:', error);
+          return [];
+        }
+        
+        return data || [];
+      }
+    });
+  };
+
+  // Invalidate queries when branch changes
+  useEffect(() => {
+    if (selectedBranch) {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
     }
   }, [selectedBranch, queryClient]);
 
-  // Students query with server-side search to handle large datasets
-  const useStudents = (searchTerm?: string, gradeFilter?: string, statusFilter?: string, classFilter?: string) => {
-    const branchFilter = getBranchFilter();
-    
-    return useQuery({
-      queryKey: ['students', selectedBranch, branchFilter, user?.id, searchTerm, gradeFilter, statusFilter, classFilter],
-      queryFn: async () => {
-        console.log('Fetching students with search:', searchTerm, 'branch:', selectedBranch);
-        
-        let query = supabase
-          .from('students')
-          .select(`
-            *,
-            classes:class_id (
-              id,
-              class_name,
-              grade_levels:grade_level_id (
-                grade
-              )
-            ),
-            registration_payments (
-              id,
-              payment_status,
-              amount_paid,
-              total_amount,
-              payment_cycle,
-              academic_year
-            )
-          `)
-          .order('created_at', { ascending: false });
-
-        // Apply branch filter if needed
-        if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
-        }
-
-        // Apply server-side filters for better performance
-        if (searchTerm && searchTerm.trim()) {
-          query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-        }
-        
-        // Apply grade filter server-side
-        if (gradeFilter && gradeFilter !== 'all') {
-          query = query.eq('grade_level', gradeFilter as any);
-        }
-        
-        // Apply status filter server-side  
-        if (statusFilter && statusFilter !== 'all') {
-          query = query.eq('status', statusFilter as any);
-        }
-        
-        // Apply class filter server-side
-        if (classFilter && classFilter !== 'all') {
-          query = query.eq('class_id', classFilter);
-        }
-        
-        // Get all matching records (no artificial limits)
-        const { data, error } = await query;
-        
-        if (error) throw error;
-        console.log('Students fetched:', data?.length || 0, 'records');
-        return data || [];
-      },
-      enabled: !!user?.id,
-      staleTime: searchTerm ? 0 : 30000, // Increased cache time to prevent excessive refetching
-      gcTime: 600000, // 10 minutes cache time
-      refetchOnWindowFocus: false,
-      refetchOnMount: false // Prevent automatic refetching on mount
-    });
-  };
-
-  // Classes query with branch filtering - bypassing 1000 row limit
-  const useClasses = () => {
-    const branchFilter = getBranchFilter();
-    
-    return useQuery({
-      queryKey: ['classes', selectedBranch, branchFilter, user?.id],
-      queryFn: async () => {
-        console.log('Fetching ALL classes for branch:', selectedBranch, 'filter:', branchFilter);
-        
-        // First get the count
-        let countQuery = supabase
-          .from('classes')
-          .select('*', { count: 'exact', head: true });
-        
-        if (branchFilter) {
-          countQuery = countQuery.eq('branch_id', branchFilter);
-        }
-        
-        const { count, error: countError } = await countQuery;
-        if (countError) throw countError;
-        
-        console.log('Total classes to fetch:', count);
-        
-        // Fetch all classes with student counts
-        let query = supabase
-          .from('classes')
-          .select(`
-            *,
-            grade_levels:grade_level_id (
-              id,
-              grade,
-              max_capacity
-            ),
-            teacher:teacher_id (
-              id,
-              full_name,
-              email
-            )
-          `)
-          .range(0, (count || 1000) - 1)
-          .order('class_name');
-        
-        // Apply branch filter if needed
-        if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
-        }
-        
-        const { data, error } = await query;
-        
-        if (error) throw error;
-
-        // Get actual student counts for each class and update capacities if needed
-        const classesWithCounts = await Promise.all(data?.map(async (cls) => {
-          const { count: studentCount, error: countError } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('class_id', cls.id)
-            .eq('status', 'Active');
-
-          if (countError) {
-            console.error(`Error counting students for class ${cls.id}:`, countError);
-          }
-
-          const currentEnrollment = studentCount || 0;
-          
-          // Automatically increase capacity if enrollment exceeds current capacity
-          let adjustedCapacity = cls.max_capacity;
-          if (currentEnrollment > cls.max_capacity) {
-            // Round up to nearest 5 to give some buffer
-            adjustedCapacity = Math.ceil(currentEnrollment / 5) * 5;
-            
-            // Update the capacity in the database
-            await supabase
-              .from('classes')
-              .update({ max_capacity: adjustedCapacity })
-              .eq('id', cls.id);
-          }
-
-          return {
-            ...cls,
-            current_enrollment: currentEnrollment,
-            max_capacity: adjustedCapacity
-          };
-        }) || []);
-
-        console.log('Classes fetched with student counts:', classesWithCounts?.length || 0, 'of', count, 'total records');
-        return classesWithCounts || [];
-      },
-      enabled: !!user?.id,
-      staleTime: 30000, // Increased cache for classes
-      gcTime: 600000,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false
-    });
-  };
-
-  // Payments query with FIXED server-side search - NO LIMITS and correct syntax
-  const usePayments = (searchTerm?: string, statusFilter?: string, cycleFilter?: string, gradeFilter?: string) => {
-    const branchFilter = getBranchFilter();
-    
-    return useQuery({
-      queryKey: ['payments', selectedBranch, branchFilter, user?.id, searchTerm, statusFilter, cycleFilter, gradeFilter],
-      queryFn: async () => {
-        console.log('Fetching ALL payments with server-side search:', { searchTerm, statusFilter, cycleFilter, gradeFilter, branch: selectedBranch });
-        
-        // Build the main query with joins - NO LIMITS to get all records
-        let query = supabase
-          .from('registration_payments')
-          .select(`
-            *,
-            students!inner (
-              id,
-              student_id,
-              first_name,
-              last_name,
-              mother_name,
-              father_name,
-              grandfather_name,
-              grade_level,
-              phone,
-              email,
-              photo_url,
-              status
-            )
-          `)
-          .in('students.status', ['Active']);
-        
-        // Apply branch filter if needed
-        if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
-        }
-        
-        // Apply server-side search - exactly like students search but for payment-related fields
-        if (searchTerm && searchTerm.trim()) {
-          // Search only on text fields, not UUID fields like payment_id
-          query = query.or(`students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.father_name.ilike.%${searchTerm}%,students.grandfather_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%,students.phone.ilike.%${searchTerm}%,students.email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
-        }
-        
-        // Apply server-side filters
-        if (statusFilter && statusFilter !== 'all') {
-          query = query.eq('payment_status', statusFilter);
-        }
-        
-        if (cycleFilter && cycleFilter !== 'all') {
-          query = query.eq('payment_cycle', cycleFilter);
-        }
-        
-        if (gradeFilter && gradeFilter !== 'all') {
-          query = query.eq('students.grade_level', gradeFilter as any);
-        }
-        
-        // Get ALL matching records - NO LIMITS OR RANGE CALLS
-        const { data, error } = await query.order('created_at', { ascending: false });
-        
-        if (error) throw error;
-        
-        console.log('Payments fetched with server-side search:', data?.length || 0, 'records');
-        return data || [];
-      },
-      enabled: !!user?.id,
-      staleTime: 30000,
-      gcTime: 600000,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false
-    });
-  };
-
-  // Attendance query with branch filtering - bypassing 1000 row limit
-  const useAttendance = () => {
-    const branchFilter = getBranchFilter();
-    
-    return useQuery({
-      queryKey: ['attendance', selectedBranch, branchFilter, user?.id],
-      queryFn: async () => {
-        console.log('Fetching ALL attendance for branch:', selectedBranch, 'filter:', branchFilter);
-        
-        // First get the count
-        let countQuery = supabase
-          .from('attendance')
-          .select('*', { count: 'exact', head: true });
-        
-        if (branchFilter) {
-          countQuery = countQuery.eq('branch_id', branchFilter);
-        }
-        
-        const { count, error: countError } = await countQuery;
-        if (countError) throw countError;
-        
-        console.log('Total attendance records to fetch:', count);
-        
-        // Fetch all attendance records
-        let query = supabase
-          .from('attendance')
-          .select(`
-            *,
-            students (
-              first_name,
-              last_name,
-              student_id
-            ),
-            classes (
-              class_name
-            )
-          `)
-          .range(0, (count || 5000) - 1)
-          .order('attendance_date', { ascending: false });
-        
-        // Apply branch filter if needed
-        if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
-        }
-        
-        const { data, error } = await query;
-        
-        if (error) throw error;
-        console.log('Attendance fetched:', data?.length || 0, 'of', count, 'total records');
-        return data || [];
-      },
-      enabled: !!user?.id,
-      staleTime: 30000, // Increased cache for attendance
-      gcTime: 600000,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false
-    });
-  };
-
   return {
+    currentUserBranch,
+    getBranchFilter,
     useStudents,
     useClasses,
-    usePayments,
     useAttendance,
-    getDefaultBranchId,
-    getBranchFilter,
-    currentUserBranch,
-    selectedBranch,
-    canAccessAllBranches,
-    isHQRole
+    useFees,
+    usePayments,
+    useGradeLevels,
+    useSubjects,
+    useStudentEnrollments,
+    usePaymentModes,
+    useBackupLogs,
+    useGradeTransitions,
+    selectedBranch
   };
 };

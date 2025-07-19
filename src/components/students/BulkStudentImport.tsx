@@ -5,7 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import * as XLSX from 'xlsx';
 import { Database } from '@/integrations/supabase/types';
 

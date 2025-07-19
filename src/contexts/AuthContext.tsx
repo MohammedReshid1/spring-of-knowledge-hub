@@ -1,10 +1,19 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
+
+interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  phone?: string;
+  branch_id?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, userData?: any) => Promise<{ error: any }>;
@@ -23,7 +32,6 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionTimer, setSessionTimer] = useState<NodeJS.Timeout | null>(null);
 
@@ -48,33 +56,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-        
-        if (session?.user) {
+    // Check for existing session on mount
+    const checkSession = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        apiClient.setToken(token);
+        const { data: userData, error } = await apiClient.getCurrentUser();
+        if (error) {
+          console.error('Error fetching user:', error);
+          apiClient.removeToken();
+          setUser(null);
+        } else {
+          setUser(userData);
           startSessionTimer();
-        } else if (sessionTimer) {
-          clearTimeout(sessionTimer);
-          setSessionTimer(null);
         }
       }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
       setLoading(false);
-    });
+    };
+
+    checkSession();
 
     return () => {
-      subscription.unsubscribe();
       if (sessionTimer) {
         clearTimeout(sessionTimer);
       }
@@ -83,53 +85,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signIn = async (email: string, password: string) => {
     console.log('Attempting sign in for:', email);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    const { data, error } = await apiClient.signIn(email, password);
+    
+    if (error) {
+      console.error('Sign in error:', error);
+      return { error };
+    }
+
+    if (data?.access_token) {
+      apiClient.setToken(data.access_token);
+      
+      // Fetch user data after successful login
+      const { data: userData, error: userError } = await apiClient.getCurrentUser();
+      if (userError) {
+        console.error('Error fetching user after login:', userError);
+        return { error: userError };
+      }
+      
+      setUser(userData);
+      startSessionTimer();
+    }
+    
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, userData?: any) => {
     console.log('Attempting sign up for:', email);
-    // Sign up without email confirmation
-    const { data, error } = await supabase.auth.signUp({
+    
+    const signUpData = {
       email,
       password,
-      options: {
-        data: userData
-      }
-    });
+      full_name: userData?.full_name || email.split('@')[0] || 'User',
+      role: userData?.role || 'student',
+      phone: userData?.phone || '',
+      branch_id: userData?.branch_id || '',
+    };
+    
+    const { data, error } = await apiClient.signUp(signUpData);
     
     if (error) {
       console.error('Sign up error:', error);
       return { error };
     }
 
-    // If signup was successful and we have a user, create a profile record
-    if (data.user) {
-      console.log('Creating user profile for:', data.user.email);
-      
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({
-          id: data.user.id,
-          email: data.user.email,
-          full_name: userData?.full_name || data.user.email?.split('@')[0] || 'User',
-          role: userData?.role || 'student',
-          phone: userData?.phone || null,
-        });
-
-      if (profileError) {
-        console.error('Error creating user profile:', profileError);
-        // Don't return the profile error as the auth signup was successful
-        // The user can still sign in, they just might need to update their profile
-      } else {
-        console.log('User profile created successfully');
-      }
-    }
-
-    console.log('Sign up successful:', data.user?.email);
+    console.log('Sign up successful:', email);
     return { error: null };
   };
 
@@ -139,7 +138,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(sessionTimer);
       setSessionTimer(null);
     }
-    await supabase.auth.signOut();
+    apiClient.removeToken();
+    setUser(null);
   };
 
   // Reset session timer on user activity
@@ -161,7 +161,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value = {
     user,
-    session,
     loading,
     signIn,
     signUp,
