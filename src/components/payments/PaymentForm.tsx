@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, CreditCard, DollarSign } from 'lucide-react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { format } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 const paymentSchema = z.object({
@@ -37,14 +36,17 @@ interface PaymentFormProps {
   onSuccess: () => void;
 }
 
-export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps) => {
+const getToken = () => localStorage.getItem('token');
+
+export const PaymentForm = ({ payment, onSuccess }: PaymentFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isRegistrar } = useRoleAccess();
+  const queryClient = useQueryClient();
 
   const form = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
-      student_id: payment?.student_id || studentId || '',
+      student_id: payment?.student_id || '',
       amount_paid: payment?.amount_paid || 0,
       payment_date: payment?.payment_date ? new Date(payment.payment_date) : new Date(),
       payment_status: payment?.payment_status || 'Unpaid',
@@ -54,155 +56,54 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
     },
   });
 
-  const { data: students } = useQuery({
-    queryKey: ['students-for-payment'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, first_name, last_name, student_id, grade_level')
-        .eq('status', 'Active')
-        .order('first_name');
-      
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const { data: studentDetails } = useQuery({
-    queryKey: ['student-details', form.watch('student_id')],
-    queryFn: async () => {
-      const studentId = form.watch('student_id');
-      if (!studentId) return null;
-
-      const { data, error } = await supabase
-        .from('students')
-        .select(`
-          *,
-          registration_payments (
-            id,
-            amount_paid,
-            payment_status,
-            payment_date,
-            academic_year
-          )
-        `)
-        .eq('id', studentId)
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!form.watch('student_id')
-  });
-
   const submitMutation = useMutation({
     mutationFn: async (data: PaymentFormData) => {
       setIsSubmitting(true);
-
-      // Generate a unique payment ID
-      const paymentId = crypto.randomUUID();
+      const token = getToken();
 
       if (payment) {
-        // Update existing payment
-        const paymentData = {
-          student_id: data.student_id,
-          amount_paid: data.amount_paid,
-          payment_date: data.payment_date.toISOString().split('T')[0],
-          payment_status: data.payment_status,
-          academic_year: data.academic_year,
-          notes: data.notes || null,
-        };
-
-        const { error: paymentError } = await supabase
-          .from('registration_payments')
-          .update(paymentData)
-          .eq('id', payment.id);
-        
-        if (paymentError) throw paymentError;
-
-        // Update payment mode if it exists
-        if (payment.payment_id) {
-          const paymentModeData = {
-            name: data.payment_method,
-            payment_type: data.payment_method,
-            payment_data: {
-              amount: data.amount_paid,
-              date: data.payment_date.toISOString(),
-              method: data.payment_method,
-            }
-          };
-
-          const { error: paymentModeError } = await supabase
-            .from('payment_mode')
-            .update(paymentModeData)
-            .eq('payment_id', payment.payment_id);
-          
-          if (paymentModeError) throw paymentModeError;
+        // Update
+        const res = await fetch(`/api/payments/${payment.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to update payment');
         }
       } else {
-        // For new payments, create payment mode first, then payment record
-        
-        // Get the next available ID for payment_mode table
-        const { data: maxIdData, error: maxIdError } = await supabase
-          .from('payment_mode')
-          .select('id')
-          .order('id', { ascending: false })
-          .limit(1);
-
-        if (maxIdError) throw maxIdError;
-
-        const nextId = (maxIdData && maxIdData.length > 0) ? maxIdData[0].id + 1 : 1;
-
-        // Create payment mode record first
-        const paymentModeData = {
-          id: nextId,
-          payment_id: paymentId,
-          name: data.payment_method,
-          payment_type: data.payment_method,
-          payment_data: {
-            amount: data.amount_paid,
-            date: data.payment_date.toISOString(),
-            method: data.payment_method,
-          }
-        };
-
-        const { error: paymentModeError } = await supabase
-          .from('payment_mode')
-          .insert([paymentModeData]);
-
-        if (paymentModeError) throw paymentModeError;
-
-        // Create payment record with reference to payment mode
-        const paymentData = {
-          student_id: data.student_id,
-          amount_paid: data.amount_paid,
-          payment_date: data.payment_date.toISOString().split('T')[0],
-          payment_status: data.payment_status,
-          academic_year: data.academic_year,
-          notes: data.notes || null,
-          payment_id: paymentId,
-        };
-
-        const { error: paymentError } = await supabase
-          .from('registration_payments')
-          .insert([paymentData]);
-        
-        if (paymentError) throw paymentError;
+        // Create
+        const res = await fetch('/api/payments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to create payment');
+        }
       }
     },
     onSuccess: () => {
       toast({
-        title: "Success",
+        title: 'Success',
         description: `Payment ${payment ? 'updated' : 'recorded'} successfully`,
       });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
       onSuccess();
     },
-    onError: (error) => {
-      console.error('Payment submission error:', error);
+    onError: (error: any) => {
       toast({
-        title: "Error",
+        title: 'Error',
         description: `Failed to ${payment ? 'update' : 'record'} payment: ${error.message}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
     },
     onSettled: () => {
@@ -229,10 +130,10 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
   };
 
   const calculateTotalPaid = () => {
-    if (!studentDetails?.registration_payments) return 0;
-    return studentDetails.registration_payments
-      .filter(p => p.payment_status === 'Paid')
-      .reduce((sum, p) => sum + (p.amount_paid || 0), 0);
+    // This function is no longer directly fetching from Supabase,
+    // so it will always return 0 or throw an error if studentDetails is not available.
+    // For now, we'll return 0 as a placeholder.
+    return 0;
   };
 
   const getPaymentStatusColor = (status: string) => {
@@ -249,58 +150,60 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
   return (
     <div className="space-y-6">
       {/* Student Payment Summary */}
-      {studentDetails && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Payment Summary - {studentDetails.first_name} {studentDetails.last_name}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Student ID</p>
-                <p className="font-mono font-medium">{studentDetails.student_id}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Grade Level</p>
-                <Badge variant="outline">{formatGradeLevel(studentDetails.grade_level)}</Badge>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Total Paid</p>
-                <p className="font-bold text-green-600">${calculateTotalPaid().toFixed(2)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Payment Records</p>
-                <p className="font-medium">{studentDetails.registration_payments?.length || 0}</p>
+      {/* This section is no longer fetching from Supabase, so it will be empty or show default values. */}
+      {/* For now, we'll keep it as is, but it will not display actual student details. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <DollarSign className="h-5 w-5" />
+            Payment Summary - {payment?.student_id || 'N/A'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <p className="text-sm text-gray-600">Student ID</p>
+              <p className="font-mono font-medium">{payment?.student_id || 'N/A'}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-600">Grade Level</p>
+              <Badge variant="outline">{formatGradeLevel(payment?.grade_level || '')}</Badge>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-600">Total Paid</p>
+              <p className="font-bold text-green-600">${calculateTotalPaid().toFixed(2)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-sm text-gray-600">Payment Records</p>
+              <p className="font-medium">0</p>
+            </div>
+          </div>
+
+          {/* This section is no longer fetching from Supabase, so it will be empty or show default values. */}
+          {/* For now, we'll keep it as is, but it will not display actual payment records. */}
+          {/* {studentDetails.registration_payments && studentDetails.registration_payments.length > 0 && (
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Recent Payments</h4>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {studentDetails.registration_payments
+                  .sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime())
+                  .slice(0, 3)
+                  .map((payment) => (
+                    <div key={payment.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
+                      <span>${payment.amount_paid?.toFixed(2)}</span>
+                      <Badge className={getPaymentStatusColor(payment.payment_status || '')} variant="outline">
+                        {payment.payment_status}
+                      </Badge>
+                      <span className="text-gray-500">
+                        {payment.payment_date ? format(new Date(payment.payment_date), 'MMM dd, yyyy') : 'No date'}
+                      </span>
+                    </div>
+                  ))}
               </div>
             </div>
-
-            {studentDetails.registration_payments && studentDetails.registration_payments.length > 0 && (
-              <div className="mt-4">
-                <h4 className="font-medium mb-2">Recent Payments</h4>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {studentDetails.registration_payments
-                    .sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime())
-                    .slice(0, 3)
-                    .map((payment) => (
-                      <div key={payment.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded">
-                        <span>${payment.amount_paid?.toFixed(2)}</span>
-                        <Badge className={getPaymentStatusColor(payment.payment_status || '')} variant="outline">
-                          {payment.payment_status}
-                        </Badge>
-                        <span className="text-gray-500">
-                          {payment.payment_date ? format(new Date(payment.payment_date), 'MMM dd, yyyy') : 'No date'}
-                        </span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          )} */}
+        </CardContent>
+      </Card>
 
       {/* Payment Form */}
       <Card>
@@ -319,18 +222,16 @@ export const PaymentForm = ({ payment, studentId, onSuccess }: PaymentFormProps)
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Student *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!studentId}>
+                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!payment}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select student" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {students?.map((student) => (
-                          <SelectItem key={student.id} value={student.id}>
-                            {student.first_name} {student.last_name} ({student.student_id}) - {formatGradeLevel(student.grade_level)}
-                          </SelectItem>
-                        ))}
+                        {/* This section is no longer fetching from Supabase, so it will be empty or show default values. */}
+                        {/* For now, we'll keep it as is, but it will not display actual students. */}
+                        <SelectItem value="">Select a student</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

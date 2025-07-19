@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { BranchSwitchDialog } from '@/components/common/BranchSwitchDialog';
 import { FullScreenLoading } from '@/components/common/FullScreenLoading';
 
+// Supabase usage is deprecated. Use /api endpoints for all data fetching with the FastAPI backend.
+
 interface Branch {
   id: string;
   name: string;

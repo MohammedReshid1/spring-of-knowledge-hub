@@ -71,3 +71,33 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Running Frontend and Backend Together (Development)
+
+This project now includes both the frontend (Vite + React) and backend (FastAPI) in a single repository.
+
+### Project Structure
+
+- `/frontend` — React app (this root directory)
+- `/backend` — FastAPI backend (Python)
+
+### Start Both Frontend and Backend
+
+1. Install dependencies:
+   ```sh
+   npm install
+   ```
+2. Start both servers together:
+   ```sh
+   npm run dev:all
+   ```
+   - The frontend will run on http://localhost:8080
+   - The backend (API) will run on http://localhost:8000
+   - API requests from the frontend to `/api/...` will be proxied to the backend automatically.
+
+### Environment Variables
+
+- **Frontend:** Use `.env` in the project root for frontend environment variables.
+- **Backend:** Use `backend/.env` for backend (FastAPI) environment variables (such as database connection strings).
+
+---

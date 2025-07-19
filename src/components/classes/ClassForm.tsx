@@ -2,13 +2,10 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
+
+// Supabase usage is deprecated. Use /api endpoints for all class form data fetching with the FastAPI backend.
 
 const classSchema = z.object({
   grade_level_id: z.string().min(1, 'Grade level is required'),
@@ -25,7 +22,9 @@ interface ClassFormProps {
   onSuccess: () => void;
 }
 
-export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
+const getToken = () => localStorage.getItem('token');
+
+export const ClassForm = ({ classData, onSuccess }: any) => {
   const queryClient = useQueryClient();
   
   const form = useForm<ClassFormData>({
@@ -44,16 +43,16 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
     queryKey: ['grade-levels'],
     queryFn: async () => {
       console.log('Fetching grade levels...');
-      const { data, error } = await supabase
-        .from('grade_levels')
-        .select('*')
-        .order('grade');
-      
-      if (error) {
-        console.error('Error fetching grade levels:', error);
-        throw error;
+      const res = await fetch('/api/grade-levels', {
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to fetch grade levels');
       }
-      
+      const data = await res.json();
       console.log('Grade levels fetched:', data);
       return data;
     }
@@ -64,18 +63,17 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
     queryKey: ['teachers'],
     queryFn: async () => {
       console.log('Fetching teachers...');
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, full_name, email')
-        .eq('role', 'teacher')
-        .order('full_name');
-      
-      if (error) {
-        console.error('Error fetching teachers:', error);
+      const res = await fetch('/api/users/teachers', {
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json();
         // Return empty array instead of throwing to prevent form from breaking
         return [];
       }
-      
+      const data = await res.json();
       console.log('Teachers fetched:', data?.length);
       return data || [];
     }
@@ -107,6 +105,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
 
   const submitMutation = useMutation({
     mutationFn: async (data: ClassFormData) => {
+      const token = getToken();
       const class_name = generateClassName(data.grade_level_id, data.section);
       const payload = {
         class_name,
@@ -117,38 +116,63 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
       };
 
       if (classData) {
-        const { error } = await supabase
-          .from('classes')
-          .update(payload)
-          .eq('id', classData.id);
-        if (error) throw error;
+        const res = await fetch(`/api/classes/${classData.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to update class');
+        }
       } else {
-        const { error } = await supabase
-          .from('classes')
-          .insert([payload]);
-        if (error) throw error;
+        const res = await fetch('/api/classes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to create class');
+        }
       }
 
       // Update grade level capacity when creating/updating classes
       if (data.grade_level_id) {
         // Get current grade level data
-        const { data: gradeLevel, error: gradeError } = await supabase
-          .from('grade_levels')
-          .select('max_capacity')
-          .eq('id', data.grade_level_id)
-          .single();
+        const res = await fetch(`/api/grade-levels/${data.grade_level_id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          console.error('Error fetching grade level capacity:', err);
+        } else {
+          const gradeLevel = await res.json();
+          if (gradeLevel) {
+            // Update grade level max capacity to accommodate this class
+            const newMaxCapacity = Math.max(gradeLevel.max_capacity, data.max_capacity);
+            
+            const updateRes = await fetch(`/api/grade-levels/${data.grade_level_id}`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ max_capacity: newMaxCapacity }),
+            });
 
-        if (!gradeError && gradeLevel) {
-          // Update grade level max capacity to accommodate this class
-          const newMaxCapacity = Math.max(gradeLevel.max_capacity, data.max_capacity);
-          
-          const { error: updateError } = await supabase
-            .from('grade_levels')
-            .update({ max_capacity: newMaxCapacity })
-            .eq('id', data.grade_level_id);
-
-          if (updateError) {
-            console.error('Error updating grade level capacity:', updateError);
+            if (!updateRes.ok) {
+              const err = await updateRes.json();
+              console.error('Error updating grade level capacity:', err);
+            }
           }
         }
       }
@@ -163,7 +187,7 @@ export const ClassForm = ({ classData, onSuccess }: ClassFormProps) => {
       queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
       onSuccess();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
         description: `Failed to ${classData ? 'update' : 'create'} class: ${error.message}`,

@@ -1,3 +1,4 @@
+// Supabase integration is deprecated. Use /api endpoints to communicate with the backend (FastAPI).
 export type Json =
   | string
   | number

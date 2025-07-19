@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,9 +32,14 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+// Supabase usage is deprecated. Use /api endpoints for all student list data fetching with the FastAPI backend.
+
 const STUDENTS_PER_PAGE = 30;
 
+const getToken = () => localStorage.getItem('token');
+
 export const StudentList = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -51,19 +55,26 @@ export const StudentList = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isDuplicateCheckerOpen, setIsDuplicateCheckerOpen] = useState(false);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
   const { canDelete, isSuperAdmin } = useRoleAccess();
   const { useStudents } = useBranchData();
 
   // Bulk delete mutation for super admin
   const bulkDeleteMutation = useMutation({
     mutationFn: async (studentIds: string[]) => {
-      const { error } = await supabase
-        .from('students')
-        .delete()
-        .in('id', studentIds);
-      
-      if (error) throw error;
+      const token = getToken();
+      const res = await fetch(`/api/students/bulk-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ student_ids: studentIds }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to delete students');
+      }
+      return true;
     },
     onSuccess: (_, studentIds) => {
       toast({
@@ -106,6 +117,12 @@ export const StudentList = () => {
 
   // Real-time subscription for students
   useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      console.error('No token found for subscription.');
+      return;
+    }
+
     const channel = supabase
       .channel('students-changes')
       .on(
@@ -191,13 +208,12 @@ export const StudentList = () => {
   const { data: classes } = useQuery({
     queryKey: ['classes'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .order('class_name');
-      
-      if (error) throw error;
-      return data;
+      const token = getToken();
+      const res = await fetch(`/api/classes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch classes');
+      return res.json();
     }
   });
 
@@ -282,19 +298,18 @@ export const StudentList = () => {
   const deleteStudentMutation = useMutation({
     mutationFn: async (studentId: string) => {
       console.log('Attempting to delete student:', studentId);
-      const { data: session } = await supabase.auth.getSession();
-      console.log('Current session:', session);
-      
-      const { error } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', studentId);
-      
-      if (error) {
-        console.error('Delete error:', error);
-        throw error;
+      const token = getToken();
+      const res = await fetch(`/api/students/${studentId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        console.error('Delete error:', err);
+        throw new Error(err.detail || 'Failed to delete student');
       }
       console.log('Student deleted successfully');
+      return true;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });

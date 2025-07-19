@@ -64,17 +64,15 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
 
   const watchPaymentMethod = form.watch('payment_method');
 
+  // Supabase usage is deprecated. Use /api endpoints for all payment form data fetching with the FastAPI backend.
   const { data: students } = useQuery({
     queryKey: ['students-for-payment'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, first_name, last_name, student_id, grade_level')
-        .eq('status', 'Active')
-        .order('first_name');
-      
-      if (error) throw error;
-      return data;
+      const response = await fetch('/api/students');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
     }
   });
 
@@ -84,24 +82,11 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
       const studentId = form.watch('student_id');
       if (!studentId) return null;
 
-      const { data, error } = await supabase
-        .from('students')
-        .select(`
-          *,
-          registration_payments (
-            id,
-            amount_paid,
-            payment_status,
-            payment_date,
-            academic_year,
-            payment_cycle
-          )
-        `)
-        .eq('id', studentId)
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const response = await fetch(`/api/students/${studentId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
     },
     enabled: !!form.watch('student_id')
   });
@@ -109,9 +94,11 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
   const { data: userRole } = useQuery({
     queryKey: ['user-role'],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_current_user_role');
-      if (error) throw error;
-      return data;
+      const response = await fetch('/api/user/role');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
     }
   });
 
@@ -126,17 +113,20 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
     const fileExt = file.name.split('.').pop();
     const fileName = `payment_${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('payment-screenshots')
-      .upload(fileName, file);
+    const formData = new FormData();
+    formData.append('file', file);
 
-    if (uploadError) throw uploadError;
+    const response = await fetch('/api/upload/payment-screenshot', {
+      method: 'POST',
+      body: formData,
+    });
 
-    const { data } = supabase.storage
-      .from('payment-screenshots')
-      .getPublicUrl(fileName);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-    return data.publicUrl;
+    const data = await response.json();
+    return data.url;
   };
 
   const submitMutation = useMutation({
@@ -163,12 +153,17 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
           notes: data.notes || null,
         };
 
-        const { error: paymentError } = await supabase
-          .from('registration_payments')
-          .update(paymentData)
-          .eq('id', payment.id);
+        const response = await fetch(`/api/payments/${payment.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(paymentData),
+        });
         
-        if (paymentError) throw paymentError;
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         // Update payment mode if it exists
         if (payment.payment_id) {
@@ -186,30 +181,31 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
             }
           };
 
-          const { error: paymentModeError } = await supabase
-            .from('payment_mode')
-            .update(paymentModeData)
-            .eq('payment_id', payment.payment_id);
+          const paymentModeResponse = await fetch(`/api/payment-modes/${payment.payment_id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(paymentModeData),
+          });
           
-          if (paymentModeError) throw paymentModeError;
+          if (!paymentModeResponse.ok) {
+            throw new Error(`HTTP error! status: ${paymentModeResponse.status}`);
+          }
         }
       } else {
         // For new payments, create payment mode first, then payment record
         
         // Get the next available ID for payment_mode table
-        const { data: maxIdData, error: maxIdError } = await supabase
-          .from('payment_mode')
-          .select('id')
-          .order('id', { ascending: false })
-          .limit(1);
-
-        if (maxIdError) throw maxIdError;
-
-        const nextId = (maxIdData && maxIdData.length > 0) ? maxIdData[0].id + 1 : 1;
+        const response = await fetch('/api/payment-modes/next-id');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const { next_id } = await response.json();
 
         // Create payment mode record first
         const paymentModeData = {
-          id: nextId,
+          id: next_id,
           payment_id: paymentId,
           name: data.payment_method,
           payment_type: data.payment_method,
@@ -224,11 +220,17 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
           }
         };
 
-        const { error: paymentModeError } = await supabase
-          .from('payment_mode')
-          .insert([paymentModeData]);
+        const paymentModeResponse = await fetch('/api/payment-modes', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify([paymentModeData]),
+        });
 
-        if (paymentModeError) throw paymentModeError;
+        if (!paymentModeResponse.ok) {
+          throw new Error(`HTTP error! status: ${paymentModeResponse.status}`);
+        }
 
         // Create payment record with reference to payment mode
         const paymentData = {
@@ -242,11 +244,17 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
           payment_id: paymentId,
         };
 
-        const { error: paymentError } = await supabase
-          .from('registration_payments')
-          .insert([paymentData]);
+        const paymentResponse = await fetch('/api/payments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify([paymentData]),
+        });
         
-        if (paymentError) throw paymentError;
+        if (!paymentResponse.ok) {
+          throw new Error(`HTTP error! status: ${paymentResponse.status}`);
+        }
       }
     },
     onSuccess: () => {

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +48,8 @@ const createEditUserSchema = (userRole: string) => {
   });
 };
 
+const getToken = () => localStorage.getItem('token');
+
 export const UserManagement = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -82,33 +83,43 @@ export const UserManagement = () => {
     },
   });
 
+  // List users
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .neq('role', 'teacher') // Exclude teachers from user management
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data;
-    }
+      const token = getToken();
+      const res = await fetch('/api/users', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch users');
+      const data = await res.json();
+      // Exclude teachers from user management
+      return data.filter((u: any) => u.role !== 'teacher');
+    },
   });
 
+  // Create user
   const createUserMutation = useMutation({
     mutationFn: async (userData: UserFormData) => {
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        body: userData
+      const token = getToken();
+      const res = await fetch('/api/users/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(userData),
       });
-      
-      if (error) throw error;
-      return data;
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to create user');
+      }
+      return await res.json();
     },
     onSuccess: () => {
       toast({
-        title: "Success",
-        description: "User created successfully and can now login with the provided credentials.",
+        title: 'Success',
+        description: 'User created successfully and can now login with the provided credentials.',
       });
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsCreateDialogOpen(false);
@@ -116,29 +127,35 @@ export const UserManagement = () => {
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
+        title: 'Error',
         description: `Failed to create user: ${error.message}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
-    }
+    },
   });
 
+  // Update user
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, userData }: { id: string; userData: EditUserFormData }) => {
-      const { data, error } = await supabase
-        .from('users')
-        .update(userData as any)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const token = getToken();
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(userData),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to update user');
+      }
+      return await res.json();
     },
     onSuccess: () => {
       toast({
-        title: "Success",
-        description: "User updated successfully.",
+        title: 'Success',
+        description: 'User updated successfully.',
       });
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsEditDialogOpen(false);
@@ -147,44 +164,41 @@ export const UserManagement = () => {
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
+        title: 'Error',
         description: `Failed to update user: ${error.message}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
-    }
+    },
   });
 
+  // Delete user
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      console.log('Attempting to delete user:', userId);
-      const { data: session } = await supabase.auth.getSession();
-      console.log('Current session:', session);
-      
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
-      
-      if (error) {
-        console.error('Delete error:', error);
-        throw error;
+      const token = getToken();
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to delete user');
       }
-      console.log('User deleted successfully');
+      return true;
     },
     onSuccess: () => {
       toast({
-        title: "Success",
-        description: "User deleted successfully.",
+        title: 'Success',
+        description: 'User deleted successfully.',
       });
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
+        title: 'Error',
         description: `Failed to delete user: ${error.message}`,
-        variant: "destructive",
+        variant: 'destructive',
       });
-    }
+    },
   });
 
   const onSubmit = (data: UserFormData) => {

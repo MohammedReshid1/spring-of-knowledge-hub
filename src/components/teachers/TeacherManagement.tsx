@@ -16,6 +16,8 @@ import { TeacherDetails } from './TeacherDetails';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranchData } from '@/hooks/useBranchData';
 
+// Supabase usage is deprecated. Use /api endpoints for all teacher management data fetching with the FastAPI backend.
+
 export const TeacherManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeacher, setSelectedTeacher] = useState(null);

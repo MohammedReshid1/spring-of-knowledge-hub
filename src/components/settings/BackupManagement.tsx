@@ -6,14 +6,17 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Download, RefreshCw, Database, Clock, CheckCircle, XCircle, AlertCircle, Eye, RotateCcw, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
+// Supabase usage is deprecated. Use /api endpoints for all backup management data fetching with the FastAPI backend.
+import { toast } from '@/hooks/use-toast';
+
+const getToken = () => localStorage.getItem('token');
+
 export const BackupManagement = () => {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
   const [selectedBackup, setSelectedBackup] = useState<any>(null);
@@ -24,41 +27,63 @@ export const BackupManagement = () => {
   const { data: backupLogs, isLoading } = useQuery({
     queryKey: ['backup-logs'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('backup_logs')
-        .select('*')
-        .order('started_at', { ascending: false })
-        .limit(10);
-      
-      if (error) throw error;
-      return data;
+      const token = getToken();
+      const res = await fetch('/api/backup-logs', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch backup logs');
+      return res.json();
     },
   });
 
-  // Delete backup mutation
-  const deleteBackupMutation = useMutation({
-    mutationFn: async (backupId: string) => {
-      const { data, error } = await supabase.rpc('delete_backup_log', {
-        backup_log_id: backupId
+  // Create backup log
+  const createBackupMutation = useMutation({
+    mutationFn: async (backupData: any) => {
+      const token = getToken();
+      const res = await fetch('/api/backup-logs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(backupData),
       });
-      
-      if (error) throw error;
-      return data;
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to create backup log');
+      }
+      return res.json();
     },
     onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Backup deleted successfully.",
-      });
+      toast({ title: 'Success', description: 'Backup log created successfully.' });
       queryClient.invalidateQueries({ queryKey: ['backup-logs'] });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete backup.",
-        variant: "destructive",
+      toast({ title: 'Error', description: `Failed to create backup log: ${error.message}`, variant: 'destructive' });
+    },
+  });
+
+  // Delete backup log
+  const deleteBackupMutation = useMutation({
+    mutationFn: async (backupId: string) => {
+      const token = getToken();
+      const res = await fetch(`/api/backup-logs/${backupId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
       });
-    }
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Failed to delete backup log');
+      }
+      return true;
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Backup log deleted successfully.' });
+      queryClient.invalidateQueries({ queryKey: ['backup-logs'] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: `Failed to delete backup log: ${error.message}`, variant: 'destructive' });
+    },
   });
 
   // Restore backup mutation
@@ -119,36 +144,6 @@ export const BackupManagement = () => {
       description: "Backup download functionality is not yet implemented. This shows backup metadata only.",
     });
   };
-
-  // Create manual backup
-  const createBackupMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.rpc('create_database_backup', {
-        backup_type: 'manual',
-        backup_method: 'full'
-      });
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Manual backup created successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['backup-logs'] });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create backup.",
-        variant: "destructive",
-      });
-    },
-    onSettled: () => {
-      setIsCreatingBackup(false);
-    }
-  });
 
   const handleCreateBackup = async () => {
     setIsCreatingBackup(true);
