@@ -170,21 +170,7 @@ export const useBranchData = () => {
       queryFn: async () => {
         console.log('Fetching ALL classes for branch:', selectedBranch, 'filter:', branchFilter);
         
-        // First get the count
-        let countQuery = supabase
-          .from('classes')
-          .select('*', { count: 'exact', head: true });
-        
-        if (branchFilter) {
-          countQuery = countQuery.eq('branch_id', branchFilter);
-        }
-        
-        const { count, error: countError } = await countQuery;
-        if (countError) throw countError;
-        
-        console.log('Total classes to fetch:', count);
-        
-        // Fetch all classes with student counts
+        // Fetch all classes with student counts - NO RANGE LIMITS
         let query = supabase
           .from('classes')
           .select(`
@@ -200,7 +186,6 @@ export const useBranchData = () => {
               email
             )
           `)
-          .range(0, (count || 1000) - 1)
           .order('class_name');
         
         // Apply branch filter with NULL handling for classes
@@ -246,7 +231,7 @@ export const useBranchData = () => {
           };
         }) || []);
 
-        console.log('Classes fetched with student counts:', classesWithCounts?.length || 0, 'of', count, 'total records');
+        console.log('Classes fetched with student counts:', classesWithCounts?.length || 0, 'total records');
         return classesWithCounts || [];
       },
       enabled: !!user?.id,
@@ -293,7 +278,7 @@ export const useBranchData = () => {
           query = query.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
         }
         
-        // FIXED: Use two-step search approach to avoid PostgREST parsing errors
+        // FIXED: Proper search implementation to avoid duplicates and PostgREST errors
         if (searchTerm && searchTerm.trim()) {
           // Step 1: Find matching student IDs using students table search
           const { data: matchingStudents, error: searchError } = await supabase
@@ -305,11 +290,11 @@ export const useBranchData = () => {
           
           const matchingStudentIds = matchingStudents?.map(s => s.id) || [];
           
-          // Step 2: Filter payments by matching student IDs OR matching payment-specific fields
+          // Step 2: Apply search filter - either by student IDs or payment fields, but avoid OR that causes duplicates
           if (matchingStudentIds.length > 0) {
-            query = query.or(`student_id.in.(${matchingStudentIds.join(',')}),notes.ilike.%${searchTerm}%`);
+            query = query.in('student_id', matchingStudentIds);
           } else {
-            // Only search payment-specific fields if no student matches
+            // Only search payment notes if no students match
             query = query.ilike('notes', `%${searchTerm}%`);
           }
         }
@@ -332,8 +317,13 @@ export const useBranchData = () => {
         
         if (error) throw error;
         
-        console.log('Payments fetched with server-side search:', data?.length || 0, 'records');
-        return data || [];
+        // Remove duplicates by payment ID in case any occur
+        const uniquePayments = data?.filter((payment, index, arr) => 
+          arr.findIndex(p => p.id === payment.id) === index
+        ) || [];
+        
+        console.log('Payments fetched with server-side search:', uniquePayments.length, 'unique records');
+        return uniquePayments;
       },
       enabled: !!user?.id,
       staleTime: 30000,
@@ -352,21 +342,7 @@ export const useBranchData = () => {
       queryFn: async () => {
         console.log('Fetching ALL attendance for branch:', selectedBranch, 'filter:', branchFilter);
         
-        // First get the count
-        let countQuery = supabase
-          .from('attendance')
-          .select('*', { count: 'exact', head: true });
-        
-        if (branchFilter) {
-          countQuery = countQuery.eq('branch_id', branchFilter);
-        }
-        
-        const { count, error: countError } = await countQuery;
-        if (countError) throw countError;
-        
-        console.log('Total attendance records to fetch:', count);
-        
-        // Fetch all attendance records
+        // Fetch all attendance records - NO RANGE LIMITS
         let query = supabase
           .from('attendance')
           .select(`
@@ -380,7 +356,6 @@ export const useBranchData = () => {
               class_name
             )
           `)
-          .range(0, (count || 5000) - 1)
           .order('attendance_date', { ascending: false });
         
         // Apply branch filter with NULL handling for attendance
@@ -391,7 +366,7 @@ export const useBranchData = () => {
         const { data, error } = await query;
         
         if (error) throw error;
-        console.log('Attendance fetched:', data?.length || 0, 'of', count, 'total records');
+        console.log('Attendance fetched:', data?.length || 0, 'total records');
         return data || [];
       },
       enabled: !!user?.id,
