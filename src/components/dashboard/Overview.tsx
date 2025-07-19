@@ -93,14 +93,11 @@ export const Overview = () => {
         .from('classes')
         .select('*', { count: 'exact', head: true });
 
-      // Apply branch filter to all queries with proper NULL handling
+      // Apply branch filter with proper NULL handling - NULL students belong to main branch
       if (branchFilter) {
-        studentsCountQuery = studentsCountQuery.eq('branch_id', branchFilter);
-        activeStudentsQuery = activeStudentsQuery.eq('branch_id', branchFilter);
-        classesCountQuery = classesCountQuery.eq('branch_id', branchFilter);
-      } else if (selectedBranch === 'all') {
-        // For "all branches" view, exclude NULL values to avoid orphaned data
-        classesCountQuery = classesCountQuery.not('branch_id', 'is', null);
+        studentsCountQuery = studentsCountQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
+        activeStudentsQuery = activeStudentsQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
+        classesCountQuery = classesCountQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
       }
 
       // Execute all count queries in parallel
@@ -138,7 +135,7 @@ export const Overview = () => {
         .gte('created_at', thisMonthStart.toISOString());
       
       if (branchFilter) {
-        recentQuery = recentQuery.eq('branch_id', branchFilter);
+        recentQuery = recentQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
       }
       
       const { count: recentRegistrations } = await recentQuery;

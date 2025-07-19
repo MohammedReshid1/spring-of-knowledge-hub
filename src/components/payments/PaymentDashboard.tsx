@@ -96,14 +96,14 @@ export const PaymentDashboard = () => {
 
       const branchFilter = getBranchFilter();
 
-      // Get accurate count of active students using branch-filtered count query
+      // Get accurate count of active students using branch-filtered count query - FIXED limits
       let studentsCountQuery = supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Active');
 
       if (branchFilter) {
-        studentsCountQuery = studentsCountQuery.eq('branch_id', branchFilter);
+        studentsCountQuery = studentsCountQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
       }
 
       const { count: activeStudentsCount, error: studentsError } = await studentsCountQuery;

@@ -45,11 +45,11 @@ export const useBranchData = () => {
     return currentUserBranch;
   };
 
-  // Get effective branch filter for queries
+  // Get effective branch filter for queries - FIXED to handle main branch and NULL values consistently
   const getBranchFilter = () => {
     // HQ roles viewing all branches
     if (canAccessAllBranches && selectedBranch === 'all') {
-      return null; // No filter - return all branches
+      return null; // No filter - return all branches including NULL
     }
     
     // HQ roles viewing specific branch
@@ -57,7 +57,7 @@ export const useBranchData = () => {
       return selectedBranch;
     }
     
-    // Branch-restricted roles see only their branch
+    // Branch-restricted roles see only their branch + NULL branch_id students (unassigned belong to main branch)
     return currentUserBranch;
   };
 
@@ -121,9 +121,9 @@ export const useBranchData = () => {
           `)
           .order('created_at', { ascending: false });
 
-        // Apply branch filter if needed
+        // Apply branch filter with NULL handling - NULL branch_id students belong to main branch
         if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
+          query = query.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
         }
 
         // Apply server-side filters for better performance
@@ -203,9 +203,9 @@ export const useBranchData = () => {
           .range(0, (count || 1000) - 1)
           .order('class_name');
         
-        // Apply branch filter if needed
+        // Apply branch filter with NULL handling for classes
         if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
+          query = query.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
         }
         
         const { data, error } = await query;
@@ -288,15 +288,30 @@ export const useBranchData = () => {
           `)
           .in('students.status', ['Active']);
         
-        // Apply branch filter if needed
+        // Apply branch filter with NULL handling for payments
         if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
+          query = query.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
         }
         
-        // Apply server-side search - exactly like students search but for payment-related fields
+        // FIXED: Use two-step search approach to avoid PostgREST parsing errors
         if (searchTerm && searchTerm.trim()) {
-          // Search only on text fields, not UUID fields like payment_id
-          query = query.or(`students.student_id.ilike.%${searchTerm}%,students.first_name.ilike.%${searchTerm}%,students.last_name.ilike.%${searchTerm}%,students.father_name.ilike.%${searchTerm}%,students.grandfather_name.ilike.%${searchTerm}%,students.mother_name.ilike.%${searchTerm}%,students.phone.ilike.%${searchTerm}%,students.email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
+          // Step 1: Find matching student IDs using students table search
+          const { data: matchingStudents, error: searchError } = await supabase
+            .from('students')
+            .select('id')
+            .or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+          
+          if (searchError) throw searchError;
+          
+          const matchingStudentIds = matchingStudents?.map(s => s.id) || [];
+          
+          // Step 2: Filter payments by matching student IDs OR matching payment-specific fields
+          if (matchingStudentIds.length > 0) {
+            query = query.or(`student_id.in.(${matchingStudentIds.join(',')}),notes.ilike.%${searchTerm}%`);
+          } else {
+            // Only search payment-specific fields if no student matches
+            query = query.ilike('notes', `%${searchTerm}%`);
+          }
         }
         
         // Apply server-side filters
@@ -368,9 +383,9 @@ export const useBranchData = () => {
           .range(0, (count || 5000) - 1)
           .order('attendance_date', { ascending: false });
         
-        // Apply branch filter if needed
+        // Apply branch filter with NULL handling for attendance
         if (branchFilter) {
-          query = query.eq('branch_id', branchFilter);
+          query = query.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
         }
         
         const { data, error } = await query;
