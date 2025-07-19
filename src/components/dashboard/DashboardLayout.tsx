@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Footer } from '@/components/layout/Footer';
 import { BranchSelector } from '@/components/branches/BranchSelector';
@@ -33,26 +33,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Fetch user profile to get full name
-  const { data: userProfile } = useQuery({
-    queryKey: ['user-profile', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('full_name')
-        .eq('id', user.id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user profile:', error);
-        return null;
-      }
-      return data;
-    },
-    enabled: !!user?.id,
-  });
+  // User profile is already available from auth context
+  const userProfile = user ? { full_name: user.full_name } : null;
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: Home, adminOnly: false },

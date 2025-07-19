@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { debounce } from 'lodash';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useBranchData } from '@/hooks/useBranchData';
 import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

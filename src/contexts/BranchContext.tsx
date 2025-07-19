@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { BranchSwitchDialog } from '@/components/common/BranchSwitchDialog';
 import { FullScreenLoading } from '@/components/common/FullScreenLoading';
@@ -51,19 +51,14 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
-        .rpc('get_user_accessible_branches', { user_id: user.id });
+      const { data, error } = await apiClient.getBranches();
       
       if (error) {
         console.error('Error fetching user branches:', error);
         return [];
       }
       
-      return data.map((item: any) => ({
-        id: item.branch_id,
-        name: item.branch_name,
-        is_active: true // All returned branches are active
-      }));
+      return data || [];
     },
     enabled: !!user?.id
   });
@@ -72,18 +67,14 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { data: allBranches = [] } = useQuery({
     queryKey: ['all-branches'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('branches')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
+      const { data, error } = await apiClient.getBranches();
       
       if (error) {
         console.error('Error fetching all branches:', error);
         return [];
       }
       
-      return data;
+      return data?.filter((branch: Branch) => branch.is_active) || [];
     }
   });
 
@@ -93,18 +84,7 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     queryFn: async () => {
       if (!user?.id) return null;
       
-      const { data, error } = await supabase
-        .from('users')
-        .select('role, branch_id')
-        .eq('id', user.id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching current user:', error);
-        return null;
-      }
-      
-      return data;
+      return user; // User data is already available from auth context
     },
     enabled: !!user?.id
   });

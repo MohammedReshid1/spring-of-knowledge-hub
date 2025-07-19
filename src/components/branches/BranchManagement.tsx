@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,23 +68,18 @@ export const BranchManagement = () => {
   const { data: branches = [], isLoading } = useQuery({
     queryKey: ['branches'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('branches')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await apiClient.getBranches();
       
-      if (error) throw error;
-      return data;
+      if (error) throw new Error(error);
+      return data || [];
     }
   });
 
   const createBranchMutation = useMutation({
     mutationFn: async (data: BranchFormData) => {
-      const { error } = await supabase
-        .from('branches')
-        .insert([data]);
+      const { error } = await apiClient.createBranch(data);
       
-      if (error) throw error;
+      if (error) throw new Error(error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
@@ -108,12 +103,9 @@ export const BranchManagement = () => {
   const updateBranchMutation = useMutation({
     mutationFn: async (data: BranchFormData & { id: string }) => {
       const { id, ...updateData } = data;
-      const { error } = await supabase
-        .from('branches')
-        .update(updateData)
-        .eq('id', id);
+      const { error } = await apiClient.updateBranch(id, updateData);
       
-      if (error) throw error;
+      if (error) throw new Error(error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
@@ -137,12 +129,9 @@ export const BranchManagement = () => {
 
   const deleteBranchMutation = useMutation({
     mutationFn: async (branchId: string) => {
-      const { error } = await supabase
-        .from('branches')
-        .delete()
-        .eq('id', branchId);
+      const { error } = await apiClient.deleteBranch(branchId);
       
-      if (error) throw error;
+      if (error) throw new Error(error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
