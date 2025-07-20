@@ -5,4 +5,5 @@ PyJWT
 passlib[bcrypt]
 python-dotenv
 email-validator
-fastapi-crudrouter>=0.11.0
+fastapi-crudrouter>=0.8.6
+python-multipart

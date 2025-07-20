@@ -1,6 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .db import get_db
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Choose database implementation based on environment
+USE_MOCK_DB = os.getenv("USE_MOCK_DB", "true").lower() == "true"
+
+if USE_MOCK_DB:
+    print("🔧 Using mock database for development")
+    from .db_mock import get_db
+else:
+    print("🗄️ Using MongoDB database")
+    from .db import get_db
+
 from .routers import users, branches, students, attendance, backup_logs, classes, fees, grade_levels, grade_transitions, payment_mode, registration_payments, student_enrollments, subjects
 
 app = FastAPI()
