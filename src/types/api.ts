@@ -51,6 +51,38 @@ export interface Student {
   branch_id: string;
 }
 
+export interface Teacher {
+  id: string;
+  teacher_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone?: string;
+  date_of_birth?: string;
+  gender?: string;
+  address?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  qualification?: string;
+  experience_years?: number;
+  specialization?: string;
+  joining_date?: string;
+  salary?: number;
+  status: string;
+  branch_id?: string;
+  photo_url?: string;
+  subjects?: string[];
+  classes?: string[];
+  employee_id?: string;
+  department?: string;
+  blood_group?: string;
+  nationality?: string;
+  marital_status?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SchoolClass {
   id: string;
   grade_level_id: string;

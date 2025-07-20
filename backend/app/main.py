@@ -35,7 +35,7 @@ app.add_middleware(
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(branches.router, prefix="/branches", tags=["branches"])
 app.include_router(students.router, prefix="/students", tags=["students"])
-app.include_router(teachers.router, prefix="/teachers", tags=["teachers"])
+app.include_router(teachers.router)
 app.include_router(attendance.router, prefix="/attendance", tags=["attendance"])
 app.include_router(backup_logs.router, prefix="/backup-logs", tags=["backup-logs"])
 app.include_router(classes.router, prefix="/classes", tags=["classes"])

@@ -2,15 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from datetime import datetime, timezone
 from ..models.teacher import Teacher, TeacherCreate
-from ..db import get_database
-from ..auth import get_current_user
+from ..db import get_db
+from .users import get_current_user
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
 
 @router.get("/", response_model=List[Teacher])
 async def list_teachers(
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
+    db = Depends(get_db)
 ):
     """Get all teachers"""
     try:
@@ -59,7 +59,7 @@ async def list_teachers(
 async def create_teacher(
     teacher: TeacherCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
+    db = Depends(get_db)
 ):
     """Create a new teacher"""
     try:
@@ -95,7 +95,7 @@ async def create_teacher(
 async def get_teacher(
     teacher_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
+    db = Depends(get_db)
 ):
     """Get a specific teacher by ID"""
     try:
@@ -119,7 +119,7 @@ async def update_teacher(
     teacher_id: str,
     teacher_update: TeacherCreate,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
+    db = Depends(get_db)
 ):
     """Update a teacher"""
     try:
@@ -153,7 +153,7 @@ async def update_teacher(
 async def delete_teacher(
     teacher_id: str,
     current_user: dict = Depends(get_current_user),
-    db = Depends(get_database)
+    db = Depends(get_db)
 ):
     """Delete a teacher"""
     try:

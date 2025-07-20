@@ -31,61 +31,44 @@ export const TeacherManagement = () => {
     queryKey: ['teachers', getBranchFilter()],
     queryFn: async () => {
       console.log('Fetching teachers with branch filter...');
-      const branchFilter = getBranchFilter();
+      const response = await apiClient.getTeachers();
       
-      let query = supabase
-        .from('users')
-        .select(`
-          *,
-          classes:classes!teacher_id (
-            id,
-            class_name,
-            max_capacity,
-            current_enrollment,
-            grade_levels:grade_level_id (
-              grade
-            )
-          )
-        `)
-        .eq('role', 'teacher');
-
+      if (response.error) {
+        console.error('Error fetching teachers:', response.error);
+        throw new Error(response.error);
+      }
+      
+      let filteredTeachers = response.data || [];
+      
       // Apply branch filter if needed
+      const branchFilter = getBranchFilter();
       if (branchFilter) {
-        query = query.eq('branch_id', branchFilter);
+        filteredTeachers = filteredTeachers.filter(teacher => teacher.branch_id === branchFilter);
       }
       
-      query = query.order('full_name');
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error('Error fetching teachers:', error);
-        throw error;
-      }
-      console.log('Teachers fetched successfully:', data?.length);
-      return data;
+      console.log('Teachers fetched successfully:', filteredTeachers.length);
+      return filteredTeachers;
     }
   });
 
   const { data: stats } = useQuery({
     queryKey: ['teacher-stats'],
     queryFn: async () => {
-      const { data: teachersData, error } = await supabase
-        .from('users')
-        .select('id, role')
-        .eq('role', 'teacher');
+      const teachersResponse = await apiClient.getTeachers();
+      const classesResponse = await apiClient.getClasses();
       
-      if (error) throw error;
+      if (teachersResponse.error) throw new Error(teachersResponse.error);
+      if (classesResponse.error) throw new Error(classesResponse.error);
       
-      const { data: classesData, error: classesError } = await supabase
-        .from('classes')
-        .select('teacher_id')
-        .not('teacher_id', 'is', null);
-      
-      if (classesError) throw classesError;
+      const teachersData = teachersResponse.data || [];
+      const classesData = classesResponse.data || [];
       
       const totalTeachers = teachersData.length;
-      const assignedTeachers = new Set(classesData.map(c => c.teacher_id)).size;
+      const assignedTeachers = new Set(
+        classesData
+          .filter(c => c.teacher_id)
+          .map(c => c.teacher_id)
+      ).size;
       const unassignedTeachers = totalTeachers - assignedTeachers;
       
       return {
@@ -98,12 +81,8 @@ export const TeacherManagement = () => {
 
   const deleteTeacherMutation = useMutation({
     mutationFn: async (teacherId: string) => {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', teacherId);
-      
-      if (error) throw error;
+      const response = await apiClient.deleteTeacher(teacherId);
+      if (response.error) throw new Error(response.error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
@@ -123,9 +102,11 @@ export const TeacherManagement = () => {
   });
 
   const filteredTeachers = teachers?.filter(teacher => {
+    const fullName = `${teacher.first_name} ${teacher.last_name}`;
     const matchesSearch = 
-      teacher.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(searchTerm.toLowerCase());
+      fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.teacher_id.toLowerCase().includes(searchTerm.toLowerCase());
     
     const hasClasses = teacher.classes && teacher.classes.length > 0;
     const matchesStatus = statusFilter === 'all' || 
@@ -139,8 +120,12 @@ export const TeacherManagement = () => {
     return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  const getInitials = (fullName: string) => {
-    return fullName.split(' ').map(n => n.charAt(0)).join('').toUpperCase();
+  const getInitials = (teacher: any) => {
+    return `${teacher.first_name.charAt(0)}${teacher.last_name.charAt(0)}`.toUpperCase();
+  };
+
+  const getFullName = (teacher: any) => {
+    return `${teacher.first_name} ${teacher.last_name}`;
   };
 
   const handleDelete = (teacherId: string) => {
@@ -324,12 +309,12 @@ export const TeacherManagement = () => {
                           <div className="flex items-center space-x-3">
                             <Avatar className="h-10 w-10">
                               <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                                {getInitials(teacher.full_name)}
+                                {getInitials(teacher)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <div className="font-medium text-gray-900">{teacher.full_name}</div>
-                              <div className="text-sm text-gray-500">Teacher</div>
+                              <div className="font-medium text-gray-900">{getFullName(teacher)}</div>
+                              <div className="text-sm text-gray-500">{teacher.specialization || 'Teacher'}</div>
                             </div>
                           </div>
                         </TableCell>

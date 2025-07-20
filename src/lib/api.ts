@@ -1,5 +1,5 @@
 // API Client for FastAPI Backend
-import type { ApiResponse, User, Branch, Student, SchoolClass, Attendance, Fee, GradeLevel, Subject, StudentEnrollment, PaymentMode, RegistrationPayment, BackupLog, GradeTransition } from '@/types/api';
+import type { ApiResponse, User, Branch, Student, Teacher, SchoolClass, Attendance, Fee, GradeLevel, Subject, StudentEnrollment, PaymentMode, RegistrationPayment, BackupLog, GradeTransition } from '@/types/api';
 import { config } from './config';
 
 const API_BASE_URL = config.API_BASE_URL;
@@ -146,6 +146,35 @@ class ApiClient {
 
   async deleteStudent(studentId: string): Promise<ApiResponse<void>> {
     return this.request(`/students/${studentId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Teacher methods
+  async getTeachers(): Promise<ApiResponse<Teacher[]>> {
+    return this.request('/teachers/');
+  }
+
+  async createTeacher(teacherData: Partial<Teacher>): Promise<ApiResponse<Teacher>> {
+    return this.request('/teachers/', {
+      method: 'POST',
+      body: JSON.stringify(teacherData),
+    });
+  }
+
+  async getTeacher(teacherId: string): Promise<ApiResponse<Teacher>> {
+    return this.request(`/teachers/${teacherId}`);
+  }
+
+  async updateTeacher(teacherId: string, teacherData: Partial<Teacher>): Promise<ApiResponse<Teacher>> {
+    return this.request(`/teachers/${teacherId}`, {
+      method: 'PUT',
+      body: JSON.stringify(teacherData),
+    });
+  }
+
+  async deleteTeacher(teacherId: string): Promise<ApiResponse<void>> {
+    return this.request(`/teachers/${teacherId}`, {
       method: 'DELETE',
     });
   }
