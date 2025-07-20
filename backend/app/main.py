@@ -15,7 +15,7 @@ else:
     print("🗄️ Using MongoDB database")
     from .db import get_db
 
-from .routers import users, branches, students, attendance, backup_logs, classes, fees, grade_levels, grade_transitions, payment_mode, registration_payments, student_enrollments, subjects, stats
+from .routers import users, branches, students, teachers, attendance, backup_logs, classes, fees, grade_levels, grade_transitions, payment_mode, registration_payments, student_enrollments, subjects, stats
 
 app = FastAPI()
 
@@ -35,6 +35,7 @@ app.add_middleware(
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(branches.router, prefix="/branches", tags=["branches"])
 app.include_router(students.router, prefix="/students", tags=["students"])
+app.include_router(teachers.router, prefix="/teachers", tags=["teachers"])
 app.include_router(attendance.router, prefix="/attendance", tags=["attendance"])
 app.include_router(backup_logs.router, prefix="/backup-logs", tags=["backup-logs"])
 app.include_router(classes.router, prefix="/classes", tags=["classes"])
