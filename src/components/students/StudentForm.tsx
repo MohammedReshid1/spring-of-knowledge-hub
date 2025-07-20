@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Camera, Upload } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Database } from '@/integrations/supabase/types';
+import { useBranch } from '@/contexts/BranchContext';
 
 type GradeLevel = Database['public']['Enums']['grade_level'];
 
@@ -24,6 +25,7 @@ const studentSchema = z.object({
   date_of_birth: z.string().min(1, 'Date of birth is required'),
   gender: z.enum(['Male', 'Female'], { required_error: 'Gender is required' }),
   grade_level: z.string().min(1, 'Grade level is required') as z.ZodType<GradeLevel>,
+  branch_id: z.string().optional(),
   class_id: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().min(1, 'Parent\'s/Guardian\'s phone number is required'),
@@ -49,6 +51,8 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>(student?.photo_url || '');
   const [birthCertFile, setBirthCertFile] = useState<File | null>(null);
+  
+  const { branches, canManageBranches, selectedBranch } = useBranch();
 
   const form = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
@@ -60,6 +64,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
       date_of_birth: student?.date_of_birth || '',
       gender: student?.gender || undefined,
       grade_level: student?.grade_level || '',
+      branch_id: student?.branch_id || selectedBranch || '',
       class_id: student?.class_id || '',
       email: student?.email || '',
       phone: student?.phone || '',
@@ -161,6 +166,7 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
         grandfather_name: data.grandfather_name || null,
         date_of_birth: data.date_of_birth,
         grade_level: data.grade_level as GradeLevel,
+        branch_id: data.branch_id || selectedBranch || null,
         gender: data.gender || null,
         email: data.email || null,
         phone: data.phone || null,
@@ -426,6 +432,34 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
             )}
           />
         </div>
+
+{/* Branch Selection (only for HQ roles) */}
+        {canManageBranches && (
+          <FormField
+            control={form.control}
+            name="branch_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Branch {student ? '(Migration)' : ''}</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <FormField

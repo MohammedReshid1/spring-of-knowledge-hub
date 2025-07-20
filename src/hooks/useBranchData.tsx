@@ -110,6 +110,10 @@ export const useBranchData = () => {
                 grade
               )
             ),
+            branches:branch_id (
+              id,
+              name
+            ),
             registration_payments (
               id,
               payment_status,

@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { X, Mail, Phone, MapPin, User, Calendar, AlertCircle, CreditCard, Users } from 'lucide-react';
+import { X, Mail, Phone, MapPin, User, Calendar, AlertCircle, CreditCard, Users, Building2 } from 'lucide-react';
 import { StudentPaymentHistory } from './StudentPaymentHistory';
 
 interface StudentDetailsProps {
@@ -142,6 +142,13 @@ export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
                           </Badge>
                         </div>
                       </div>
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Branch</label>
+                        <div className="flex items-center gap-1">
+                          <Building2 className="h-4 w-4" />
+                          {student.branches?.name || 'Main Branch'}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -253,7 +260,14 @@ export const StudentDetails = ({ student, onClose }: StudentDetailsProps) => {
                   <CardTitle>Academic Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Branch</label>
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-4 w-4" />
+                        {student.branches?.name || 'Main Branch'}
+                      </div>
+                    </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Class</label>
                       <div>{student.classes?.class_name || 'Not assigned'}</div>
