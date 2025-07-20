@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -21,51 +20,6 @@ export const Overview = () => {
   const { useStudents, useClasses, usePayments, getBranchFilter } = useBranchData();
   const queryClient = useQueryClient();
 
-  // Real-time subscriptions for dashboard updates
-  useEffect(() => {
-    const studentsChannel = supabase
-      .channel('dashboard-students')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'students' },
-        () => {
-          console.log('Students updated, refreshing dashboard...');
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        }
-      )
-      .subscribe();
-
-    const classesChannel = supabase
-      .channel('dashboard-classes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'classes' },
-        () => {
-          console.log('Classes updated, refreshing dashboard...');
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        }
-      )
-      .subscribe();
-
-    const gradesChannel = supabase
-      .channel('dashboard-grades')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'grade_levels' },
-        () => {
-          console.log('Grade levels updated, refreshing dashboard...');
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(studentsChannel);
-      supabase.removeChannel(classesChannel);
-      supabase.removeChannel(gradesChannel);
-    };
-  }, [queryClient]);
-
   // Use branch-filtered data with loading states
   const { data: students, isLoading: isStudentsLoading } = useStudents();
   const { data: classes, isLoading: isClassesLoading } = useClasses();
@@ -79,83 +33,51 @@ export const Overview = () => {
       
       const branchFilter = getBranchFilter();
 
-      // Use direct count queries for accurate statistics
-      let studentsCountQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true });
-      
-      let activeStudentsQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'Active');
-      
-      let classesCountQuery = supabase
-        .from('classes')
-        .select('*', { count: 'exact', head: true });
-
-      // Apply branch filter to all queries with proper NULL handling
-      if (branchFilter) {
-        studentsCountQuery = studentsCountQuery.eq('branch_id', branchFilter);
-        activeStudentsQuery = activeStudentsQuery.eq('branch_id', branchFilter);
-        classesCountQuery = classesCountQuery.eq('branch_id', branchFilter);
-      } else if (selectedBranch === 'all') {
-        // For "all branches" view, exclude NULL values to avoid orphaned data
-        classesCountQuery = classesCountQuery.not('branch_id', 'is', null);
-      }
-
-      // Execute all count queries in parallel
-      const [
-        { count: totalStudents, error: studentsError },
-        { count: activeStudents, error: activeError },
-        { count: totalClasses, error: classesError }
-      ] = await Promise.all([
-        studentsCountQuery,
-        activeStudentsQuery,
-        classesCountQuery
+      // Fetch data from your API client
+      const [studentsResponse, classesResponse, paymentsResponse] = await Promise.all([
+        apiClient.getStudents(),
+        apiClient.getClasses(),
+        apiClient.getRegistrationPayments(),
       ]);
 
-      if (studentsError || activeError || classesError) {
-        console.error('Error fetching dashboard counts:', { studentsError, activeError, classesError });
-        throw studentsError || activeError || classesError;
+      if (studentsResponse.error || classesResponse.error || paymentsResponse.error) {
+        console.error('Error fetching dashboard data:', {
+          studentsError: studentsResponse.error,
+          classesError: classesResponse.error,
+          paymentsError: paymentsResponse.error,
+        });
+        throw new Error('Failed to fetch dashboard data');
       }
 
-      // Calculate payment stats from actual payment data (branch-filtered)
-      const branchPayments = payments?.filter(p => {
-        if (!branchFilter) return selectedBranch === 'all' ? p.branch_id : true;
-        return p.branch_id === branchFilter;
-      }) || [];
-      
+      const allStudents = studentsResponse.data || [];
+      const allPayments = paymentsResponse.data || [];
+
+      // Apply branch filtering
+      const branchStudents = branchFilter ? allStudents.filter(s => s.branch_id === branchFilter) : allStudents;
+      const branchPayments = branchFilter ? allPayments.filter(p => p.branch_id === branchFilter) : allPayments;
+
+      const totalStudents = branchStudents.length;
+      const activeStudents = branchStudents.filter(s => s.status === 'Active').length;
+      const totalClasses = classesResponse.data?.length || 0;
+
+      // Calculate payment stats from actual payment data
       const totalRevenue = branchPayments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
       const paidStudents = branchPayments.filter(p => p.payment_status === 'Paid').length;
       const unpaidStudents = branchPayments.filter(p => p.payment_status === 'Unpaid').length;
       const pendingPayments = branchPayments.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length;
 
-      // Get recent registrations count with branch filter
+      // Get recent registrations count
       const thisMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-      let recentQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', thisMonthStart.toISOString());
-      
-      if (branchFilter) {
-        recentQuery = recentQuery.eq('branch_id', branchFilter);
-      }
-      
-      const { count: recentRegistrations } = await recentQuery;
+      const recentRegistrations = branchStudents.filter(s => new Date(s.created_at) >= thisMonthStart).length;
 
-      // Status breakdown using branch-filtered student data
-      const branchStudents = students?.filter(s => {
-        if (!branchFilter) return selectedBranch === 'all' ? s.branch_id : true;
-        return s.branch_id === branchFilter;
-      }) || [];
-
+      // Status breakdown
       const statusCounts: Record<string, number> = branchStudents.reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      // Grade level utilization using branch-filtered data
+      // Grade level utilization
       const gradeUtilization = Object.entries(
         branchStudents.reduce((acc, student) => {
           const grade = student.grade_level || 'unknown';
@@ -170,14 +92,14 @@ export const Overview = () => {
       }));
 
       const result = {
-        totalStudents: totalStudents || 0,
-        activeStudents: activeStudents || 0,
-        totalClasses: totalClasses || 0,
+        totalStudents,
+        activeStudents,
+        totalClasses,
         enrollmentRate: 0,
         totalRevenue,
         paidStudents,
         unpaidStudents,
-        recentRegistrations: recentRegistrations || 0,
+        recentRegistrations,
         pendingPayments,
         statusCounts,
         gradeUtilization: gradeUtilization.slice(0, 5)
@@ -187,12 +109,12 @@ export const Overview = () => {
       return result;
     },
     enabled: !!user?.id,
-    staleTime: 0, // Always fresh data for accurate branch switching
+    staleTime: 60000, // Cache for 1 minute
     refetchOnMount: true,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: true
   });
 
-  const isLoading = isDashboardLoading || isStudentsLoading || isClassesLoading || isPaymentsLoading;
+  const isLoading = isDashboardLoading;
 
   if (isLoading) {
     return (

@@ -36,7 +36,7 @@ export const PaymentList = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { isRegistrar, canDelete } = useRoleAccess();
-  const { usePayments, getBranchFilter } = useBranchData();
+  const { usePayments, getBranchFilter, useGradeLevels } = useBranchData();
 
   // Get currency from system settings
   const getCurrency = () => {
@@ -66,8 +66,10 @@ export const PaymentList = () => {
     return `${symbol} ${amount.toFixed(2)}`;
   };
 
-  const formatGradeLevel = (grade: string) => {
-    const gradeMap: Record<string, string> = {
+  const formatGradeLevel = (grade: any) => {
+  // Ensure gradeStr is a string code
+  const gradeStr = typeof grade === 'string' ? grade : grade?.grade ? String(grade.grade) : String(grade || '');
+  const gradeMap: Record<string, string> = {
       'pre_k': 'Pre KG',
       'kg': 'KG', 
       'prep': 'PREP',
@@ -86,32 +88,10 @@ export const PaymentList = () => {
       'grade_12': 'Grade 12',
     };
 
-    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    // Format human-readable label
+    return gradeMap[gradeStr] || gradeStr.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  // Real-time subscription for payments
-  useEffect(() => {
-    const channel = supabase
-      .channel('payments-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'registration_payments'
-        },
-        () => {
-          console.log('Payments table changed, refetching...');
-          queryClient.invalidateQueries({ queryKey: ['payments'] });
-          queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   // Use the branch-filtered payments query - now with FIXED server-side search
   const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
@@ -159,12 +139,8 @@ export const PaymentList = () => {
 
   const deletePaymentMutation = useMutation({
     mutationFn: async (paymentId: string) => {
-      const { error } = await supabase
-        .from('registration_payments')
-        .delete()
-        .eq('id', paymentId);
-      
-      if (error) throw error;
+      const { error } = await apiClient.deleteRegistrationPayment(paymentId);
+      if (error) throw new Error(error);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
@@ -197,20 +173,9 @@ export const PaymentList = () => {
   }, [searchTerm, statusFilter, cycleFilter, gradeFilter]);
 
   // Get all unique grade levels for filter
-  const { data: allGradeLevels } = useQuery({
-    queryKey: ['all-grade-levels'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('grade_levels')
-        .select('grade')
-        .order('grade');
-      
-      if (error) throw error;
-      return data?.map(g => g.grade) || [];
-    }
-  });
-
-  const gradeOptions = allGradeLevels || [];
+  const { data: allGradeLevels } = useGradeLevels();
+  // Extract grade code strings from GradeLevel objects
+  const gradeOptions = allGradeLevels?.map((lvl: any) => lvl.grade) || [];
 
   const getStatusColor = (status: string) => {
     const colors = {

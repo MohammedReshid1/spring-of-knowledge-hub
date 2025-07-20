@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -21,9 +20,7 @@ import { DuplicateClassCleaner } from './DuplicateClassCleaner';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranchData } from '@/hooks/useBranchData';
 import { getHighlightedText } from '@/utils/searchHighlight';
-import type { Database } from '@/integrations/supabase/types';
-
-type GradeLevel = Database['public']['Enums']['grade_level'];
+import { SchoolClass, GradeLevel } from '@/types/api';
 
 export const ClassManagement = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -36,157 +33,33 @@ export const ClassManagement = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
-  const { useClasses } = useBranchData();
 
-  // Real-time subscriptions
-  useEffect(() => {
-    const classesChannel = supabase
-      .channel('classes-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'classes' },
-        () => {
-          console.log('Classes updated, refetching...');
-          queryClient.invalidateQueries({ queryKey: ['classes'] });
-          queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
-        }
-      )
-      .subscribe();
+  const { data: classes, isLoading: isClassesLoading } = useQuery<SchoolClass[], Error>({
+    queryKey: ['classes'],
+    queryFn: async () => {
+      const response = await apiClient.getClasses();
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      return response.data || [];
+    },
+  });
 
-    const gradeChannel = supabase
-      .channel('grade-levels-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'grade_levels' },
-        () => {
-          console.log('Grade levels updated, refetching...');
-          queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
-        }
-      )
-      .subscribe();
-
-    const studentsChannel = supabase
-      .channel('students-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'students' },
-        () => {
-          console.log('Students updated, refetching grade stats...');
-          queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
-          queryClient.invalidateQueries({ queryKey: ['classes'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(classesChannel);
-      supabase.removeChannel(gradeChannel);
-      supabase.removeChannel(studentsChannel);
-    };
-  }, [queryClient]);
-
-  // Use the branch-filtered classes query
-  const { data: classes, isLoading: isClassesLoading } = useClasses();
-
-  // Ensure all grade levels exist and have proper data
-  const { data: gradeStats, isLoading: isGradeStatsLoading } = useQuery({
+  const { data: gradeStats, isLoading: isGradeStatsLoading } = useQuery<GradeLevel[], Error>({
     queryKey: ['grade-stats'],
     queryFn: async () => {
-      console.log('Fetching comprehensive grade stats...');
-      
-      // First ensure all grade levels exist
-      const allGrades: GradeLevel[] = ['pre_k', 'kg', 'prep', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
-      
-      // Insert missing grade levels one by one to avoid type issues
-      for (const grade of allGrades) {
-        await supabase
-          .from('grade_levels')
-          .upsert({ grade: grade as GradeLevel, max_capacity: 30 }, { onConflict: 'grade' });
+      const response = await apiClient.getGradeLevels();
+      if (response.error) {
+        throw new Error(response.error);
       }
-      
-      // Get all grade levels
-      const { data: gradeLevelsData, error: gradeLevelsError } = await supabase
-        .from('grade_levels')
-        .select('*')
-        .order('grade');
-      
-      if (gradeLevelsError) {
-        console.error('Error fetching grade levels:', gradeLevelsError);
-        throw gradeLevelsError;
-      }
-
-      // Count active students for each grade level and calculate real capacity
-      const gradeStatsPromises = gradeLevelsData?.map(async (grade) => {
-        const { count, error } = await supabase
-          .from('students')
-          .select('*', { count: 'exact', head: true })
-          .eq('grade_level', grade.grade)
-          .eq('status', 'Active');
-
-        if (error) {
-          console.error(`Error counting students for grade ${grade.grade}:`, error);
-          return {
-            ...grade,
-            current_enrollment: 0,
-            max_capacity: grade.max_capacity
-          };
-        }
-
-        const actualEnrollment = count || 0;
-        console.log(`Grade ${grade.grade}: ${actualEnrollment} active students`);
-
-        // Calculate the real max capacity by summing all class capacities for this grade
-        const { data: classesData, error: classError } = await supabase
-          .from('classes')
-          .select(`
-            max_capacity,
-            grade_levels!inner (
-              grade
-            )
-          `)
-          .eq('grade_levels.grade', grade.grade);
-
-        if (classError) {
-          console.error(`Error fetching classes for grade ${grade.grade}:`, classError);
-        }
-
-        const totalClassCapacity = classesData?.reduce((sum, cls) => sum + cls.max_capacity, 0) || grade.max_capacity;
-        console.log(`Grade ${grade.grade}: Total class capacity = ${totalClassCapacity}`);
-
-        // Update the grade level record with actual enrollment and real capacity
-        await supabase
-          .from('grade_levels')
-          .update({ 
-            current_enrollment: actualEnrollment,
-            max_capacity: totalClassCapacity
-          })
-          .eq('id', grade.id);
-
-        return {
-          ...grade,
-          current_enrollment: actualEnrollment,
-          max_capacity: totalClassCapacity
-        };
-      }) || [];
-
-      const enhancedGradeStats = await Promise.all(gradeStatsPromises);
-      
-      console.log('Grade stats calculated with actual counts:', enhancedGradeStats);
-      return enhancedGradeStats;
+      return response.data || [];
     },
     staleTime: 0,
-    refetchInterval: 30000
+    refetchInterval: 30000,
   });
 
   const deleteClassMutation = useMutation({
-    mutationFn: async (classId: string) => {
-      const { error } = await supabase
-        .from('classes')
-        .delete()
-        .eq('id', classId);
-      
-      if (error) throw error;
-    },
+    mutationFn: (classId: string) => apiClient.deleteClass(classId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['classes'] });
       toast({
@@ -261,12 +134,12 @@ export const ClassManagement = () => {
   const filteredClasses = classes?.filter(cls => {
     const matchesSearch = !searchTerm || (
       cls.class_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (cls.grade_levels?.grade && formatGradeLevel(cls.grade_levels.grade).toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (cls.grade_level?.grade && formatGradeLevel(cls.grade_level.grade).toLowerCase().includes(searchTerm.toLowerCase())) ||
       (cls.teacher?.full_name && cls.teacher.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
       cls.academic_year.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
-    const matchesGrade = !gradeFilter || gradeFilter === 'all-grades' || cls.grade_levels?.grade === gradeFilter;
+    const matchesGrade = !gradeFilter || gradeFilter === 'all-grades' || cls.grade_level?.grade === gradeFilter;
     
     return matchesSearch && matchesGrade;
   }) || [];
@@ -279,7 +152,7 @@ export const ClassManagement = () => {
     setCurrentPage(1);
   }, [searchTerm, gradeFilter]);
 
-  const gradeOptions = Array.from(new Set(classes?.map(cls => cls.grade_levels?.grade).filter(Boolean))) || [];
+  const gradeOptions = Array.from(new Set(classes?.map(cls => cls.grade_level?.grade).filter(Boolean))) || [];
   
   // Sort grade options in proper order
   const sortedGradeOptions = gradeOptions.sort((a, b) => {
@@ -346,7 +219,7 @@ export const ClassManagement = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {gradeStats.map((grade) => {
-                const percentage = grade.max_capacity > 0 ? (grade.current_enrollment / grade.max_capacity) * 100 : 0;
+                const percentage = grade.max_capacity > 0 ? ((grade.current_enrollment ?? 0) / grade.max_capacity) * 100 : 0;
                 const isNearCapacity = percentage >= 80;
                 const isFull = percentage >= 95;
                 
@@ -374,12 +247,12 @@ export const ClassManagement = () => {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Users className="h-4 w-4 text-gray-600" />
-                            <span className={`text-lg font-bold ${getCapacityColor(grade.current_enrollment, grade.max_capacity)}`}>
-                              {grade.current_enrollment}
+                            <span className={`text-lg font-bold ${getCapacityColor(grade.current_enrollment ?? 0, grade.max_capacity)}`}>
+                              {grade.current_enrollment ?? 0}
                             </span>
                             <span className="text-sm text-gray-500">/ {grade.max_capacity}</span>
                           </div>
-                          <Badge className={getCapacityBadgeColor(grade.current_enrollment, grade.max_capacity)} variant="outline">
+                          <Badge className={getCapacityBadgeColor(grade.current_enrollment ?? 0, grade.max_capacity)} variant="outline">
                             {Math.round(percentage)}%
                           </Badge>
                         </div>
@@ -387,7 +260,7 @@ export const ClassManagement = () => {
                         <Progress value={percentage} className="h-2" />
                         
                         <p className="text-xs text-gray-600">
-                          {grade.max_capacity - grade.current_enrollment} spots available
+                          {grade.max_capacity - (grade.current_enrollment ?? 0)} spots available
                         </p>
                       </div>
                     </CardContent>
@@ -510,7 +383,7 @@ export const ClassManagement = () => {
                   </TableHeader>
                   <TableBody>
                     {paginatedClasses.map((cls) => {
-                      const percentage = cls.max_capacity > 0 ? (cls.current_enrollment / cls.max_capacity) * 100 : 0;
+                      const percentage = cls.max_capacity > 0 ? ((cls.current_enrollment ?? 0) / cls.max_capacity) * 100 : 0;
                       
                       return (
                         <TableRow key={cls.id} className="hover:bg-gray-50 transition-colors">
@@ -519,7 +392,7 @@ export const ClassManagement = () => {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="font-medium">
-                              {cls.grade_levels ? formatGradeLevel(cls.grade_levels.grade) : 'Not assigned'}
+                              {cls.grade_level ? formatGradeLevel(cls.grade_level.grade) : 'Not assigned'}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -531,8 +404,8 @@ export const ClassManagement = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className={`font-medium ${getCapacityColor(cls.current_enrollment, cls.max_capacity)}`}>
-                              {cls.current_enrollment}
+                            <span className={`font-medium ${getCapacityColor(cls.current_enrollment ?? 0, cls.max_capacity)}`}>
+                              {cls.current_enrollment ?? 0}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -543,7 +416,7 @@ export const ClassManagement = () => {
                               <div className="w-16">
                                 <Progress value={percentage} className="h-2" />
                               </div>
-                              <Badge className={getCapacityBadgeColor(cls.current_enrollment, cls.max_capacity)} variant="outline">
+                              <Badge className={getCapacityBadgeColor(cls.current_enrollment ?? 0, cls.max_capacity)} variant="outline">
                                 {Math.round(percentage)}%
                               </Badge>
                             </div>

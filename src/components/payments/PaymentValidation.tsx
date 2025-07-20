@@ -8,27 +8,22 @@ export const checkDuplicatePayment = async (
   excludePaymentId?: string
 ): Promise<boolean> => {
   try {
-    let query = supabase
-      .from('registration_payments')
-      .select('id')
-      .eq('student_id', studentId)
-      .eq('payment_cycle', paymentCycle)
-      .eq('academic_year', academicYear);
-
-    if (excludePaymentId) {
-      query = query.neq('id', excludePaymentId);
-    }
-
-    const { data, error } = await query;
-    
+    // Fetch all registration payments and filter duplicates
+    const { data, error } = await apiClient.getRegistrationPayments();
     if (error) {
-      console.error('Error checking duplicate payment:', error);
+      console.error('Error fetching payments for duplicate check:', error);
       return false;
     }
-
-    return data && data.length > 0;
-  } catch (error) {
-    console.error('Error in checkDuplicatePayment:', error);
+    const payments = data || [];
+    const duplicates = payments.filter(p =>
+      p.student_id === studentId &&
+      p.payment_cycle === paymentCycle &&
+      p.academic_year === academicYear &&
+      (!excludePaymentId || p.id !== excludePaymentId)
+    );
+    return duplicates.length > 0;
+  } catch (err) {
+    console.error('Error in checkDuplicatePayment:', err);
     return false;
   }
 };

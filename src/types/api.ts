@@ -62,6 +62,8 @@ export interface SchoolClass {
   branch_id: string;
   created_at: string;
   updated_at: string;
+  grade_level?: GradeLevel;
+  teacher?: User;
 }
 
 export interface Attendance {

@@ -34,6 +34,20 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 export const PaymentDashboard = () => {
+  // Type for dashboard stats
+  interface PaymentDashboardStats {
+    totalRevenue: number;
+    totalPayments: number;
+    activeStudents: number;
+    statusBreakdown: Record<string, number>;
+    monthlyRevenue: Record<string, { amount: number; count: number }>;
+    gradeStats: Array<{ grade: string; amount: number; paymentCount: number; studentCount: number }>;
+    recentPayments: any[];
+    studentsWithIssues: number;
+    completionRate: number;
+    paidPayments: number;
+    allPayments: any[];
+  }
   const [reportType, setReportType] = useState('quarterly');
   const [customStartDate, setCustomStartDate] = useState<Date>();
   const [customEndDate, setCustomEndDate] = useState<Date>();
@@ -61,33 +75,12 @@ export const PaymentDashboard = () => {
     return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
   };
 
-  // Real-time subscription for payment updates
-  useEffect(() => {
-    const channel = supabase
-      .channel('payment-dashboard-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'registration_payments'
-        },
-        () => {
-          console.log('Payment dashboard data changed, refetching...');
-          queryClient.invalidateQueries({ queryKey: ['payment-dashboard-stats'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
+  // Supabase real-time subscription for payment updates removed
 
   // Use branch-filtered payments data
   const { data: payments } = usePayments();
 
-  const { data: paymentStats } = useQuery({
+  const { data: paymentStats } = useQuery<PaymentDashboardStats | null>({
     queryKey: ['payment-dashboard-stats', getBranchFilter()],
     queryFn: async () => {
       console.log('Fetching payment dashboard stats with branch filter...');
@@ -96,19 +89,13 @@ export const PaymentDashboard = () => {
 
       const branchFilter = getBranchFilter();
 
-      // Get accurate count of active students using branch-filtered count query
-      let studentsCountQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'Active');
-
-      if (branchFilter) {
-        studentsCountQuery = studentsCountQuery.eq('branch_id', branchFilter);
-      }
-
-      const { count: activeStudentsCount, error: studentsError } = await studentsCountQuery;
-
-      if (studentsError) throw studentsError;
+      // Count active students from the branch‐filtered payment data
+      const activeStudentsCount = new Set(
+        payments
+          .filter(p => p.students?.status === 'Active')
+          .filter(p => !branchFilter || p.students?.branch_id === branchFilter)
+          .map(p => p.students!.id)
+      ).size;
 
       // Calculate statistics - include ALL payments regardless of student status
       const totalRevenue = payments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
@@ -154,12 +141,14 @@ export const PaymentDashboard = () => {
       }, {} as Record<string, { amount: number; count: number; students: Set<string> }>);
 
       // Convert sets to counts
-      const gradeStats = Object.entries(gradePayments).map(([grade, stats]) => ({
-        grade,
-        amount: stats.amount,
-        paymentCount: stats.count,
-        studentCount: stats.students.size
-      }));
+      const gradeStats = Object.entries(gradePayments).map(
+        ([grade, stats]: [string, {amount: number; count: number; students: Set<string>}]) => ({
+          grade,
+          amount: stats.amount,
+          paymentCount: stats.count,
+          studentCount: stats.students.size
+        })
+      );
 
       // Recent payments (last 10)
       const recentPayments = payments
@@ -273,11 +262,13 @@ export const PaymentDashboard = () => {
     doc.setFontSize(16);
     doc.text('Payment Status Breakdown', 14, 125);
     
-    const statusData = Object.entries(paymentStats.statusBreakdown).map(([status, count]) => [
-      status,
-      count.toString(),
-      `${((count / paymentStats.totalPayments) * 100).toFixed(1)}%`
-    ]);
+    const statusData = Object.entries(paymentStats.statusBreakdown).map(
+      ([status, count]: [string, number]) => [
+        status,
+        count.toString(),
+        `${((count / paymentStats.totalPayments) * 100).toFixed(1)}%`
+      ]
+    );
     
     (doc as any).autoTable({
       head: [['Status', 'Count', 'Percentage']],
@@ -604,7 +595,7 @@ export const PaymentDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {Object.entries(paymentStats.statusBreakdown).map(([status, count]) => (
+            {Object.entries(paymentStats.statusBreakdown).map(([status, count]: [string, number]) => (
               <div key={status} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Badge className={getStatusColor(status)} variant="outline">

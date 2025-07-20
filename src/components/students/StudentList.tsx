@@ -32,6 +32,7 @@ import { DuplicateChecker } from './DuplicateChecker';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { Student } from '@/types/api';
 
 const STUDENTS_PER_PAGE = 30;
 
@@ -57,14 +58,7 @@ export const StudentList = () => {
 
   // Bulk delete mutation for super admin
   const bulkDeleteMutation = useMutation({
-    mutationFn: async (studentIds: string[]) => {
-      const { error } = await supabase
-        .from('students')
-        .delete()
-        .in('id', studentIds);
-      
-      if (error) throw error;
-    },
+    mutationFn: (studentIds: string[]) => Promise.all(studentIds.map(id => apiClient.deleteStudent(id))),
     onSuccess: (_, studentIds) => {
       toast({
         title: "Success",
@@ -104,33 +98,39 @@ export const StudentList = () => {
     return `${symbols[currency as keyof typeof symbols] || currency} ${amount.toFixed(2)}`;
   };
 
-  // Real-time subscription for students
-  useEffect(() => {
-    const channel = supabase
-      .channel('students-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'students'
-        },
-        () => {
-          console.log('Students table changed, refetching...');
-          queryClient.invalidateQueries({ queryKey: ['students'] });
-          queryClient.invalidateQueries({ queryKey: ['student-stats'] });
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
   // Use the branch-filtered students query with server-side search and filtering
-  const { data: allStudents, isLoading, error } = useStudents(searchTerm, gradeFilter, statusFilter, classFilter);
+  const { data: allStudents, isLoading, error } = useQuery<Student[], Error>({
+    queryKey: ['students', searchTerm, gradeFilter, statusFilter, classFilter],
+    queryFn: async () => {
+      const response = await apiClient.getStudents();
+      if (response.error) throw new Error(response.error);
+      
+      let filtered = response.data || [];
+
+      if (searchTerm) {
+        const lowercasedTerm = searchTerm.toLowerCase();
+        filtered = filtered.filter(student =>
+          student.first_name.toLowerCase().includes(lowercasedTerm) ||
+          student.last_name.toLowerCase().includes(lowercasedTerm) ||
+          student.student_id.toLowerCase().includes(lowercasedTerm)
+        );
+      }
+
+      if (gradeFilter && gradeFilter !== 'all') {
+        filtered = filtered.filter(student => student.grade_level === gradeFilter);
+      }
+
+      if (statusFilter && statusFilter !== 'all') {
+        filtered = filtered.filter(student => student.status === statusFilter);
+      }
+      
+      if (classFilter && classFilter !== 'all') {
+        filtered = filtered.filter(student => student.class_id === classFilter);
+      }
+
+      return filtered;
+    }
+  });
 
   // All filtering is now handled server-side, so we just use the results directly
   const students = useMemo(() => {
@@ -142,46 +142,33 @@ export const StudentList = () => {
   const { data: filteredStudentsCount } = useQuery({
     queryKey: ['filtered-students-count', searchTerm, statusFilter, gradeFilter, classFilter, selectedBranch],
     queryFn: async () => {
-      console.log('COUNT QUERY - Branch:', selectedBranch, 'Grade:', gradeFilter, 'Search:', searchTerm);
+      const response = await apiClient.getStudents();
+      if (response.error) return 0;
       
-      let countQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true });
-
-      // Apply branch filter first (same logic as useBranchData)
-      const branchFilter = getBranchFilter();
-      console.log('COUNT QUERY - Branch filter result:', branchFilter);
-      
-      if (branchFilter) {
-        countQuery = countQuery.eq('branch_id', branchFilter);
-      }
+      let filtered = response.data || [];
 
       if (searchTerm) {
-        countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        const lowercasedTerm = searchTerm.toLowerCase();
+        filtered = filtered.filter(student =>
+          student.first_name.toLowerCase().includes(lowercasedTerm) ||
+          student.last_name.toLowerCase().includes(lowercasedTerm) ||
+          student.student_id.toLowerCase().includes(lowercasedTerm)
+        );
       }
       
       if (statusFilter && statusFilter !== 'all') {
-        countQuery = countQuery.eq('status', statusFilter as any);
+        filtered = filtered.filter(student => student.status === statusFilter);
       }
       
       if (gradeFilter && gradeFilter !== 'all') {
-        console.log('COUNT QUERY - Applying grade filter:', gradeFilter);
-        countQuery = countQuery.eq('grade_level', gradeFilter as any);
+        filtered = filtered.filter(student => student.grade_level === gradeFilter);
       }
       
       if (classFilter && classFilter !== 'all') {
-        countQuery = countQuery.eq('class_id', classFilter);
+        filtered = filtered.filter(student => student.class_id === classFilter);
       }
 
-      const { count, error } = await countQuery;
-      
-      if (error) {
-        console.error('Error fetching filtered students count:', error);
-        throw error;
-      }
-      
-      console.log('COUNT QUERY RESULT:', count);
-      return count || 0;
+      return filtered.length;
     },
     enabled: selectedBranch !== null, // Only run when branch is selected
     staleTime: 5000, // Shorter cache time for more accurate counts
@@ -191,87 +178,46 @@ export const StudentList = () => {
   const { data: classes } = useQuery({
     queryKey: ['classes'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .order('class_name');
-      
-      if (error) throw error;
-      return data;
+      const response = await apiClient.getClasses();
+      if (response.error) throw new Error(response.error);
+      return response.data || [];
     }
   });
 
   const { data: stats } = useQuery({
-    queryKey: ['student-stats', selectedBranch, getBranchFilter()],
+    queryKey: ['student-stats', selectedBranch],
     queryFn: async () => {
-      console.log('Fetching student stats for branch:', selectedBranch);
+      const studentsResponse = await apiClient.getStudents();
+      const paymentsResponse = await apiClient.getRegistrationPayments();
+
+      if (studentsResponse.error || paymentsResponse.error) {
+        throw new Error('Failed to fetch student stats');
+      }
+
+      const allStudents = studentsResponse.data || [];
+      const allPayments = paymentsResponse.data || [];
+
       const branchFilter = getBranchFilter();
+      const branchStudents = branchFilter ? allStudents.filter(s => s.branch_id === branchFilter) : allStudents;
+      const branchPayments = branchFilter ? allPayments.filter(p => p.branch_id === branchFilter) : allPayments;
 
-      // Build queries with proper branch filtering
-      let totalCountQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true });
-      
-      let activeCountQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'Active');
+      const totalStudents = branchStudents.length;
+      const activeStudents = branchStudents.filter(s => s.status === 'Active').length;
+      const pendingPayments = branchPayments.filter(p => p.payment_status === 'Unpaid').length;
 
-      let pendingPaymentsQuery = supabase
-        .from('students')
-        .select(`
-          *,
-          registration_payments!inner (
-            payment_status
-          )
-        `, { count: 'exact', head: true })
-        .eq('registration_payments.payment_status', 'Unpaid')
-        .eq('status', 'Active');
-      
-      let statusDataQuery = supabase
-        .from('students')
-        .select('status');
-
-      // Apply branch filter to all queries if needed
-      if (branchFilter) {
-        totalCountQuery = totalCountQuery.eq('branch_id', branchFilter);
-        activeCountQuery = activeCountQuery.eq('branch_id', branchFilter);
-        pendingPaymentsQuery = pendingPaymentsQuery.eq('branch_id', branchFilter);
-        statusDataQuery = statusDataQuery.eq('branch_id', branchFilter);
-      }
-
-      // Execute queries in parallel
-      const [
-        { count: totalCount, error: totalError },
-        { count: activeCount, error: activeError },
-        { count: pendingPaymentsCount, error: pendingError },
-        { data: statusData, error: statusError }
-      ] = await Promise.all([
-        totalCountQuery,
-        activeCountQuery,
-        pendingPaymentsQuery,
-        statusDataQuery
-      ]);
-      
-      if (totalError || activeError || pendingError || statusError) {
-        console.error('Error fetching student stats:', { totalError, activeError, pendingError, statusError });
-        throw totalError || activeError || pendingError || statusError;
-      }
-
-      const statusCounts: Record<string, number> = (statusData || []).reduce((acc, student) => {
+      const statusCounts: Record<string, number> = branchStudents.reduce((acc, student) => {
         const status = student.status || 'Unknown';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
       
       const result = {
-        totalStudents: totalCount || 0,
-        activeStudents: activeCount || 0,
-        pendingPayments: pendingPaymentsCount || 0,
+        totalStudents,
+        activeStudents,
+        pendingPayments,
         statusCounts
       };
 
-      console.log('Student stats with branch filtering:', result);
       return result;
     },
     enabled: !!selectedBranch,
@@ -280,22 +226,7 @@ export const StudentList = () => {
   });
 
   const deleteStudentMutation = useMutation({
-    mutationFn: async (studentId: string) => {
-      console.log('Attempting to delete student:', studentId);
-      const { data: session } = await supabase.auth.getSession();
-      console.log('Current session:', session);
-      
-      const { error } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', studentId);
-      
-      if (error) {
-        console.error('Delete error:', error);
-        throw error;
-      }
-      console.log('Student deleted successfully');
-    },
+    mutationFn: (studentId: string) => apiClient.deleteStudent(studentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['student-stats'] });
@@ -347,7 +278,7 @@ export const StudentList = () => {
       student.father_name || '',
       student.grandfather_name || '',
       student.grade_level,
-      student.classes?.class_name || '',
+      (student as any).classes?.class_name || '',
       student.email || '',
       student.phone || '',
       student.status,
@@ -405,7 +336,7 @@ export const StudentList = () => {
       'Last Name': student.last_name,
       'Mother Name': student.mother_name || '',
       'Grade Level': student.grade_level,
-      'Class': student.classes?.class_name || '',
+      'Class': (student as any).classes?.class_name || '',
       'Gender': student.gender || '',
       'Date of Birth': student.date_of_birth,
       'Emergency Contact Name': student.emergency_contact_name || '',
@@ -462,7 +393,7 @@ export const StudentList = () => {
       `${student.first_name} ${student.last_name}`,
       student.mother_name || '',
       student.grade_level,
-      student.classes?.class_name || '',
+      (student as any).classes?.class_name || '',
       student.status,
       student.phone || '',
       student.email || ''

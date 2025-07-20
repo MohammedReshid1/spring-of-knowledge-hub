@@ -29,7 +29,7 @@ class ApiClient {
     const url = `${API_BASE_URL}${endpoint}`;
     
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers || {}),
     };
 
@@ -57,23 +57,29 @@ class ApiClient {
 
   // Authentication methods
   async signIn(email: string, password: string): Promise<ApiResponse<{ access_token: string; token_type: string }>> {
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
-    formData.append('grant_type', 'password');
 
-    const response = await this.request<string>('/users/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: formData,
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
 
-    if (response.data) {
-      return { data: { access_token: response.data, token_type: 'bearer' } };
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }));
+        return { error: errorData.detail || `HTTP ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { data };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : 'Network error' };
     }
-    return response;
   }
 
   async signUp(userData: {

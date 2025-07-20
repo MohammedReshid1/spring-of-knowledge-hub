@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useBranchData } from '@/hooks/useBranchData';
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -64,56 +66,26 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
 
   const watchPaymentMethod = form.watch('payment_method');
 
-  const { data: students } = useQuery({
-    queryKey: ['students-for-payment'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('students')
-        .select('id, first_name, last_name, student_id, grade_level')
-        .eq('status', 'Active')
-        .order('first_name');
-      
-      if (error) throw error;
-      return data;
+  // Fetch students and payments via branch data hook
+  const { useStudents, usePayments } = useBranchData();
+  const { data: students = [] } = useStudents();
+  const { data: allPayments = [] } = usePayments();
+
+  // Determine selected student and their payment details
+  const selectedStudentId = form.watch('student_id');
+  let studentDetails: any = null;
+  if (selectedStudentId) {
+    const s = students.find((st: any) => st.id === selectedStudentId);
+    if (s) {
+      studentDetails = {
+        ...s,
+        registration_payments: allPayments.filter((p: any) => p.student_id === s.id),
+      };
     }
-  });
+  }
 
-  const { data: studentDetails } = useQuery({
-    queryKey: ['student-details', form.watch('student_id')],
-    queryFn: async () => {
-      const studentId = form.watch('student_id');
-      if (!studentId) return null;
-
-      const { data, error } = await supabase
-        .from('students')
-        .select(`
-          *,
-          registration_payments (
-            id,
-            amount_paid,
-            payment_status,
-            payment_date,
-            academic_year,
-            payment_cycle
-          )
-        `)
-        .eq('id', studentId)
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!form.watch('student_id')
-  });
-
-  const { data: userRole } = useQuery({
-    queryKey: ['user-role'],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_current_user_role');
-      if (error) throw error;
-      return data;
-    }
-  });
+  // Get user role from access hook
+  const { userRole } = useRoleAccess();
 
   const handleScreenshotChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -122,21 +94,9 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
     }
   };
 
-  const uploadScreenshot = async (file: File): Promise<string> => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `payment_${Date.now()}.${fileExt}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('payment-screenshots')
-      .upload(fileName, file);
-
-    if (uploadError) throw uploadError;
-
-    const { data } = supabase.storage
-      .from('payment-screenshots')
-      .getPublicUrl(fileName);
-
-    return data.publicUrl;
+  const uploadScreenshot = async (_file: File): Promise<string> => {
+    // TODO: implement screenshot upload via API
+    return '';
   };
 
   const submitMutation = useMutation({
@@ -163,74 +123,12 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
           notes: data.notes || null,
         };
 
-        const { error: paymentError } = await supabase
-          .from('registration_payments')
-          .update(paymentData)
-          .eq('id', payment.id);
-        
-        if (paymentError) throw paymentError;
+        const { error: paymentError } = await apiClient.updateRegistrationPayment(payment.id, paymentData);
+        if (paymentError) throw new Error(paymentError as string);
 
         // Update payment mode if it exists
-        if (payment.payment_id) {
-          const paymentModeData = {
-            name: data.payment_method,
-            payment_type: data.payment_method,
-            payment_data: {
-              amount: data.amount_paid,
-              date: data.payment_date.toISOString(),
-              method: data.payment_method,
-              bank_name: data.bank_name || null,
-              transaction_number: data.transaction_number || null,
-              payment_screenshot: screenshotUrl || null,
-              payment_cycle: data.payment_cycle,
-            }
-          };
-
-          const { error: paymentModeError } = await supabase
-            .from('payment_mode')
-            .update(paymentModeData)
-            .eq('payment_id', payment.payment_id);
-          
-          if (paymentModeError) throw paymentModeError;
-        }
       } else {
-        // For new payments, create payment mode first, then payment record
-        
-        // Get the next available ID for payment_mode table
-        const { data: maxIdData, error: maxIdError } = await supabase
-          .from('payment_mode')
-          .select('id')
-          .order('id', { ascending: false })
-          .limit(1);
-
-        if (maxIdError) throw maxIdError;
-
-        const nextId = (maxIdData && maxIdData.length > 0) ? maxIdData[0].id + 1 : 1;
-
-        // Create payment mode record first
-        const paymentModeData = {
-          id: nextId,
-          payment_id: paymentId,
-          name: data.payment_method,
-          payment_type: data.payment_method,
-          payment_data: {
-            amount: data.amount_paid,
-            date: data.payment_date.toISOString(),
-            method: data.payment_method,
-            bank_name: data.bank_name || null,
-            transaction_number: data.transaction_number || null,
-            payment_screenshot: screenshotUrl || null,
-            payment_cycle: data.payment_cycle,
-          }
-        };
-
-        const { error: paymentModeError } = await supabase
-          .from('payment_mode')
-          .insert([paymentModeData]);
-
-        if (paymentModeError) throw paymentModeError;
-
-        // Create payment record with reference to payment mode
+        // Create new registration payment via API
         const paymentData = {
           student_id: data.student_id,
           amount_paid: data.amount_paid,
@@ -241,12 +139,8 @@ export const EnhancedPaymentForm = ({ payment, studentId, onSuccess }: EnhancedP
           notes: data.notes || null,
           payment_id: paymentId,
         };
-
-        const { error: paymentError } = await supabase
-          .from('registration_payments')
-          .insert([paymentData]);
-        
-        if (paymentError) throw paymentError;
+        const { error: paymentError } = await apiClient.createRegistrationPayment(paymentData);
+        if (paymentError) throw new Error(paymentError as string);
       }
     },
     onSuccess: () => {

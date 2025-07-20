@@ -26,29 +26,6 @@ export const TeacherManagement = () => {
   const { canDelete } = useRoleAccess();
   const { getBranchFilter } = useBranchData();
 
-  // Real-time subscription for teachers
-  useEffect(() => {
-    const channel = supabase
-      .channel('teachers-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'users'
-        },
-        () => {
-          console.log('Users table changed, refetching teachers...');
-          queryClient.invalidateQueries({ queryKey: ['teachers'] });
-          queryClient.invalidateQueries({ queryKey: ['teacher-stats'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   const { data: teachers, isLoading, error } = useQuery({
     queryKey: ['teachers', getBranchFilter()],
