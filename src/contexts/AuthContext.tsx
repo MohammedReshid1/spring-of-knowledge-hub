@@ -66,12 +66,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Error fetching user:', error);
           apiClient.removeToken();
           setUser(null);
+          // Auto-login with admin credentials for demo
+          await autoLogin();
         } else {
           setUser(userData);
           startSessionTimer();
         }
+      } else {
+        // Auto-login with admin credentials for demo purposes
+        await autoLogin();
       }
       setLoading(false);
+    };
+
+    const autoLogin = async () => {
+      console.log('Attempting auto-login with admin credentials...');
+      const result = await signIn('admin@school.edu', 'admin123');
+      if (result.error) {
+        console.error('Auto-login failed:', result.error);
+      } else {
+        console.log('Auto-login successful!');
+      }
     };
 
     checkSession();

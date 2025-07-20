@@ -399,6 +399,11 @@ class ApiClient {
       method: 'DELETE',
     });
   }
+
+  // Dashboard and Statistics methods
+  async getDashboardStats(): Promise<ApiResponse<any>> {
+    return this.request('/stats/dashboard');
+  }
 }
 
 export const apiClient = new ApiClient();

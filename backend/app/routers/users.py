@@ -15,7 +15,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme), users: Any = Dep
     payload = decode_access_token(token)
     if not payload or "sub" not in payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
-    user = await users.find_one({"_id": ObjectId(payload["sub"])})
+    
+    user_id = payload["sub"]
+    # Try to find user by ObjectId first, then by string ID
+    try:
+        user = await users.find_one({"_id": ObjectId(user_id)})
+    except:
+        user = await users.find_one({"_id": user_id})
+    
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return User(

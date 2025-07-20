@@ -15,7 +15,7 @@ else:
     print("🗄️ Using MongoDB database")
     from .db import get_db
 
-from .routers import users, branches, students, attendance, backup_logs, classes, fees, grade_levels, grade_transitions, payment_mode, registration_payments, student_enrollments, subjects
+from .routers import users, branches, students, attendance, backup_logs, classes, fees, grade_levels, grade_transitions, payment_mode, registration_payments, student_enrollments, subjects, stats
 
 app = FastAPI()
 
@@ -45,3 +45,4 @@ app.include_router(payment_mode.router, prefix="/payment-mode", tags=["payment-m
 app.include_router(registration_payments.router, prefix="/registration-payments", tags=["registration-payments"])
 app.include_router(student_enrollments.router, prefix="/student-enrollments", tags=["student-enrollments"])
 app.include_router(subjects.router, prefix="/subjects", tags=["subjects"])
+app.include_router(stats.router, prefix="/stats", tags=["statistics"])

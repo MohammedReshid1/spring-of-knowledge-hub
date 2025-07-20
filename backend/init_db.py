@@ -183,6 +183,26 @@ async def init_database():
     await db.payment_mode.insert_many(payment_modes)
     print(f"✅ Created {len(payment_modes)} payment modes")
     
+    # Create default admin user
+    from passlib.context import CryptContext
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    
+    admin_user = {
+        "_id": "admin_user_001",
+        "email": "admin@school.edu",
+        "hashed_password": pwd_context.hash("admin123"),
+        "full_name": "System Administrator",
+        "role": "admin",
+        "phone": "+1-555-0100",
+        "branch_id": "main_branch_001",
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat(),
+        "is_active": True
+    }
+    
+    await db.users.insert_one(admin_user)
+    print("✅ Created default admin user (admin@school.edu / admin123)")
+    
     # Create indexes for better performance
     print("📈 Creating database indexes...")
     
