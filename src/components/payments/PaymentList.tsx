@@ -116,6 +116,84 @@ export const PaymentList = () => {
   // Use the branch-filtered payments query - now with FIXED server-side search
   const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
 
+  // Get total count of payments with current filters
+  const { data: totalCount } = useQuery({
+    queryKey: ['payments-count', getBranchFilter(), searchTerm, statusFilter, cycleFilter, gradeFilter],
+    queryFn: async () => {
+      const branchFilter = getBranchFilter();
+      
+      // Build count query - simpler approach without complex joins
+      let countQuery = supabase
+        .from('registration_payments')
+        .select('student_id', { count: 'exact', head: true });
+      
+      // Apply branch filter
+      if (branchFilter) {
+        countQuery = countQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
+      }
+      
+      // Apply search filter - find matching student IDs first if search term exists
+      if (searchTerm && searchTerm.trim()) {
+        const { data: matchingStudents } = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active')
+          .or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        
+        const matchingStudentIds = matchingStudents?.map(s => s.id) || [];
+        
+        if (matchingStudentIds.length > 0) {
+          countQuery = countQuery.in('student_id', matchingStudentIds);
+        } else {
+          countQuery = countQuery.ilike('notes', `%${searchTerm}%`);
+        }
+      } else {
+        // Filter by active students only when no search term
+        const { data: activeStudentIds } = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active');
+        
+        const activeIds = activeStudentIds?.map(s => s.id) || [];
+        if (activeIds.length > 0) {
+          countQuery = countQuery.in('student_id', activeIds);
+        }
+      }
+      
+      // Apply other filters
+      if (statusFilter && statusFilter !== 'all') {
+        countQuery = countQuery.eq('payment_status', statusFilter);
+      }
+      
+      if (cycleFilter && cycleFilter !== 'all') {
+        countQuery = countQuery.eq('payment_cycle', cycleFilter);
+      }
+      
+      // For grade filter, we need to filter by student grade level
+      if (gradeFilter && gradeFilter !== 'all') {
+        const { data: gradeMatchingStudents } = await supabase
+          .from('students')
+          .select('id')
+          .eq('grade_level', gradeFilter as any)
+          .eq('status', 'Active');
+        
+        const gradeStudentIds = gradeMatchingStudents?.map(s => s.id) || [];
+        if (gradeStudentIds.length > 0) {
+          countQuery = countQuery.in('student_id', gradeStudentIds);
+        } else {
+          return 0; // No students match the grade filter
+        }
+      }
+      
+      const { count, error } = await countQuery;
+      if (error) throw error;
+      
+      return count || 0;
+    },
+    enabled: true,
+    staleTime: 30000
+  });
+
   // All filtering and search is now handled server-side, so we use the results directly
   const payments = useMemo(() => {
     return allPayments || [];
@@ -571,7 +649,7 @@ export const PaymentList = () => {
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">
-            Payments ({payments.length})
+            Payments ({totalCount || payments.length})
           </CardTitle>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
