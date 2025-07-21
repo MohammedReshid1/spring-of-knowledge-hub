@@ -194,6 +194,81 @@ export const PaymentList = () => {
     staleTime: 30000
   });
 
+  // Get pending payments count separately
+  const { data: pendingCount } = useQuery({
+    queryKey: ['payments-pending-count', getBranchFilter(), searchTerm, statusFilter, cycleFilter, gradeFilter],
+    queryFn: async () => {
+      const branchFilter = getBranchFilter();
+      
+      // Build count query for pending payments (Unpaid + Partially Paid)
+      let pendingQuery = supabase
+        .from('registration_payments')
+        .select('student_id', { count: 'exact', head: true })
+        .in('payment_status', ['Unpaid', 'Partially Paid']);
+      
+      // Apply branch filter
+      if (branchFilter) {
+        pendingQuery = pendingQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
+      }
+      
+      // Apply search filter - find matching student IDs first if search term exists
+      if (searchTerm && searchTerm.trim()) {
+        const { data: matchingStudents } = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active')
+          .or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        
+        const matchingStudentIds = matchingStudents?.map(s => s.id) || [];
+        
+        if (matchingStudentIds.length > 0) {
+          pendingQuery = pendingQuery.in('student_id', matchingStudentIds);
+        } else {
+          pendingQuery = pendingQuery.ilike('notes', `%${searchTerm}%`);
+        }
+      } else {
+        // Filter by active students only when no search term
+        const { data: activeStudentIds } = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active');
+        
+        const activeIds = activeStudentIds?.map(s => s.id) || [];
+        if (activeIds.length > 0) {
+          pendingQuery = pendingQuery.in('student_id', activeIds);
+        }
+      }
+      
+      // Apply cycle filter
+      if (cycleFilter && cycleFilter !== 'all') {
+        pendingQuery = pendingQuery.eq('payment_cycle', cycleFilter);
+      }
+      
+      // For grade filter, we need to filter by student grade level
+      if (gradeFilter && gradeFilter !== 'all') {
+        const { data: gradeMatchingStudents } = await supabase
+          .from('students')
+          .select('id')
+          .eq('grade_level', gradeFilter as any)
+          .eq('status', 'Active');
+        
+        const gradeStudentIds = gradeMatchingStudents?.map(s => s.id) || [];
+        if (gradeStudentIds.length > 0) {
+          pendingQuery = pendingQuery.in('student_id', gradeStudentIds);
+        } else {
+          return 0; // No students match the grade filter
+        }
+      }
+      
+      const { count, error } = await pendingQuery;
+      if (error) throw error;
+      
+      return count || 0;
+    },
+    enabled: true,
+    staleTime: 30000
+  });
+
   // All filtering and search is now handled server-side, so we use the results directly
   const payments = useMemo(() => {
     return allPayments || [];
@@ -570,7 +645,7 @@ export const PaymentList = () => {
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-orange-600">Pending</p>
-                <p className="text-2xl font-bold text-orange-900">{stats?.pendingPayments || 0}</p>
+                <p className="text-2xl font-bold text-orange-900">{pendingCount || 0}</p>
               </div>
               <Calendar className="h-8 w-8 text-orange-500" />
             </div>
