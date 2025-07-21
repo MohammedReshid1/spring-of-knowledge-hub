@@ -121,73 +121,75 @@ export const PaymentList = () => {
     queryKey: ['payments-count', getBranchFilter(), searchTerm, statusFilter, cycleFilter, gradeFilter],
     queryFn: async () => {
       const branchFilter = getBranchFilter();
+      console.log('Fetching total payment count with filters:', { branchFilter, searchTerm, statusFilter, cycleFilter, gradeFilter });
       
-      // Build count query - simpler approach without complex joins
+      // Start with basic query
       let countQuery = supabase
         .from('registration_payments')
-        .select('student_id', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true });
       
       // Apply branch filter
       if (branchFilter) {
         countQuery = countQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
       }
       
-      // Apply search filter - find matching student IDs first if search term exists
-      if (searchTerm && searchTerm.trim()) {
-        const { data: matchingStudents } = await supabase
-          .from('students')
-          .select('id')
-          .eq('status', 'Active')
-          .or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-        
-        const matchingStudentIds = matchingStudents?.map(s => s.id) || [];
-        
-        if (matchingStudentIds.length > 0) {
-          countQuery = countQuery.in('student_id', matchingStudentIds);
-        } else {
-          countQuery = countQuery.ilike('notes', `%${searchTerm}%`);
-        }
-      } else {
-        // Filter by active students only when no search term
-        const { data: activeStudentIds } = await supabase
-          .from('students')
-          .select('id')
-          .eq('status', 'Active');
-        
-        const activeIds = activeStudentIds?.map(s => s.id) || [];
-        if (activeIds.length > 0) {
-          countQuery = countQuery.in('student_id', activeIds);
-        }
-      }
-      
-      // Apply other filters
+      // Apply status filter
       if (statusFilter && statusFilter !== 'all') {
         countQuery = countQuery.eq('payment_status', statusFilter);
       }
       
+      // Apply cycle filter
       if (cycleFilter && cycleFilter !== 'all') {
         countQuery = countQuery.eq('payment_cycle', cycleFilter);
       }
       
-      // For grade filter, we need to filter by student grade level
-      if (gradeFilter && gradeFilter !== 'all') {
-        const { data: gradeMatchingStudents } = await supabase
+      // For search and grade filters, we need to get student IDs first
+      let studentIds: string[] = [];
+      
+      if (searchTerm?.trim() || gradeFilter !== 'all') {
+        let studentQuery = supabase
           .from('students')
           .select('id')
-          .eq('grade_level', gradeFilter as any)
           .eq('status', 'Active');
         
-        const gradeStudentIds = gradeMatchingStudents?.map(s => s.id) || [];
-        if (gradeStudentIds.length > 0) {
-          countQuery = countQuery.in('student_id', gradeStudentIds);
-        } else {
-          return 0; // No students match the grade filter
+        // Apply search filter to students
+        if (searchTerm?.trim()) {
+          studentQuery = studentQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        }
+        
+        // Apply grade filter to students
+        if (gradeFilter && gradeFilter !== 'all') {
+          studentQuery = studentQuery.eq('grade_level', gradeFilter as any);
+        }
+        
+        const { data: matchingStudents, error: studentError } = await studentQuery;
+        if (studentError) throw studentError;
+        
+        studentIds = matchingStudents?.map(s => s.id) || [];
+        
+        if (studentIds.length === 0) {
+          console.log('No students match search/grade criteria');
+          return 0;
+        }
+        
+        countQuery = countQuery.in('student_id', studentIds);
+      } else {
+        // Filter by active students when no search term
+        const { data: activeStudents } = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active');
+        
+        const activeIds = activeStudents?.map(s => s.id) || [];
+        if (activeIds.length > 0) {
+          countQuery = countQuery.in('student_id', activeIds);
         }
       }
       
       const { count, error } = await countQuery;
       if (error) throw error;
       
+      console.log('Total payment count:', count);
       return count || 0;
     },
     enabled: true,
@@ -199,11 +201,12 @@ export const PaymentList = () => {
     queryKey: ['payments-pending-count', getBranchFilter(), searchTerm, statusFilter, cycleFilter, gradeFilter],
     queryFn: async () => {
       const branchFilter = getBranchFilter();
+      console.log('Fetching pending payment count with filters:', { branchFilter, searchTerm, statusFilter, cycleFilter, gradeFilter });
       
-      // Build count query for pending payments (Unpaid + Partially Paid)
+      // Start with basic query for pending payments
       let pendingQuery = supabase
         .from('registration_payments')
-        .select('student_id', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .in('payment_status', ['Unpaid', 'Partially Paid']);
       
       // Apply branch filter
@@ -211,58 +214,56 @@ export const PaymentList = () => {
         pendingQuery = pendingQuery.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
       }
       
-      // Apply search filter - find matching student IDs first if search term exists
-      if (searchTerm && searchTerm.trim()) {
-        const { data: matchingStudents } = await supabase
-          .from('students')
-          .select('id')
-          .eq('status', 'Active')
-          .or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-        
-        const matchingStudentIds = matchingStudents?.map(s => s.id) || [];
-        
-        if (matchingStudentIds.length > 0) {
-          pendingQuery = pendingQuery.in('student_id', matchingStudentIds);
-        } else {
-          pendingQuery = pendingQuery.ilike('notes', `%${searchTerm}%`);
-        }
-      } else {
-        // Filter by active students only when no search term
-        const { data: activeStudentIds } = await supabase
-          .from('students')
-          .select('id')
-          .eq('status', 'Active');
-        
-        const activeIds = activeStudentIds?.map(s => s.id) || [];
-        if (activeIds.length > 0) {
-          pendingQuery = pendingQuery.in('student_id', activeIds);
-        }
-      }
-      
-      // Apply cycle filter
+      // Apply cycle filter (but not status filter since we're specifically looking for pending)
       if (cycleFilter && cycleFilter !== 'all') {
         pendingQuery = pendingQuery.eq('payment_cycle', cycleFilter);
       }
       
-      // For grade filter, we need to filter by student grade level
-      if (gradeFilter && gradeFilter !== 'all') {
-        const { data: gradeMatchingStudents } = await supabase
+      // For search and grade filters, we need to get student IDs first
+      if (searchTerm?.trim() || gradeFilter !== 'all') {
+        let studentQuery = supabase
           .from('students')
           .select('id')
-          .eq('grade_level', gradeFilter as any)
           .eq('status', 'Active');
         
-        const gradeStudentIds = gradeMatchingStudents?.map(s => s.id) || [];
-        if (gradeStudentIds.length > 0) {
-          pendingQuery = pendingQuery.in('student_id', gradeStudentIds);
-        } else {
-          return 0; // No students match the grade filter
+        // Apply search filter to students
+        if (searchTerm?.trim()) {
+          studentQuery = studentQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        }
+        
+        // Apply grade filter to students
+        if (gradeFilter && gradeFilter !== 'all') {
+          studentQuery = studentQuery.eq('grade_level', gradeFilter as any);
+        }
+        
+        const { data: matchingStudents, error: studentError } = await studentQuery;
+        if (studentError) throw studentError;
+        
+        const studentIds = matchingStudents?.map(s => s.id) || [];
+        
+        if (studentIds.length === 0) {
+          console.log('No students match search/grade criteria for pending count');
+          return 0;
+        }
+        
+        pendingQuery = pendingQuery.in('student_id', studentIds);
+      } else {
+        // Filter by active students when no search term
+        const { data: activeStudents } = await supabase
+          .from('students')
+          .select('id')
+          .eq('status', 'Active');
+        
+        const activeIds = activeStudents?.map(s => s.id) || [];
+        if (activeIds.length > 0) {
+          pendingQuery = pendingQuery.in('student_id', activeIds);
         }
       }
       
       const { count, error } = await pendingQuery;
       if (error) throw error;
       
+      console.log('Pending payment count:', count);
       return count || 0;
     },
     enabled: true,
