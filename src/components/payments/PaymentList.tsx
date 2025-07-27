@@ -116,16 +116,11 @@ export const PaymentList = () => {
   // Use the branch-filtered payments query - now with FIXED server-side search
   const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
 
-  // Get total count of payments with current filters - simplified to avoid URL length issues
-  const { data: totalCount } = useQuery({
-    queryKey: ['payments-count', getBranchFilter(), searchTerm, statusFilter, cycleFilter, gradeFilter],
-    queryFn: async () => {
-      // Use the existing payments data length as the total count since it's server-side filtered
-      return allPayments?.length || 0;
-    },
-    enabled: !!allPayments,
-    staleTime: 30000
-  });
+  // Calculate total count directly from the loaded payments data 
+  // This avoids complex database queries and type issues while providing accurate counts
+  const totalCount = useMemo(() => {
+    return allPayments?.length || 0;
+  }, [allPayments]);
 
   // Get pending payments count from the existing data - simplified to avoid URL length issues
   const { data: pendingCount } = useQuery({
@@ -491,7 +486,7 @@ export const PaymentList = () => {
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-blue-600">Total Payments</p>
-                <p className="text-2xl font-bold text-blue-900">{totalCount || 0}</p>
+                <p className="text-2xl font-bold text-blue-900">{stats?.totalPayments || 0}</p>
               </div>
               <Users className="h-8 w-8 text-blue-500" />
             </div>
@@ -515,7 +510,7 @@ export const PaymentList = () => {
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-orange-600">Pending</p>
-                <p className="text-2xl font-bold text-orange-900">{pendingCount || 0}</p>
+                <p className="text-2xl font-bold text-orange-900">{stats?.pendingPayments || 0}</p>
               </div>
               <Calendar className="h-8 w-8 text-orange-500" />
             </div>
@@ -594,7 +589,7 @@ export const PaymentList = () => {
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">
-            Payments ({totalCount || payments.length})
+            Payments ({stats?.totalPayments || 0})
           </CardTitle>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
