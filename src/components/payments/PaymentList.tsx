@@ -622,7 +622,7 @@ export const PaymentList = () => {
             <div className="flex items-center">
               <div className="flex-1">
                 <p className="text-sm font-medium text-blue-600">Total Payments</p>
-                <p className="text-2xl font-bold text-blue-900">{stats?.totalPayments || 0}</p>
+                <p className="text-2xl font-bold text-blue-900">{totalCount || 0}</p>
               </div>
               <Users className="h-8 w-8 text-blue-500" />
             </div>
