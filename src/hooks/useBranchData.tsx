@@ -316,8 +316,10 @@ export const useBranchData = () => {
           query = query.eq('students.grade_level', gradeFilter as any);
         }
         
-        // Get ALL matching records - NO LIMITS OR RANGE CALLS
-        const { data, error } = await query.order('created_at', { ascending: false });
+        // Get ALL matching records - set high limit to bypass default 1000 row limit
+        const { data, error } = await query
+          .order('created_at', { ascending: false })
+          .limit(50000); // Set high limit to get all records
         
         if (error) throw error;
         
