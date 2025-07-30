@@ -98,7 +98,7 @@ export const MultiFileStudentSync = () => {
     
     try {
       const updater = new PaymentUpdater();
-      const result = await updater.updatePreKgPayments();
+      const result = await updater.updateAllStudentPayments();
       
       toast({
         title: "Payment update completed",

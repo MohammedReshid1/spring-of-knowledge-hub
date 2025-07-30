@@ -2,7 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { PaymentUpdateResult } from './types';
 
 export class PaymentUpdater {
-  async updatePreKgPayments(): Promise<PaymentUpdateResult> {
+  async updateAllStudentPayments(): Promise<PaymentUpdateResult> {
     const result: PaymentUpdateResult = {
       studentsProcessed: 0,
       updatedPayments: 0,
@@ -10,11 +10,10 @@ export class PaymentUpdater {
     };
 
     try {
-      // Get all Pre-KG, KG, and Prep students
+      // Get all students in the system
       const { data: students, error: studentsError } = await supabase
         .from('students')
-        .select('id, first_name, last_name')
-        .in('grade_level', ['pre_k', 'kg', 'prep']);
+        .select('id, first_name, last_name');
 
       if (studentsError) {
         result.errors.push(`Failed to fetch students: ${studentsError.message}`);
@@ -33,7 +32,7 @@ export class PaymentUpdater {
         .from('registration_payments')
         .select('*')
         .in('student_id', studentIds)
-        .in('payment_cycle', ['registration_fee', 'first_semester_fee'])
+        .in('payment_cycle', ['registration_fee', '1st_semester'])
         .eq('payment_status', 'Unpaid');
 
       if (paymentsError) {
