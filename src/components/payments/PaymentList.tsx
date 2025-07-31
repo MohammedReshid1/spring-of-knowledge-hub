@@ -18,6 +18,7 @@ import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranchData } from '@/hooks/useBranchData';
 import { toast } from '@/hooks/use-toast';
 import { EnhancedPaymentForm } from './EnhancedPaymentForm';
+import { BulkPaymentImport } from './BulkPaymentImport';
 import { Link } from 'react-router-dom';
 import { getHighlightedText } from '@/utils/searchHighlight';
 import * as XLSX from 'xlsx';
@@ -418,6 +419,7 @@ export const PaymentList = () => {
           <p className="text-gray-600 mt-1">Track and manage student payment records</p>
         </div>
         <div className="flex items-center space-x-2">
+          <BulkPaymentImport />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
