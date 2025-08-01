@@ -22,6 +22,7 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import { ActivityCenter } from '@/components/common/ActivityCenter';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -107,6 +108,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
             
             <div className="flex items-center space-x-2 sm:space-x-4">
               <BranchSelector />
+              <ActivityCenter />
               <span className="text-xs sm:text-sm text-gray-700 hidden sm:block">
                 Welcome, {displayName}
               </span>

@@ -172,7 +172,15 @@ export class PaymentImportProcessor {
   }
 
   private normalizeData(rawData: any[]): PaymentData[] {
-    return rawData.map((row, index) => {
+    console.log('Raw data sample:', rawData.slice(0, 3));
+    console.log('Raw data headers detected:', rawData.length > 0 ? Object.keys(rawData[0]) : 'No data');
+    
+    if (!rawData || rawData.length === 0) {
+      console.log('No raw data provided to normalizeData');
+      return [];
+    }
+
+    const validData = rawData.map((row, index) => {
       // Flexible column mapping (case-insensitive)
       const keys = Object.keys(row).map(k => k.toLowerCase());
       const getValue = (possibleNames: string[]) => {
@@ -192,7 +200,7 @@ export class PaymentImportProcessor {
       const paymentDate = getValue(['payment date', 'date']);
       const notes = getValue(['notes', 'note', 'comment', 'remarks']);
 
-      return {
+      const processedRow = {
         studentId: studentId?.toString().trim(),
         studentName: studentName?.toString().trim(),
         gradeLevel: gradeLevel?.toString().trim(),
@@ -202,7 +210,27 @@ export class PaymentImportProcessor {
         paymentDate: paymentDate?.toString().trim(),
         notes: notes?.toString().trim()
       };
-    }).filter(item => item.paymentCycle && item.amountPaid > 0);
+
+      // Enhanced validation - student name is now primary
+      const hasRequiredData = (processedRow.studentName || processedRow.studentId) && 
+                              processedRow.amountPaid > 0;
+      
+      if (!hasRequiredData) {
+        console.log(`Row ${index + 1} filtered out:`, {
+          studentId: processedRow.studentId,
+          studentName: processedRow.studentName,
+          amountPaid: processedRow.amountPaid,
+          paymentCycle: processedRow.paymentCycle,
+          reason: !processedRow.studentName && !processedRow.studentId ? 'No student identifier' : 
+                  processedRow.amountPaid <= 0 ? 'Invalid amount' : 'Unknown'
+        });
+      }
+
+      return hasRequiredData ? processedRow : null;
+    }).filter(item => item !== null);
+
+    console.log(`Normalized ${validData.length} valid records from ${rawData.length} total rows`);
+    return validData;
   }
 
   private parseAmount(value: any): number {
@@ -379,22 +407,40 @@ export class PaymentImportProcessor {
   }
 
   private findStudent(paymentData: PaymentData, students: any[]) {
-    // Primary: Match by student ID
+    // Primary: Match by student name (prioritized over ID)
+    if (paymentData.studentName) {
+      const nameParts = paymentData.studentName.toLowerCase().split(' ').filter(part => part.length > 0);
+      
+      // Exact match first
+      const exactMatch = students.find(s => {
+        const fullName = `${s.first_name} ${s.last_name}`.toLowerCase();
+        return fullName === paymentData.studentName!.toLowerCase();
+      });
+      if (exactMatch) return exactMatch;
+
+      // Partial match with multiple name parts
+      if (nameParts.length >= 2) {
+        const partialMatch = students.find(s => {
+          const fullName = `${s.first_name} ${s.last_name}`.toLowerCase();
+          return nameParts.every(part => fullName.includes(part));
+        });
+        if (partialMatch) return partialMatch;
+      }
+
+      // Single name part match
+      if (nameParts.length === 1) {
+        const singleMatch = students.find(s => {
+          const fullName = `${s.first_name} ${s.last_name}`.toLowerCase();
+          return fullName.includes(nameParts[0]);
+        });
+        if (singleMatch) return singleMatch;
+      }
+    }
+
+    // Secondary: Match by student ID (only if name matching fails)
     if (paymentData.studentId) {
       const byId = students.find(s => s.student_id === paymentData.studentId);
       if (byId) return byId;
-    }
-
-    // Secondary: Match by full name
-    if (paymentData.studentName) {
-      const nameParts = paymentData.studentName.toLowerCase().split(' ');
-      if (nameParts.length >= 2) {
-        const byName = students.find(s => {
-          const fullName = `${s.first_name} ${s.last_name}`.toLowerCase();
-          return fullName.includes(nameParts[0]) && fullName.includes(nameParts[nameParts.length - 1]);
-        });
-        if (byName) return byName;
-      }
     }
 
     // Tertiary: Match by name and grade level

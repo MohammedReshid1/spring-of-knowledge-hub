@@ -156,8 +156,20 @@ export const StudentList = () => {
         countQuery = countQuery.eq('branch_id', branchFilter);
       }
 
-      if (searchTerm) {
-        countQuery = countQuery.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      if (searchTerm && searchTerm.trim()) {
+        const trimmedSearch = searchTerm.trim();
+        const searchWords = trimmedSearch.split(' ').filter(word => word.length > 0);
+        
+        if (searchWords.length === 1) {
+          const word = searchWords[0];
+          countQuery = countQuery.or(`student_id.ilike.%${word}%,first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%,phone.ilike.%${word}%,email.ilike.%${word}%`);
+        } else {
+          const fullNameSearch = `(first_name.ilike.%${trimmedSearch}%,last_name.ilike.%${trimmedSearch}%,father_name.ilike.%${trimmedSearch}%,grandfather_name.ilike.%${trimmedSearch}%,mother_name.ilike.%${trimmedSearch}%,student_id.ilike.%${trimmedSearch}%,phone.ilike.%${trimmedSearch}%,email.ilike.%${trimmedSearch}%)`;
+          const wordMatches = searchWords.map(word => 
+            `(first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%)`
+          ).join(',');
+          countQuery = countQuery.or(`${fullNameSearch.slice(1, -1)},${wordMatches}`);
+        }
       }
       
       if (statusFilter && statusFilter !== 'all') {

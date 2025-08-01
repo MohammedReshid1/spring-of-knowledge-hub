@@ -9,6 +9,7 @@ import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, XCircle, Activity,
 import { toast } from '@/hooks/use-toast';
 import { PaymentImportProcessor, ImportResult } from './PaymentImportProcessor';
 import { PaymentImportResults } from './PaymentImportResults';
+import { addActivity } from '@/components/common/ActivityCenter';
 
 export const BulkPaymentImport = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -79,6 +80,17 @@ export const BulkPaymentImport = () => {
       });
 
       setImportResult(result);
+      
+      // Add activity to activity center
+      addActivity({
+        type: 'import',
+        title: 'Payment Import Completed',
+        message: result.errorCount === 0 
+          ? `Successfully processed ${result.successCount} payments` 
+          : `Processed ${result.successCount} payments with ${result.errorCount} errors`,
+        severity: result.errorCount === 0 ? 'success' : result.errorCount > 0 ? 'error' : 'info',
+        data: result
+      });
       
       toast({
         title: "Import Completed",

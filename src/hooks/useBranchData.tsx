@@ -130,9 +130,28 @@ export const useBranchData = () => {
           query = query.or(`branch_id.eq.${branchFilter},branch_id.is.null`);
         }
 
-        // Apply server-side filters for better performance
+        // Apply server-side filters for better performance with enhanced multi-word search
         if (searchTerm && searchTerm.trim()) {
-          query = query.or(`student_id.ilike.%${searchTerm}%,first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,father_name.ilike.%${searchTerm}%,grandfather_name.ilike.%${searchTerm}%,mother_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+          const trimmedSearch = searchTerm.trim();
+          
+          // Create comprehensive search for single or multiple words
+          const searchWords = trimmedSearch.split(' ').filter(word => word.length > 0);
+          
+          if (searchWords.length === 1) {
+            // Single word - search across all fields with OR logic
+            const word = searchWords[0];
+            query = query.or(`student_id.ilike.%${word}%,first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%,phone.ilike.%${word}%,email.ilike.%${word}%`);
+          } else {
+            // Multiple words - match full search term OR individual words in full name fields
+            const fullNameSearch = `(first_name.ilike.%${trimmedSearch}%,last_name.ilike.%${trimmedSearch}%,father_name.ilike.%${trimmedSearch}%,grandfather_name.ilike.%${trimmedSearch}%,mother_name.ilike.%${trimmedSearch}%,student_id.ilike.%${trimmedSearch}%,phone.ilike.%${trimmedSearch}%,email.ilike.%${trimmedSearch}%)`;
+            
+            // Also create individual word matches for name combination searches
+            const wordMatches = searchWords.map(word => 
+              `(first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%)`
+            ).join(',');
+            
+            query = query.or(`${fullNameSearch.slice(1, -1)},${wordMatches}`);
+          }
         }
         
         // Apply grade filter server-side
