@@ -29,6 +29,10 @@ import { StudentForm } from './StudentForm';
 import { StudentDetails } from './StudentDetails';
 import { BulkStudentImport } from './BulkStudentImport';
 import { DuplicateChecker } from './DuplicateChecker';
+import { getHighlightedText } from '@/utils/searchHighlight';
+import { formatDistanceToNow } from 'date-fns';
+import { IDCardPrinting } from './IDCardPrinting';
+import { addActivity } from '@/components/common/ActivityCenter';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -69,6 +73,13 @@ export const StudentList = () => {
       toast({
         title: "Success",
         description: `${studentIds.length} students deleted successfully`,
+      });
+      addActivity({
+        type: 'student',
+        title: 'Bulk Delete Students',
+        message: `${studentIds.length} students deleted successfully`,
+        severity: 'success',
+        details: `Deleted student IDs: ${studentIds.join(', ')}`
       });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       setSelectedStudents(new Set());
@@ -308,12 +319,19 @@ export const StudentList = () => {
       }
       console.log('Student deleted successfully');
     },
-    onSuccess: () => {
+    onSuccess: (_, studentId) => {
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['student-stats'] });
       toast({
         title: "Success",
         description: "Student deleted successfully",
+      });
+      addActivity({
+        type: 'student',
+        title: 'Delete Student',
+        message: 'Student deleted successfully',
+        severity: 'success',
+        details: `Deleted student ID: ${studentId}`
       });
     },
     onError: (error) => {

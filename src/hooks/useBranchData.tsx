@@ -142,15 +142,28 @@ export const useBranchData = () => {
             const word = searchWords[0];
             query = query.or(`student_id.ilike.%${word}%,first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%,phone.ilike.%${word}%,email.ilike.%${word}%`);
           } else {
-            // Multiple words - match full search term OR individual words in full name fields
-            const fullNameSearch = `(first_name.ilike.%${trimmedSearch}%,last_name.ilike.%${trimmedSearch}%,father_name.ilike.%${trimmedSearch}%,grandfather_name.ilike.%${trimmedSearch}%,mother_name.ilike.%${trimmedSearch}%,student_id.ilike.%${trimmedSearch}%,phone.ilike.%${trimmedSearch}%,email.ilike.%${trimmedSearch}%)`;
+            // Multiple words - for proper name search like "khedija abdulwase"
+            // We need to match combinations: first+last, first+father, etc.
+            const searchConditions = [];
             
-            // Also create individual word matches for name combination searches
-            const wordMatches = searchWords.map(word => 
-              `(first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%)`
-            ).join(',');
+            // Match full search term in any single field
+            searchConditions.push(`first_name.ilike.%${trimmedSearch}%`);
+            searchConditions.push(`last_name.ilike.%${trimmedSearch}%`);
+            searchConditions.push(`father_name.ilike.%${trimmedSearch}%`);
+            searchConditions.push(`grandfather_name.ilike.%${trimmedSearch}%`);
+            searchConditions.push(`mother_name.ilike.%${trimmedSearch}%`);
+            searchConditions.push(`student_id.ilike.%${trimmedSearch}%`);
             
-            query = query.or(`${fullNameSearch.slice(1, -1)},${wordMatches}`);
+            // Also add individual word matches across name fields
+            for (const word of searchWords) {
+              searchConditions.push(`first_name.ilike.%${word}%`);
+              searchConditions.push(`last_name.ilike.%${word}%`);
+              searchConditions.push(`father_name.ilike.%${word}%`);
+              searchConditions.push(`grandfather_name.ilike.%${word}%`);
+              searchConditions.push(`mother_name.ilike.%${word}%`);
+            }
+            
+            query = query.or(searchConditions.join(','));
           }
         }
         

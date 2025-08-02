@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Bell, CheckCircle, AlertCircle, Info, X } from 'lucide-react';
@@ -8,13 +9,14 @@ import { cn } from '@/lib/utils';
 
 interface Activity {
   id: string;
-  type: 'import' | 'export' | 'system';
+  type: 'import' | 'export' | 'system' | 'student' | 'class' | 'payment' | 'user';
   title: string;
   message: string;
   timestamp: Date;
-  severity: 'success' | 'error' | 'info';
+  severity: 'success' | 'error' | 'info' | 'warning';
   read: boolean;
   data?: any;
+  details?: string;
 }
 
 const STORAGE_KEY = 'app_activities';
@@ -23,6 +25,7 @@ const MAX_ACTIVITIES = 50;
 export const ActivityCenter = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
   // Load activities from localStorage on mount
   useEffect(() => {
@@ -90,6 +93,7 @@ export const ActivityCenter = () => {
   const getIcon = (type: Activity['type'], severity: Activity['severity']) => {
     if (severity === 'success') return <CheckCircle className="h-4 w-4 text-green-600" />;
     if (severity === 'error') return <AlertCircle className="h-4 w-4 text-red-600" />;
+    if (severity === 'warning') return <AlertCircle className="h-4 w-4 text-yellow-600" />;
     return <Info className="h-4 w-4 text-blue-600" />;
   };
 
@@ -172,6 +176,19 @@ export const ActivityCenter = () => {
                             <span className="text-xs text-muted-foreground">
                               {formatTime(activity.timestamp)}
                             </span>
+                            {activity.details && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedActivity(activity);
+                                }}
+                                className="h-6 w-6 p-0 text-xs hover:bg-muted"
+                              >
+                                <Info className="h-3 w-3" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -200,6 +217,50 @@ export const ActivityCenter = () => {
           </CardContent>
         </Card>
       </DropdownMenuContent>
+
+      {/* Activity Details Dialog */}
+      <Dialog open={!!selectedActivity} onOpenChange={() => setSelectedActivity(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedActivity && getIcon(selectedActivity.type, selectedActivity.severity)}
+              {selectedActivity?.title}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedActivity && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Time</p>
+                <p className="text-sm">{selectedActivity.timestamp.toLocaleString()}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Message</p>
+                <p className="text-sm">{selectedActivity.message}</p>
+              </div>
+              
+              {selectedActivity.details && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Details</p>
+                  <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto whitespace-pre-wrap">
+                    {selectedActivity.details}
+                  </pre>
+                </div>
+              )}
+              
+              {selectedActivity.data && (
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Data</p>
+                  <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
+                    {JSON.stringify(selectedActivity.data, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DropdownMenu>
   );
 };
