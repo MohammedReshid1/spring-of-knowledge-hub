@@ -142,28 +142,11 @@ export const useBranchData = () => {
             const word = searchWords[0];
             query = query.or(`student_id.ilike.%${word}%,first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%,phone.ilike.%${word}%,email.ilike.%${word}%`);
           } else {
-            // Multiple words - for proper name search like "khedija abdulwase"
-            // We need to match combinations: first+last, first+father, etc.
-            const searchConditions = [];
-            
-            // Match full search term in any single field
-            searchConditions.push(`first_name.ilike.%${trimmedSearch}%`);
-            searchConditions.push(`last_name.ilike.%${trimmedSearch}%`);
-            searchConditions.push(`father_name.ilike.%${trimmedSearch}%`);
-            searchConditions.push(`grandfather_name.ilike.%${trimmedSearch}%`);
-            searchConditions.push(`mother_name.ilike.%${trimmedSearch}%`);
-            searchConditions.push(`student_id.ilike.%${trimmedSearch}%`);
-            
-            // Also add individual word matches across name fields
+            // Multiple words - require ALL words to match (AND logic)
+            // Each word must appear in at least one name field
             for (const word of searchWords) {
-              searchConditions.push(`first_name.ilike.%${word}%`);
-              searchConditions.push(`last_name.ilike.%${word}%`);
-              searchConditions.push(`father_name.ilike.%${word}%`);
-              searchConditions.push(`grandfather_name.ilike.%${word}%`);
-              searchConditions.push(`mother_name.ilike.%${word}%`);
+              query = query.or(`first_name.ilike.%${word}%,last_name.ilike.%${word}%,father_name.ilike.%${word}%,grandfather_name.ilike.%${word}%,mother_name.ilike.%${word}%,student_id.ilike.%${word}%`);
             }
-            
-            query = query.or(searchConditions.join(','));
           }
         }
         
