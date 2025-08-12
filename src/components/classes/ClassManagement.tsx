@@ -36,7 +36,7 @@ export const ClassManagement = () => {
   const itemsPerPage = 10;
   const queryClient = useQueryClient();
   const { canDelete } = useRoleAccess();
-  const { useClasses } = useBranchData();
+  const { useClasses, getBranchFilter, selectedBranch } = useBranchData();
 
   // Real-time subscriptions
   useEffect(() => {
@@ -90,9 +90,10 @@ export const ClassManagement = () => {
 
   // Ensure all grade levels exist and have proper data
   const { data: gradeStats, isLoading: isGradeStatsLoading } = useQuery({
-    queryKey: ['grade-stats'],
+    queryKey: ['grade-stats', selectedBranch],
     queryFn: async () => {
       console.log('Fetching comprehensive grade stats...');
+      const branchFilter = getBranchFilter();
       
       // First ensure all grade levels exist
       const allGrades: GradeLevel[] = ['pre_k', 'kg', 'prep', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'];
@@ -117,11 +118,17 @@ export const ClassManagement = () => {
 
       // Count active students for each grade level and calculate real capacity
       const gradeStatsPromises = gradeLevelsData?.map(async (grade) => {
-        const { count, error } = await supabase
+        let studentCountQuery = supabase
           .from('students')
           .select('*', { count: 'exact', head: true })
           .eq('grade_level', grade.grade)
           .eq('status', 'Active');
+
+        if (branchFilter) {
+          studentCountQuery = studentCountQuery.eq('branch_id', branchFilter as string);
+        }
+
+        const { count, error } = await studentCountQuery;
 
         if (error) {
           console.error(`Error counting students for grade ${grade.grade}:`, error);
@@ -136,7 +143,7 @@ export const ClassManagement = () => {
         console.log(`Grade ${grade.grade}: ${actualEnrollment} active students`);
 
         // Calculate the real max capacity by summing all class capacities for this grade
-        const { data: classesData, error: classError } = await supabase
+        let classesQuery = supabase
           .from('classes')
           .select(`
             max_capacity,
@@ -145,6 +152,12 @@ export const ClassManagement = () => {
             )
           `)
           .eq('grade_levels.grade', grade.grade);
+
+        if (branchFilter) {
+          classesQuery = classesQuery.eq('branch_id', branchFilter as string);
+        }
+
+        const { data: classesData, error: classError } = await classesQuery;
 
         if (classError) {
           console.error(`Error fetching classes for grade ${grade.grade}:`, classError);

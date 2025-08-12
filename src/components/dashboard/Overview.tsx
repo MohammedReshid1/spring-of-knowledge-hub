@@ -152,19 +152,41 @@ export const Overview = () => {
         return acc;
       }, {} as Record<string, number>);
 
-      // Grade level utilization using branch-filtered data
-      const gradeUtilization = Object.entries(
-        branchStudents.reduce((acc, student) => {
-          const grade = student.grade_level || 'unknown';
-          acc[grade] = (acc[grade] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>)
-      ).map(([grade, count]) => ({
-        grade: grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        utilization: 100,
-        enrolled: count,
-        capacity: Math.max(count, 10)
-      }));
+      // Grade level utilization using branch-filtered data and class capacities
+      const capacitiesByGrade = (classes || []).reduce((acc, cls: any) => {
+        const grade = cls.grade_levels?.grade;
+        const cap = cls.max_capacity || 0;
+        if (grade) acc[grade] = (acc[grade] || 0) + cap;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const enrolledByGrade = (branchStudents || []).reduce((acc, s: any) => {
+        const g = s.grade_level || 'unknown';
+        acc[g] = (acc[g] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const formatGrade = (grade: string) => {
+        const map: Record<string, string> = {
+          pre_k: 'Pre KG', kg: 'KG', prep: 'PREP', kindergarten: 'KG',
+          grade_1: 'Grade 1', grade_2: 'Grade 2', grade_3: 'Grade 3', grade_4: 'Grade 4',
+          grade_5: 'Grade 5', grade_6: 'Grade 6', grade_7: 'Grade 7', grade_8: 'Grade 8',
+          grade_9: 'Grade 9', grade_10: 'Grade 10', grade_11: 'Grade 11', grade_12: 'Grade 12'
+        };
+        return map[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+      };
+
+      const gradeUtilization = Object.keys(capacitiesByGrade).map((g) => {
+        const capacity = capacitiesByGrade[g] || 0;
+        const enrolled = enrolledByGrade[g] || 0;
+        const utilization = capacity > 0 ? Math.min(100, Math.round((enrolled / capacity) * 100)) : 0;
+        return {
+          grade: formatGrade(g),
+          utilization,
+          enrolled,
+          capacity: Math.max(capacity, enrolled),
+        };
+      });
 
       const result = {
         totalStudents: totalStudents || 0,
