@@ -5,22 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UserCheck, Users, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
+import { useBranch } from '@/contexts/BranchContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Database } from '@/integrations/supabase/types';
+import { Student, SchoolClass } from '@/types/api';
 
-type GradeLevel = Database['public']['Enums']['grade_level'];
-
-interface UnassignedStudent {
-  id: string;
-  first_name: string;
-  last_name: string;
-  grade_level: GradeLevel;
-  student_id: string;
-}
+interface UnassignedStudent extends Student {}
 
 interface GradeClassGroup {
-  gradeLevel: GradeLevel;
+  gradeLevel: string;
   gradeName: string;
   students: UnassignedStudent[];
   availableClasses: Array<{
@@ -36,33 +29,47 @@ export const StudentClassAssignment = () => {
   const [isAssigning, setIsAssigning] = useState(false);
   const [selectedAssignments, setSelectedAssignments] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
+  const { selectedBranch } = useBranch();
 
   const { data: gradeGroups, isLoading } = useQuery({
-    queryKey: ['unassigned-students'],
+    queryKey: ['unassigned-students', selectedBranch],
     queryFn: async () => {
-      // Get students without classes
-      const { data: unassignedStudents, error: studentsError } = await supabase
-        .from('students')
-        .select('id, first_name, last_name, grade_level, student_id')
-        .is('class_id', null)
-        .eq('status', 'Active');
+      const [studentsResponse, classesResponse, gradeLevelsResponse] = await Promise.all([
+        apiClient.getAllStudents(selectedBranch),
+        apiClient.getClasses(),
+        apiClient.getGradeLevels(),
+      ]);
+      
+      if (studentsResponse.error) throw new Error(studentsResponse.error);
+      if (classesResponse.error) throw new Error(classesResponse.error);
+      if (gradeLevelsResponse.error) throw new Error(gradeLevelsResponse.error);
+      
+      const gradeLevels = gradeLevelsResponse.data || [];
+      console.log('StudentClassAssignment - Grade levels fetched:', gradeLevels.length);
+      
+      // Filter students by selected branch
+      const branchStudents = studentsResponse.data || [];
+      const filteredBranchStudents = selectedBranch === 'all'
+        ? branchStudents
+        : branchStudents.filter(s => s.branch_id === selectedBranch);
+      // Unassigned and active
+      const unassignedStudents = filteredBranchStudents.filter(s => !s.class_id && s.status === 'Active');
 
-      if (studentsError) throw studentsError;
-
-      // Get all classes with their current enrollment
-      const { data: classes, error: classesError } = await supabase
-        .from('classes')
-        .select(`
-          id,
-          class_name,
-          current_enrollment,
-          max_capacity,
-          grade_levels:grade_level_id (
-            grade
-          )
-        `);
-
-      if (classesError) throw classesError;
+      // Filter and enrich classes by selected branch
+      const branchClassesRaw = classesResponse.data || [];
+      const filteredClasses = selectedBranch === 'all'
+        ? branchClassesRaw
+        : branchClassesRaw.filter(c => c.branch_id === selectedBranch);
+        
+      // Enrich classes with grade level information
+      const classes = filteredClasses.map(cls => {
+        const gradeLevel = gradeLevels.find(gl => gl.id === cls.grade_level_id);
+        console.log(`StudentAssignment - Class ${cls.class_name}: grade_level_id=${cls.grade_level_id}, found grade=${gradeLevel?.grade}`);
+        return {
+          ...cls,
+          grade_level: gradeLevel ? { grade: gradeLevel.grade } : null
+        };
+      });
 
       // Group students by grade level
       const gradeGroups: Record<string, GradeClassGroup> = {};
@@ -81,14 +88,36 @@ export const StudentClassAssignment = () => {
 
       // Add available classes for each grade level
       for (const [gradeLevel, group] of Object.entries(gradeGroups)) {
-        const gradeClasses = classes?.filter(c => c.grade_levels?.grade === gradeLevel) || [];
+        // Convert formatted grade back to database format for comparison
+        const gradeToDbFormat: Record<string, string> = {
+          'Pre KG': 'pre_k',
+          'KG': 'kg',
+          'PREP': 'prep', 
+          'Grade 1': 'grade_1',
+          'Grade 2': 'grade_2',
+          'Grade 3': 'grade_3',
+          'Grade 4': 'grade_4',
+          'Grade 5': 'grade_5',
+          'Grade 6': 'grade_6',
+          'Grade 7': 'grade_7',
+          'Grade 8': 'grade_8',
+          'Grade 9': 'grade_9',
+          'Grade 10': 'grade_10',
+          'Grade 11': 'grade_11',
+          'Grade 12': 'grade_12',
+        };
+        
+        const gradeClasses = classes.filter(c => {
+          const classGradeDb = gradeToDbFormat[c.grade_level?.grade] || c.grade_level?.grade;
+          return classGradeDb === gradeLevel;
+        }) || [];
         
         group.availableClasses = gradeClasses.map(cls => ({
           id: cls.id,
           class_name: cls.class_name,
           current_enrollment: cls.current_enrollment,
           max_capacity: cls.max_capacity,
-          available_spots: cls.max_capacity - cls.current_enrollment
+          available_spots: cls.max_capacity - (cls.current_enrollment || 0)
         })).filter(cls => cls.available_spots > 0);
       }
 
@@ -98,23 +127,18 @@ export const StudentClassAssignment = () => {
 
   const assignStudentsMutation = useMutation({
     mutationFn: async (assignments: Record<string, string>) => {
-      let updateCount = 0;
+      const promises = Object.entries(assignments).map(([studentId, classId]) => {
+        return apiClient.updateStudent(studentId, { class_id: classId });
+      });
       
-      // Update each student individually
-      for (const [studentId, classId] of Object.entries(assignments)) {
-        const { error } = await supabase
-          .from('students')
-          .update({ class_id: classId })
-          .eq('id', studentId);
+      const results = await Promise.all(promises);
+      const failed = results.filter(r => r.error);
 
-        if (error) {
-          console.error(`Failed to update student ${studentId}:`, error);
-          throw error;
-        }
-        updateCount++;
+      if (failed.length > 0) {
+        throw new Error(`Failed to assign ${failed.length} students.`);
       }
 
-      return updateCount;
+      return results.length;
     },
     onSuccess: (assignedCount) => {
       queryClient.invalidateQueries({ queryKey: ['unassigned-students'] });
@@ -171,7 +195,7 @@ export const StudentClassAssignment = () => {
       const selectedClass = group.availableClasses[classIndex];
       
       if (selectedClass.available_spots > 0) {
-        assignments[student.id] = selectedClass.id;
+        assignments[student.student_id] = selectedClass.id;
         selectedClass.available_spots--;
       }
       
@@ -258,18 +282,18 @@ export const StudentClassAssignment = () => {
               {group.availableClasses.length > 0 && (
                 <div className="space-y-2">
                   {group.students.map((student) => (
-                    <div key={student.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div key={student.student_id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-gray-500" />
                         <span className="font-medium">{student.first_name} {student.last_name}</span>
                         <Badge variant="outline">{student.student_id}</Badge>
                       </div>
                       <Select
-                        value={selectedAssignments[student.id] || ''}
+                        value={selectedAssignments[student.student_id] || ''}
                         onValueChange={(value) => {
                           setSelectedAssignments(prev => ({
                             ...prev,
-                            [student.id]: value
+                            [student.student_id]: value
                           }));
                         }}
                       >

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,12 +71,9 @@ export const DatabaseCleanup = () => {
 
   const cleanupMutation = useMutation({
     mutationFn: async (tableName: string) => {
-      const { data, error } = await supabase.rpc('admin_cleanup_table', {
-        table_name: tableName
-      });
-      
-      if (error) throw error;
-      return data;
+      // For now, we'll show a message that cleanup is not yet implemented
+      // In a real implementation, you'd need cleanup endpoints
+      throw new Error('Database cleanup functionality is not yet implemented. Please contact system administrator.');
     },
     onSuccess: (deletedCount, tableName) => {
       toast({

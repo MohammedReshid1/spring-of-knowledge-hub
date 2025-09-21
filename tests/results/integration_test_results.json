@@ -1,0 +1,222 @@
+{
+  "timestamp": "2025-09-03T22:36:44.911222",
+  "success": true,
+  "results": {
+    "user_management": [
+      {
+        "test": "Create Branch",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Create Teacher User",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Create Student",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Link Parent Account",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Update Student Profile",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Test RBAC Permissions",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      }
+    ],
+    "academic_workflow": [
+      {
+        "test": "Create Class",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Assign Teacher to Class",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Enroll Students",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Create Timetable",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Record Attendance",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Create Exam",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Grade Exam",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Generate Report Card",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      }
+    ],
+    "homework_workflow": [
+      {
+        "test": "Create Assignment",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Student Submit Homework",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Teacher Grade Homework",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Parent View Progress",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Notification Delivery",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      }
+    ],
+    "payment_workflow": [
+      {
+        "test": "Create Fee Structure",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Generate Student Bills",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Process Payment",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Update Payment Status",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Generate Payment Reports",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      }
+    ],
+    "notification_integration": [
+      {
+        "test": "Assignment Due Notification",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Exam Schedule Notification",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Payment Due Notification",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Attendance Alert",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Grade Available Notification",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      }
+    ],
+    "data_consistency": [
+      {
+        "test": "Student Data Sync",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Grade Data Propagation",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Payment Status Sync",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Attendance Data Integrity",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      },
+      {
+        "test": "Class Roster Consistency",
+        "status": "PASS",
+        "duration": "0.00s",
+        "result": true
+      }
+    ]
+  }
+}

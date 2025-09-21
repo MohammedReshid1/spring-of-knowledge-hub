@@ -6,13 +6,14 @@ import { AccountManagement } from './AccountManagement';
 import { DatabaseCleanup } from './DatabaseCleanup';
 import { BackupManagement } from './BackupManagement';
 import { GradeTransition } from './GradeTransition';
+import { RoleManagement } from './RoleManagement';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 export const AccountSettings = () => {
-  const [activeTab, setActiveTab] = useState<'account' | 'users' | 'cleanup' | 'backup' | 'grade-transition'>('account');
-  const { isRegistrar, isSuperAdmin, isAdmin } = useRoleAccess();
+  const [activeTab, setActiveTab] = useState<'account' | 'users' | 'roles' | 'cleanup' | 'backup' | 'grade-transition'>('account');
+  const { isRegistrar, isSuperAdmin, isAdmin, canManageUsers } = useRoleAccess();
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -39,6 +40,16 @@ export const AccountSettings = () => {
           >
             <Users className="h-4 w-4" />
             User Management
+          </Button>
+        )}
+        {canManageUsers && (
+          <Button
+            variant={activeTab === 'roles' ? 'default' : 'ghost'}
+            onClick={() => setActiveTab('roles')}
+            className="flex items-center gap-2"
+          >
+            <Shield className="h-4 w-4" />
+            Role Management
           </Button>
         )}
         {(isSuperAdmin || isAdmin) && (
@@ -77,6 +88,7 @@ export const AccountSettings = () => {
       <div className="space-y-6">
         {activeTab === 'account' && <AccountManagement />}
         {activeTab === 'users' && !isRegistrar && <UserManagement />}
+        {activeTab === 'roles' && canManageUsers && <RoleManagement />}
         {activeTab === 'grade-transition' && (isSuperAdmin || isAdmin) && <GradeTransition />}
         {activeTab === 'backup' && !isRegistrar && <BackupManagement />}
         {activeTab === 'cleanup' && isSuperAdmin && <DatabaseCleanup />}

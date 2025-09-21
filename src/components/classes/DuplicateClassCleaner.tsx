@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useBranch } from '@/contexts/BranchContext';
 
 interface DuplicateClass {
   class_name: string;
@@ -16,23 +17,28 @@ interface DuplicateClass {
 export const DuplicateClassCleaner = () => {
   const [isCleaningUp, setIsCleaningUp] = useState(false);
   const queryClient = useQueryClient();
+  const { selectedBranch } = useBranch();
 
   const { data: duplicateClasses, isLoading } = useQuery({
-    queryKey: ['duplicate-classes'],
+    queryKey: ['duplicate-classes', selectedBranch],
     queryFn: async () => {
-      // Get all classes
-      const { data: classes, error: classError } = await supabase
-        .from('classes')
-        .select('id, class_name');
-        
-      if (classError) throw classError;
+      // Get all classes from FastAPI
+      const response = await apiClient.getClasses();
+      if (response.error) throw new Error(response.error);
+      
+      const classes = response.data || [];
+      
+      // Filter by branch if needed
+      const filteredClasses = selectedBranch === 'all' 
+        ? classes 
+        : classes.filter(cls => cls.branch_id === selectedBranch);
       
       // Group by class name
-      const grouped = classes?.reduce((acc: Record<string, string[]>, cls) => {
+      const grouped = filteredClasses.reduce((acc: Record<string, string[]>, cls) => {
         if (!acc[cls.class_name]) acc[cls.class_name] = [];
         acc[cls.class_name].push(cls.id);
         return acc;
-      }, {}) || {};
+      }, {});
       
       // Filter duplicates
       const duplicates: DuplicateClass[] = [];
@@ -64,37 +70,35 @@ export const DuplicateClassCleaner = () => {
         // Move all students from duplicate classes to the main class
         for (const duplicateId of duplicateIds) {
           // Get students in this duplicate class
-          const { data: students, error: studentsError } = await supabase
-            .from('students')
-            .select('id')
-            .eq('class_id', duplicateId);
-            
-          if (studentsError) {
-            console.error(`Error fetching students for class ${duplicateId}:`, studentsError);
+          const studentsResponse = await apiClient.getAllStudents(selectedBranch);
+          if (studentsResponse.error) {
+            console.error(`Error fetching students:`, studentsResponse.error);
             continue;
           }
           
+          // Filter students in this specific class
+          const studentsInClass = (studentsResponse.data || []).filter(
+            student => student.class_id === duplicateId
+          );
+          
           // Move students to main class
-          if (students && students.length > 0) {
-            const { error: updateError } = await supabase
-              .from('students')
-              .update({ class_id: mainClassId })
-              .in('id', students.map(s => s.id));
+          if (studentsInClass.length > 0) {
+            for (const student of studentsInClass) {
+              const updateResponse = await apiClient.updateStudent(student.id, { 
+                class_id: mainClassId 
+              });
               
-            if (updateError) {
-              console.error(`Error moving students from ${duplicateId} to ${mainClassId}:`, updateError);
-              continue;
+              if (updateResponse.error) {
+                console.error(`Error moving student ${student.id} from ${duplicateId} to ${mainClassId}:`, updateResponse.error);
+              }
             }
           }
           
           // Delete the duplicate class
-          const { error: deleteError } = await supabase
-            .from('classes')
-            .delete()
-            .eq('id', duplicateId);
-            
-          if (deleteError) {
-            console.error(`Error deleting duplicate class ${duplicateId}:`, deleteError);
+          const deleteResponse = await apiClient.deleteClass(duplicateId);
+          
+          if (deleteResponse.error) {
+            console.error(`Error deleting duplicate class ${duplicateId}:`, deleteResponse.error);
           } else {
             totalCleaned++;
           }

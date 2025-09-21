@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Data Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .stats { background: #f5f5f5; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>🎯 Dashboard Data Test</h1>
+    
+    <div id="status">Loading dashboard data...</div>
+    
+    <div id="data-container" style="display: none;">
+        <h2>📊 Dashboard Statistics</h2>
+        
+        <div class="stats">
+            <h3>Overview</h3>
+            <p>Total Students: <span id="total-students">0</span></p>
+            <p>Active Students: <span id="active-students">0</span></p>
+            <p>Total Classes: <span id="total-classes">0</span></p>
+            <p>Total Branches: <span id="total-branches">0</span></p>
+            <p>Total Revenue: <span id="total-revenue">0</span> ETB</p>
+        </div>
+        
+        <div class="stats">
+            <h3>Academic</h3>
+            <p>Grade Levels: <span id="grade-levels">0</span></p>
+            <p>Subjects: <span id="subjects">0</span></p>
+            <p>Classes: <span id="classes">0</span></p>
+        </div>
+        
+        <div class="stats">
+            <h3>Financial</h3>
+            <p>Paid Fees: <span id="paid-fees">0</span></p>
+            <p>Unpaid Fees: <span id="unpaid-fees">0</span></p>
+            <p>Payment Completion: <span id="payment-rate">0</span>%</p>
+        </div>
+        
+        <div class="stats">
+            <h3>System</h3>
+            <p>Payment Modes: <span id="payment-modes">0</span></p>
+            <p>Database Status: <span id="db-status">unknown</span></p>
+        </div>
+        
+        <div class="stats">
+            <h3>Recent Activity</h3>
+            <p>Recent Students: <span id="recent-students">0</span></p>
+            <p>Recent Classes: <span id="recent-classes">0</span></p>
+            <p>Total Recent: <span id="total-recent">0</span></p>
+        </div>
+    </div>
+
+    <script>
+        async function loadDashboardData() {
+            try {
+                const response = await fetch('http://localhost:8000/stats/dashboard');
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('status').innerHTML = '<span class="success">✅ Dashboard data loaded successfully!</span>';
+                    
+                    const data = result.data;
+                    
+                    // Update overview
+                    document.getElementById('total-students').textContent = data.overview.total_students;
+                    document.getElementById('active-students').textContent = data.overview.active_students;
+                    document.getElementById('total-classes').textContent = data.overview.total_classes;
+                    document.getElementById('total-branches').textContent = data.overview.total_branches;
+                    document.getElementById('total-revenue').textContent = data.overview.total_revenue.toFixed(2);
+                    
+                    // Update academic
+                    document.getElementById('grade-levels').textContent = data.academic.grade_levels;
+                    document.getElementById('subjects').textContent = data.academic.subjects;
+                    document.getElementById('classes').textContent = data.academic.classes;
+                    
+                    // Update financial
+                    document.getElementById('paid-fees').textContent = data.financial.paid_fees;
+                    document.getElementById('unpaid-fees').textContent = data.financial.unpaid_fees;
+                    document.getElementById('payment-rate').textContent = data.financial.payment_completion_rate.toFixed(1);
+                    
+                    // Update system
+                    document.getElementById('payment-modes').textContent = data.system.payment_modes;
+                    document.getElementById('db-status').textContent = data.system.database_status;
+                    
+                    // Update recent activity
+                    document.getElementById('recent-students').textContent = data.recent_activity.recent_students;
+                    document.getElementById('recent-classes').textContent = data.recent_activity.recent_classes;
+                    document.getElementById('total-recent').textContent = data.recent_activity.total_recent;
+                    
+                    document.getElementById('data-container').style.display = 'block';
+                } else {
+                    document.getElementById('status').innerHTML = '<span class="error">❌ Error: ' + (result.error || 'Unknown error') + '</span>';
+                }
+            } catch (error) {
+                document.getElementById('status').innerHTML = '<span class="error">❌ Network error: ' + error.message + '</span>';
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+        
+        // Load data when page loads
+        loadDashboardData();
+        
+        // Add refresh button
+        document.addEventListener('DOMContentLoaded', function() {
+            const refreshBtn = document.createElement('button');
+            refreshBtn.textContent = '🔄 Refresh Data';
+            refreshBtn.onclick = loadDashboardData;
+            refreshBtn.style.cssText = 'padding: 10px 20px; margin: 10px 0; font-size: 16px; cursor: pointer;';
+            document.getElementById('status').parentNode.insertBefore(refreshBtn, document.getElementById('status').nextSibling);
+        });
+    </script>
+</body>
+</html>

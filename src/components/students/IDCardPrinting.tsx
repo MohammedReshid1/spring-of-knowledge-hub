@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { debounce } from 'lodash';
-import { supabase } from '@/integrations/supabase/client';
-import { useBranchData } from '@/hooks/useBranchData';
+import { apiClient } from '@/lib/api';
+import type { Student, SchoolClass } from '@/types/api';
 import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,8 +33,17 @@ export const IDCardPrinting = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const studentsPerPage = 15;
 
-  // Use branch-aware data hooks
-  const { useStudents, useClasses, getBranchFilter } = useBranchData();
+  // Fetch all students via API
+  const { data: allStudents = [], isLoading } = useQuery<Student[], Error>({
+    queryKey: ['students', debouncedSearchTerm],
+    queryFn: async () => {
+      const resp = await apiClient.getAllStudents();
+      if (resp.error) throw new Error(resp.error);
+      // Handle new pagination structure: { items: [...], total: number, ... }
+      const data = resp.data as any;
+      return data?.items || data || [];
+    }
+  });
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -44,8 +53,6 @@ export const IDCardPrinting = () => {
     []
   );
 
-  // Use branch-aware students query
-  const { data: allStudents, isLoading } = useStudents(debouncedSearchTerm);
 
   // Apply client-side filtering for ID card specific filters
   const students = allStudents?.filter(student => {
@@ -61,46 +68,18 @@ export const IDCardPrinting = () => {
     return true;
   }) || [];
 
-  // Get accurate total count with branch filtering
-  const { data: totalCount } = useQuery({
-    queryKey: ['students-id-cards-total-count', getBranchFilter(), debouncedSearchTerm, selectedGrade, selectedClass, statusFilter],
+  // Derive total count from filtered students
+  const totalCount = students.length;
+
+  // Fetch classes via API
+  const { data: classes = [] } = useQuery<SchoolClass[], Error>({
+    queryKey: ['classes'],
     queryFn: async () => {
-      let countQuery = supabase
-        .from('students')
-        .select('*', { count: 'exact', head: true });
-
-      // Apply branch filter first
-      const branchFilter = getBranchFilter();
-      if (branchFilter) {
-        countQuery = countQuery.eq('branch_id', branchFilter);
-      }
-
-      // Apply same filters for count
-      if (debouncedSearchTerm) {
-        countQuery = countQuery.or(`student_id.ilike.%${debouncedSearchTerm}%,first_name.ilike.%${debouncedSearchTerm}%,last_name.ilike.%${debouncedSearchTerm}%,mother_name.ilike.%${debouncedSearchTerm}%,father_name.ilike.%${debouncedSearchTerm}%,phone.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%`);
-      }
-      
-      if (selectedGrade !== 'all') {
-        countQuery = countQuery.eq('grade_level', selectedGrade as any);
-      }
-      
-      if (selectedClass !== 'all') {
-        countQuery = countQuery.eq('class_id', selectedClass);
-      }
-      
-      if (statusFilter) {
-        countQuery = countQuery.eq('status', statusFilter as any);
-      }
-
-      const { count, error } = await countQuery;
-      
-      if (error) throw error;
-      return count || 0;
+      const resp = await apiClient.getClasses();
+      if (resp.error) throw new Error(resp.error);
+      return resp.data || [];
     }
   });
-
-  // Use branch-aware classes query
-  const { data: classes } = useClasses();
 
   const filteredStudents = students || [];
 
@@ -147,33 +126,14 @@ export const IDCardPrinting = () => {
       parts.push(student.first_name.trim());
     }
     
-    // Check if last_name contains father's and grandfather's names
-    // If it does, use only last_name; otherwise use the separate fields
-    const lastName = student.last_name?.trim() || '';
-    const fatherName = student.father_name?.trim() || '';
-    const grandfatherName = student.grandfather_name?.trim() || '';
+    // Add father's name
+    if (student.father_name && student.father_name.trim()) {
+      parts.push(student.father_name.trim());
+    }
     
-    // If last_name contains both father and grandfather names, just use it
-    if (lastName && fatherName && grandfatherName && 
-        lastName.includes(fatherName) && lastName.includes(grandfatherName)) {
-      parts.push(lastName);
-    } else {
-      // Otherwise, build the name from individual components
-      if (lastName) {
-        parts.push(lastName);
-      }
-      
-      // Only add father's name if it's not already in the last name
-      if (fatherName && !lastName.includes(fatherName)) {
-        parts.push(fatherName);
-      }
-      
-      // Only add grandfather's name if it's not already in the last name and different from father's name
-      if (grandfatherName && 
-          !lastName.includes(grandfatherName) && 
-          grandfatherName !== fatherName) {
-        parts.push(grandfatherName);
-      }
+    // Add grandfather's name
+    if (student.grandfather_name && student.grandfather_name.trim()) {
+      parts.push(student.grandfather_name.trim());
     }
     
     return parts.join(' ');
@@ -330,21 +290,19 @@ export const IDCardPrinting = () => {
     return grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  const getInitials = (firstName?: string, lastName?: string) => {
+    const fi = firstName?.charAt(0) ?? '';
+    const li = lastName?.charAt(0) ?? '';
+    return `${fi}${li}`.toUpperCase();
   };
 
-  // Get all grade levels available in the system, not just those with students
-  const { data: allGradeLevels } = useQuery({
+  // Get all grade levels via API
+  const { data: allGradeLevels = [] } = useQuery<string[], Error>({
     queryKey: ['all-grade-levels'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('grade_levels')
-        .select('grade')
-        .order('grade');
-      
-      if (error) throw error;
-      return data.map(g => g.grade);
+      const resp = await apiClient.getGradeLevels();
+      if (resp.error) throw new Error(resp.error);
+      return resp.data?.map((g: any) => g.grade) || [];
     }
   });
 
@@ -494,7 +452,7 @@ export const IDCardPrinting = () => {
                   </TableHeader>
                    <TableBody>
                      {paginatedStudents
-                       .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`))
+                       .sort((a, b) => formatFullName(a).localeCompare(formatFullName(b)))
                        .map((student) => (
                       <TableRow key={student.id} className="hover:bg-gray-50 transition-colors">
                         <TableCell>
@@ -508,16 +466,16 @@ export const IDCardPrinting = () => {
                             <Avatar className="h-10 w-10">
                               <AvatarImage 
                                 src={student.photo_url} 
-                                alt={`${student.first_name} ${student.last_name}`}
+                                alt={formatFullName(student)}
                                 className="object-cover"
                               />
                               <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                                {getInitials(student.first_name, student.last_name)}
+                                {getInitials(student.first_name, student.father_name)}
                               </AvatarFallback>
                             </Avatar>
                             <div>
                               <div className="font-medium text-gray-900">
-                                {getHighlightedText(`${student.first_name} ${student.last_name}`, searchTerm)}
+                                {getHighlightedText(formatFullName(student), searchTerm)}
                               </div>
                               {student.mother_name && (
                                 <div className="text-sm text-gray-500">
@@ -539,7 +497,11 @@ export const IDCardPrinting = () => {
                         </TableCell>
                         <TableCell>
                           <span className="text-gray-600">
-                            {student.classes?.class_name ? getHighlightedText(student.classes.class_name, searchTerm) : 'Not assigned'}
+                            {(() => {
+                              // Find the class for this student
+                              const studentClass = classes.find(cls => cls.id === student.class_id);
+                              return studentClass ? getHighlightedText(studentClass.class_name, searchTerm) : 'Not assigned';
+                            })()}
                           </span>
                         </TableCell>
                         <TableCell>

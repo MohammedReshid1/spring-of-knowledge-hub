@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,22 +23,25 @@ export const GradeTransition = () => {
   const { data: transitionPreview, isLoading: previewLoading } = useQuery({
     queryKey: ['grade-transition-preview'],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('preview_grade_transition');
-      if (error) throw error;
-      return data;
+      const { data, error } = await apiClient.getGradeTransitionPreview();
+      if (error) throw new Error(error);
+      // Ensure we return an array even if data is not an array
+      return Array.isArray(data) ? data : [];
     },
     enabled: showPreview
   });
 
   const transitionMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc('transition_students_to_next_grade');
-      if (error) throw error;
+      const { data, error } = await apiClient.executeGradeTransition();
+      if (error) throw new Error(error);
       return data;
     },
     onSuccess: (data) => {
-      const transitioned = data?.filter(item => item.status === 'Transitioned').length || 0;
-      const graduated = data?.filter(item => item.status === 'Graduated').length || 0;
+      // The backend returns an object with results array, not just the array
+      const results = data?.results || [];
+      const transitioned = results.filter(item => item.status === 'Transitioned').length || 0;
+      const graduated = results.filter(item => item.status === 'Graduated').length || 0;
       
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['classes'] });

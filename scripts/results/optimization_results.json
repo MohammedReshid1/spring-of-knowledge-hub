@@ -1,0 +1,938 @@
+{
+  "timestamp": "2025-09-03T22:38:36.909312",
+  "optimizations": [
+    {
+      "type": "index",
+      "collection": "students",
+      "fields": [
+        "branch_id",
+        "status"
+      ],
+      "name": "branch_status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "students",
+      "fields": [
+        "email"
+      ],
+      "name": "email_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "students",
+      "fields": [
+        "student_id"
+      ],
+      "name": "student_id_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "students",
+      "fields": [
+        "current_class_id"
+      ],
+      "name": "class_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "students",
+      "fields": [
+        "parent_id"
+      ],
+      "name": "parent_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "students",
+      "fields": [
+        "created_at"
+      ],
+      "name": "created_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "students",
+      "fields": [
+        "branch_id",
+        "grade_level"
+      ],
+      "name": "branch_grade_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "teachers",
+      "fields": [
+        "branch_id",
+        "status"
+      ],
+      "name": "branch_status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "teachers",
+      "fields": [
+        "user_id"
+      ],
+      "name": "user_id_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "teachers",
+      "fields": [
+        "email"
+      ],
+      "name": "email_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "teachers",
+      "fields": [
+        "subjects"
+      ],
+      "name": "subjects_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "teachers",
+      "fields": [
+        "assigned_classes"
+      ],
+      "name": "classes_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "classes",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "classes",
+      "fields": [
+        "teacher_id"
+      ],
+      "name": "teacher_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "classes",
+      "fields": [
+        "grade_level"
+      ],
+      "name": "grade_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "classes",
+      "fields": [
+        "academic_year"
+      ],
+      "name": "year_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "classes",
+      "fields": [
+        "branch_id",
+        "grade_level"
+      ],
+      "name": "branch_grade_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exams",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exams",
+      "fields": [
+        "class_id"
+      ],
+      "name": "class_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exams",
+      "fields": [
+        "teacher_id"
+      ],
+      "name": "teacher_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exams",
+      "fields": [
+        "exam_date"
+      ],
+      "name": "exam_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exams",
+      "fields": [
+        "status"
+      ],
+      "name": "status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exams",
+      "fields": [
+        "branch_id",
+        "exam_date"
+      ],
+      "name": "branch_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exam_results",
+      "fields": [
+        "exam_id"
+      ],
+      "name": "exam_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exam_results",
+      "fields": [
+        "student_id"
+      ],
+      "name": "student_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exam_results",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "exam_results",
+      "fields": [
+        "exam_id",
+        "student_id"
+      ],
+      "name": "exam_student_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "exam_results",
+      "fields": [
+        "created_at"
+      ],
+      "name": "created_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "teacher_id"
+      ],
+      "name": "teacher_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "class_id"
+      ],
+      "name": "class_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "subject_id"
+      ],
+      "name": "subject_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "status"
+      ],
+      "name": "status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "due_date"
+      ],
+      "name": "due_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "assignment_id"
+      ],
+      "name": "assignment_id_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "assignments",
+      "fields": [
+        "branch_id",
+        "status",
+        "due_date"
+      ],
+      "name": "branch_status_due_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignment_submissions",
+      "fields": [
+        "assignment_id"
+      ],
+      "name": "assignment_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignment_submissions",
+      "fields": [
+        "student_id"
+      ],
+      "name": "student_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignment_submissions",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignment_submissions",
+      "fields": [
+        "status"
+      ],
+      "name": "status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignment_submissions",
+      "fields": [
+        "is_submitted"
+      ],
+      "name": "submitted_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "assignment_submissions",
+      "fields": [
+        "assignment_id",
+        "student_id"
+      ],
+      "name": "assignment_student_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "assignment_submissions",
+      "fields": [
+        "submitted_at"
+      ],
+      "name": "submitted_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "payments",
+      "fields": [
+        "student_id"
+      ],
+      "name": "student_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "payments",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "payments",
+      "fields": [
+        "status"
+      ],
+      "name": "status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "payments",
+      "fields": [
+        "due_date"
+      ],
+      "name": "due_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "payments",
+      "fields": [
+        "payment_date"
+      ],
+      "name": "payment_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "payments",
+      "fields": [
+        "branch_id",
+        "status"
+      ],
+      "name": "branch_status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "payments",
+      "fields": [
+        "academic_year"
+      ],
+      "name": "year_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "attendance",
+      "fields": [
+        "student_id"
+      ],
+      "name": "student_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "attendance",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "attendance",
+      "fields": [
+        "attendance_date"
+      ],
+      "name": "date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "attendance",
+      "fields": [
+        "class_id"
+      ],
+      "name": "class_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "attendance",
+      "fields": [
+        "student_id",
+        "attendance_date"
+      ],
+      "name": "student_date_idx",
+      "unique": true
+    },
+    {
+      "type": "index",
+      "collection": "attendance",
+      "fields": [
+        "branch_id",
+        "attendance_date"
+      ],
+      "name": "branch_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "timetable",
+      "fields": [
+        "class_id"
+      ],
+      "name": "class_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "timetable",
+      "fields": [
+        "teacher_id"
+      ],
+      "name": "teacher_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "timetable",
+      "fields": [
+        "branch_id"
+      ],
+      "name": "branch_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "timetable",
+      "fields": [
+        "day_of_week"
+      ],
+      "name": "day_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "timetable",
+      "fields": [
+        "branch_id",
+        "day_of_week"
+      ],
+      "name": "branch_day_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notifications",
+      "fields": [
+        "recipient_type"
+      ],
+      "name": "recipient_type_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notifications",
+      "fields": [
+        "created_at"
+      ],
+      "name": "created_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notifications",
+      "fields": [
+        "status"
+      ],
+      "name": "status_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notifications",
+      "fields": [
+        "notification_type"
+      ],
+      "name": "type_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notifications",
+      "fields": [
+        "scheduled_for"
+      ],
+      "name": "scheduled_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notification_recipients",
+      "fields": [
+        "user_id"
+      ],
+      "name": "user_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notification_recipients",
+      "fields": [
+        "notification_id"
+      ],
+      "name": "notification_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notification_recipients",
+      "fields": [
+        "sent_at"
+      ],
+      "name": "sent_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notification_recipients",
+      "fields": [
+        "read_at"
+      ],
+      "name": "read_date_idx",
+      "unique": false
+    },
+    {
+      "type": "index",
+      "collection": "notification_recipients",
+      "fields": [
+        "user_id",
+        "notification_id"
+      ],
+      "name": "user_notification_idx",
+      "unique": false
+    },
+    {
+      "type": "query_optimization",
+      "query": "Student Dashboard Stats",
+      "details": {
+        "query": "Student Dashboard Stats",
+        "optimization": "Use aggregation pipeline with $match first, add compound index on (student_id, status)",
+        "before": "Multiple separate queries",
+        "after": "Single aggregation pipeline"
+      }
+    },
+    {
+      "type": "query_optimization",
+      "query": "Teacher Class Overview",
+      "details": {
+        "query": "Teacher Class Overview",
+        "optimization": "Pre-calculate class statistics, use materialized views",
+        "before": "Real-time calculation",
+        "after": "Cached statistics with periodic refresh"
+      }
+    },
+    {
+      "type": "query_optimization",
+      "query": "Payment Collection Report",
+      "details": {
+        "query": "Payment Collection Report",
+        "optimization": "Use index on (branch_id, payment_date, status), implement pagination",
+        "before": "Full collection scan",
+        "after": "Index-optimized query with limits"
+      }
+    },
+    {
+      "type": "query_optimization",
+      "query": "Attendance Percentage",
+      "details": {
+        "query": "Attendance Percentage",
+        "optimization": "Pre-aggregate attendance data daily, use time-series collections",
+        "before": "Calculate on every request",
+        "after": "Read from pre-calculated aggregates"
+      }
+    },
+    {
+      "type": "query_optimization",
+      "query": "Exam Results Analysis",
+      "details": {
+        "query": "Exam Results Analysis",
+        "optimization": "Create summary collections with exam statistics",
+        "before": "Complex joins and calculations",
+        "after": "Simple lookups from summary tables"
+      }
+    },
+    {
+      "type": "query_optimization",
+      "query": "Homework Due Notifications",
+      "details": {
+        "query": "Homework Due Notifications",
+        "optimization": "Index on (due_date, status), batch process notifications",
+        "before": "Scan all assignments",
+        "after": "Index-based query with date range"
+      }
+    },
+    {
+      "type": "query_optimization",
+      "query": "Parent Portal Data",
+      "details": {
+        "query": "Parent Portal Data",
+        "optimization": "Denormalize frequently accessed child data",
+        "before": "Multiple collection joins",
+        "after": "Single query with embedded data"
+      }
+    },
+    {
+      "type": "caching",
+      "cache_type": "Redis Cache",
+      "details": {
+        "type": "Redis Cache",
+        "data": "User sessions and authentication tokens",
+        "ttl": "24 hours",
+        "strategy": "Write-through cache"
+      }
+    },
+    {
+      "type": "caching",
+      "cache_type": "Application Cache",
+      "details": {
+        "type": "Application Cache",
+        "data": "Dashboard statistics and summaries",
+        "ttl": "15 minutes",
+        "strategy": "Cache-aside with background refresh"
+      }
+    },
+    {
+      "type": "caching",
+      "cache_type": "Database Query Cache",
+      "details": {
+        "type": "Database Query Cache",
+        "data": "Frequently accessed static data (branches, subjects)",
+        "ttl": "1 hour",
+        "strategy": "Read-through cache"
+      }
+    },
+    {
+      "type": "caching",
+      "cache_type": "API Response Cache",
+      "details": {
+        "type": "API Response Cache",
+        "data": "Class lists, teacher schedules",
+        "ttl": "30 minutes",
+        "strategy": "HTTP cache headers"
+      }
+    },
+    {
+      "type": "caching",
+      "cache_type": "Static Asset Cache",
+      "details": {
+        "type": "Static Asset Cache",
+        "data": "Student photos, document attachments",
+        "ttl": "1 day",
+        "strategy": "CDN caching"
+      }
+    },
+    {
+      "type": "caching",
+      "cache_type": "Computed Results Cache",
+      "details": {
+        "type": "Computed Results Cache",
+        "data": "Grade calculations, attendance percentages",
+        "ttl": "1 hour",
+        "strategy": "Lazy loading with background updates"
+      }
+    },
+    {
+      "type": "api_optimization",
+      "endpoint": "/students/",
+      "details": {
+        "endpoint": "/students/",
+        "optimization": "Implement pagination, field selection, response compression",
+        "expected_improvement": "60% faster response times"
+      }
+    },
+    {
+      "type": "api_optimization",
+      "endpoint": "/dashboard/stats/",
+      "details": {
+        "endpoint": "/dashboard/stats/",
+        "optimization": "Cache computed statistics, use background jobs",
+        "expected_improvement": "80% faster loading"
+      }
+    },
+    {
+      "type": "api_optimization",
+      "endpoint": "/exams/results/",
+      "details": {
+        "endpoint": "/exams/results/",
+        "optimization": "Pre-aggregate results, implement lazy loading",
+        "expected_improvement": "70% reduction in response time"
+      }
+    },
+    {
+      "type": "api_optimization",
+      "endpoint": "/homework/assignments/",
+      "details": {
+        "endpoint": "/homework/assignments/",
+        "optimization": "Index optimization, selective field loading",
+        "expected_improvement": "50% performance improvement"
+      }
+    },
+    {
+      "type": "api_optimization",
+      "endpoint": "/payments/reports/",
+      "details": {
+        "endpoint": "/payments/reports/",
+        "optimization": "Implement streaming responses for large datasets",
+        "expected_improvement": "90% reduction in memory usage"
+      }
+    },
+    {
+      "type": "api_optimization",
+      "endpoint": "/notifications/",
+      "details": {
+        "endpoint": "/notifications/",
+        "optimization": "Batch processing, connection pooling",
+        "expected_improvement": "40% faster notifications"
+      }
+    },
+    {
+      "type": "monitoring",
+      "component": "Database Performance Monitor",
+      "details": {
+        "component": "Database Performance Monitor",
+        "metrics": [
+          "Query response times",
+          "Index usage",
+          "Connection pool status"
+        ],
+        "alerts": [
+          "Slow queries > 2s",
+          "High connection usage > 80%"
+        ],
+        "dashboard": "MongoDB performance dashboard"
+      }
+    },
+    {
+      "type": "monitoring",
+      "component": "API Response Monitor",
+      "details": {
+        "component": "API Response Monitor",
+        "metrics": [
+          "Response times",
+          "Error rates",
+          "Throughput"
+        ],
+        "alerts": [
+          "Response time > 3s",
+          "Error rate > 5%"
+        ],
+        "dashboard": "API performance dashboard"
+      }
+    },
+    {
+      "type": "monitoring",
+      "component": "System Resource Monitor",
+      "details": {
+        "component": "System Resource Monitor",
+        "metrics": [
+          "CPU usage",
+          "Memory usage",
+          "Disk I/O"
+        ],
+        "alerts": [
+          "CPU > 80%",
+          "Memory > 85%",
+          "Disk usage > 90%"
+        ],
+        "dashboard": "System health dashboard"
+      }
+    },
+    {
+      "type": "monitoring",
+      "component": "User Experience Monitor",
+      "details": {
+        "component": "User Experience Monitor",
+        "metrics": [
+          "Page load times",
+          "User sessions",
+          "Feature usage"
+        ],
+        "alerts": [
+          "Page load > 5s",
+          "Session errors > 2%"
+        ],
+        "dashboard": "User experience dashboard"
+      }
+    },
+    {
+      "type": "monitoring",
+      "component": "Cache Performance Monitor",
+      "details": {
+        "component": "Cache Performance Monitor",
+        "metrics": [
+          "Cache hit rates",
+          "Cache size",
+          "Eviction rates"
+        ],
+        "alerts": [
+          "Hit rate < 80%",
+          "Cache size > 1GB"
+        ],
+        "dashboard": "Cache performance dashboard"
+      }
+    }
+  ],
+  "summary": {
+    "total_optimizations": 95,
+    "by_type": {
+      "indexes": 71,
+      "queries": 7,
+      "caching": 6,
+      "api": 6,
+      "monitoring": 5
+    }
+  }
+}

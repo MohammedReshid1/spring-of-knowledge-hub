@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertTriangle, Users, Trash2, UserCheck, Search } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useBranchData } from '@/hooks/useBranchData';
 
 interface DuplicateGroup {
   duplicateKey: string;
@@ -27,41 +28,60 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch all students for duplicate analysis
-  const { data: allStudents, isLoading } = useQuery({
-    queryKey: ['all-students-for-duplicates'],
+  const { selectedBranch } = useBranchData();
+  
+  // Get all students for duplicate checking (without pagination)
+  const { data: allStudents = [], isLoading } = useQuery({
+    queryKey: ['students-all', selectedBranch],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('status', 'Active')
-        .order('first_name');
-      
-      if (error) throw error;
-      return data || [];
+      const response = await apiClient.getAllStudents(selectedBranch);
+      if (response.error) throw new Error(response.error);
+      return response.data || [];
     },
-    enabled: isOpen,
+    enabled: !!selectedBranch && isOpen,
+    staleTime: 30000
   });
+
+  // Analyze duplicates: group students by name/DOB/phone
+  function analyzeDuplicates() {
+    if (!allStudents || allStudents.length === 0) return;
+    setIsAnalyzing(true);
+    const duplicates: DuplicateGroup[] = [];
+    
+    // Group by name+father+grandfather+dob (without phone) - Only level
+    const nameFamilyGroups = new Map<string, any[]>();
+    allStudents.forEach(student => {
+      const key = `${student.first_name?.toLowerCase()}_${student.last_name?.toLowerCase()}_${student.father_name?.toLowerCase()}_${student.grandfather_name?.toLowerCase()}_${student.date_of_birth}`;
+      if (!nameFamilyGroups.has(key)) nameFamilyGroups.set(key, []);
+      nameFamilyGroups.get(key)?.push({ ...student, groupType: 'namefamily' });
+    });
+    nameFamilyGroups.forEach((students, key) => {
+      if (students.length > 1) {
+        duplicates.push({ duplicateKey: key, students, reason: 'Same name, father name, grandfather name and date of birth' });
+      }
+    });
+    
+    setDuplicateGroups(duplicates);
+    setIsAnalyzing(false);
+  }
+
+  // Analyze duplicates when dialog opens or students update
+  useEffect(() => {
+    if (isOpen) analyzeDuplicates();
+  }, [isOpen, allStudents]);
 
   // Delete selected duplicate students
   const deleteStudentsMutation = useMutation({
     mutationFn: async (studentIds: string[]) => {
-      const { error } = await supabase
-        .from('students')
-        .delete()
-        .in('id', studentIds);
-      
-      if (error) throw error;
+      // Delete students via API client
+      await Promise.all(studentIds.map(id => apiClient.deleteStudent(id)));
     },
     onSuccess: () => {
-      toast({
-        title: "Success",
-        description: `${selectedForDeletion.size} duplicate students deleted successfully`,
-      });
-      queryClient.invalidateQueries({ queryKey: ['students'] });
-      queryClient.invalidateQueries({ queryKey: ['all-students-for-duplicates'] });
+      toast({ title: "Success", description: `${selectedForDeletion.size} duplicate students deleted successfully` });
+      // Refresh student list for duplicates
+      queryClient.invalidateQueries({ queryKey: ['students', selectedBranch] });
       setSelectedForDeletion(new Set());
-      analyzeDuplicates(); // Re-analyze after deletion
+      analyzeDuplicates();
     },
     onError: (error) => {
       toast({
@@ -71,66 +91,6 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
       });
     }
   });
-
-  const analyzeDuplicates = () => {
-    if (!allStudents) return;
-    
-    setIsAnalyzing(true);
-    
-    const duplicates: DuplicateGroup[] = [];
-    const studentGroups = new Map<string, any[]>();
-    
-    // Group students by various criteria
-    allStudents.forEach(student => {
-      // Exact match duplicates (same name, DOB, and phone)
-      const exactKey = `${student.first_name?.toLowerCase()}_${student.last_name?.toLowerCase()}_${student.date_of_birth}_${student.phone}`;
-      if (!studentGroups.has(exactKey)) {
-        studentGroups.set(exactKey, []);
-      }
-      studentGroups.get(exactKey)?.push({ ...student, groupType: 'exact' });
-    });
-
-    // Find groups with more than one student
-    studentGroups.forEach((students, key) => {
-      if (students.length > 1) {
-        duplicates.push({
-          duplicateKey: key,
-          students,
-          reason: 'Exact match (Name, Date of Birth, Phone)'
-        });
-      }
-    });
-
-    // Additional check for name and DOB only (different phone)
-    const namedobGroups = new Map<string, any[]>();
-    allStudents.forEach(student => {
-      const namedobKey = `${student.first_name?.toLowerCase()}_${student.last_name?.toLowerCase()}_${student.date_of_birth}`;
-      if (!namedobGroups.has(namedobKey)) {
-        namedobGroups.set(namedobKey, []);
-      }
-      namedobGroups.get(namedobKey)?.push({ ...student, groupType: 'namedob' });
-    });
-
-    namedobGroups.forEach((students, key) => {
-      if (students.length > 1) {
-        // Only add if not already found in exact matches
-        const alreadyFoundExact = duplicates.some(dup => 
-          dup.students.some(s1 => students.some(s2 => s1.id === s2.id))
-        );
-        
-        if (!alreadyFoundExact) {
-          duplicates.push({
-            duplicateKey: key,
-            students,
-            reason: 'Same name and date of birth (different phone)'
-          });
-        }
-      }
-    });
-
-    setDuplicateGroups(duplicates);
-    setIsAnalyzing(false);
-  };
 
   const handleSelectForDeletion = (studentId: string, checked: boolean) => {
     const newSelected = new Set(selectedForDeletion);
@@ -207,98 +167,128 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Search className="h-6 w-6" />
-            Duplicate Student Checker
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Find and manage duplicate student records based on name, date of birth, and contact information
-          </p>
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden bg-white/95 backdrop-blur-glass border border-white/20 shadow-2xl rounded-2xl">
+        {/* Premium Header */}
+        <DialogHeader className="relative overflow-hidden bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 p-6 -mx-6 -mt-6 mb-6">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-600/90 via-orange-600/90 to-red-600/90" />
+          <div className="absolute inset-0 opacity-20"
+               style={{
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+               }} />
+
+          <div className="relative">
+            <DialogTitle className="flex items-center gap-4 text-2xl font-bold text-white mb-3">
+              <div className="p-3 bg-white/20 backdrop-blur-sm rounded-full">
+                <Search className="h-8 w-8" />
+              </div>
+              Duplicate Student Checker
+            </DialogTitle>
+            <p className="text-amber-100 text-lg">
+              Find and manage duplicate student records based on name, date of birth, and contact information
+            </p>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Analysis Button */}
-          <div className="flex items-center justify-between">
-            <Button
-              onClick={analyzeDuplicates}
-              disabled={isLoading || isAnalyzing}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {isAnalyzing ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Search className="h-4 w-4 mr-2" />
-                  {duplicateGroups.length > 0 ? 'Re-analyze' : 'Find Duplicates'}
-                </>
-              )}
-            </Button>
+        <div className="overflow-y-auto max-h-[calc(90vh-12rem)] px-6 pb-6">
 
-            {selectedForDeletion.size > 0 && (
-              <div className="flex items-center gap-2">
-                <Badge variant="destructive" className="px-3 py-1">
-                  {selectedForDeletion.size} selected for deletion
-                </Badge>
-                <Button
-                  onClick={handleDeleteSelected}
-                  disabled={deleteStudentsMutation.isPending}
-                  variant="destructive"
-                  size="sm"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Selected
-                </Button>
-              </div>
-            )}
+        <div className="space-y-6">
+          {/* Premium Analysis Section */}
+          <div className="bg-white/80 backdrop-blur-sm border border-white/30 shadow-xl rounded-2xl p-6">
+            <div className="flex items-center justify-between">
+              <Button
+                onClick={analyzeDuplicates}
+                disabled={isLoading || isAnalyzing}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-3"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                    Analyzing Students...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-5 w-5 mr-3" />
+                    {duplicateGroups.length > 0 ? 'Re-analyze Duplicates' : 'Find Duplicate Students'}
+                  </>
+                )}
+              </Button>
+
+              {selectedForDeletion.size > 0 && (
+                <div className="flex items-center gap-4">
+                  <div className="inline-flex items-center px-4 py-2 bg-red-50 border border-red-200 rounded-full">
+                    <div className="w-3 h-3 bg-red-500 rounded-full mr-2 animate-pulse"></div>
+                    <span className="text-red-700 font-medium">
+                      {selectedForDeletion.size} selected for deletion
+                    </span>
+                  </div>
+                  <Button
+                    onClick={handleDeleteSelected}
+                    disabled={deleteStudentsMutation.isPending}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Selected
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Results */}
+          {/* Premium Results */}
           {duplicateGroups.length === 0 && !isAnalyzing && !isLoading && (
-            <Card>
-              <CardContent className="text-center py-12">
-                <UserCheck className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Duplicates Found</h3>
-                <p className="text-gray-600">All student records appear to be unique.</p>
+            <Card className="bg-white/80 backdrop-blur-sm border border-white/30 shadow-xl rounded-2xl overflow-hidden">
+              <CardContent className="text-center py-16">
+                <div className="mx-auto w-20 h-20 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-full flex items-center justify-center mb-6">
+                  <UserCheck className="h-10 w-10 text-emerald-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">No Duplicates Found</h3>
+                <p className="text-gray-600 text-lg">All student records appear to be unique and properly organized.</p>
               </CardContent>
             </Card>
           )}
 
           {duplicateGroups.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                  <h3 className="text-lg font-medium">
-                    Found {duplicateGroups.length} group(s) with potential duplicates
-                  </h3>
+            <div className="space-y-6">
+              <div className="bg-white/80 backdrop-blur-sm border border-white/30 shadow-xl rounded-2xl p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-amber-100 rounded-full">
+                      <AlertTriangle className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">
+                        Found {duplicateGroups.length} group{duplicateGroups.length !== 1 ? 's' : ''} with potential duplicates
+                      </h3>
+                      <p className="text-gray-600 mt-1">Review and manage duplicate student records below</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleAutoDeleteDuplicates}
+                    disabled={deleteStudentsMutation.isPending}
+                    className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Auto-Delete Duplicates
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleAutoDeleteDuplicates}
-                  disabled={deleteStudentsMutation.isPending}
-                  variant="destructive"
-                  size="sm"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Auto-Delete Duplicates
-                </Button>
               </div>
 
               {duplicateGroups.map((group, groupIndex) => (
-                <Card key={group.duplicateKey} className="border-yellow-200">
-                  <CardHeader className="pb-3">
+                <Card key={group.duplicateKey} className="bg-white/80 backdrop-blur-sm border border-amber-200/50 shadow-xl rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100/50 pb-4">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Duplicate Group {groupIndex + 1}
+                      <CardTitle className="flex items-center gap-3 text-lg font-bold">
+                        <div className="p-2 bg-amber-100 rounded-lg">
+                          <Users className="h-5 w-5 text-amber-600" />
+                        </div>
+                        <span className="bg-gradient-to-r from-amber-800 to-amber-600 bg-clip-text text-transparent">
+                          Duplicate Group {groupIndex + 1}
+                        </span>
                       </CardTitle>
-                      <Badge variant="outline" className="text-yellow-700 border-yellow-300">
-                        {group.reason}
-                      </Badge>
+                      <div className="inline-flex items-center px-4 py-2 bg-amber-100 text-amber-800 rounded-full border border-amber-200">
+                        <span className="text-sm font-medium">{group.reason}</span>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -309,6 +299,8 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
                             <TableHead className="w-12">Delete</TableHead>
                             <TableHead>Student</TableHead>
                             <TableHead>Student ID</TableHead>
+                            <TableHead>Father Name</TableHead>
+                            <TableHead>Grandfather Name</TableHead>
                             <TableHead>Date of Birth</TableHead>
                             <TableHead>Phone</TableHead>
                             <TableHead>Email</TableHead>
@@ -346,6 +338,12 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
                               <TableCell className="font-mono text-sm">
                                 {student.student_id}
                               </TableCell>
+                              <TableCell className="text-sm">
+                                {student.father_name || 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {student.grandfather_name || 'N/A'}
+                              </TableCell>
                               <TableCell>
                                 {new Date(student.date_of_birth).toLocaleDateString()}
                               </TableCell>
@@ -370,6 +368,7 @@ export const DuplicateChecker = ({ isOpen, onClose }: DuplicateCheckerProps) => 
               ))}
             </div>
           )}
+        </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -1,0 +1,220 @@
+Product Requirements Document: SMS 2.1 - UI Integration Phase
+Version: 2.1
+
+Status: In Development (Integration Phase)
+
+Date: September 3, 2025
+
+Objective: To fully connect the frontend user interface with the completed backend APIs, creating a dynamic, data-driven, and seamless application for all users.
+
+1. Introduction & Goal
+1.1. Current Status
+The backend refactoring and feature development outlined in PRD 2.0 are 93% complete. We have a stable, secure, and integrated backend with robust APIs. The Unified Design System has been created, providing a consistent library of UI components.
+
+1.2. Project Goal
+The single goal of this phase is to bridge the gap between the frontend and backend. This involves:
+
+Replacing all static or mock data in the frontend with live data from backend API calls.
+
+Ensuring all user actions in the UI (form submissions, button clicks) trigger the correct backend APIs.
+
+Building the remaining frontend pages that do not yet exist.
+
+Implementing UI logic based on the user's role, as determined by the backend RBAC.
+
+1.3. Assumptions
+All necessary backend APIs are complete, documented (e.g., via Swagger/OpenAPI), and available in a staging environment.
+
+A frontend component library based on the Unified Design System is ready for use.
+
+The frontend will receive the user's role and permissions from the backend upon login, and will use this information to conditionally render UI elements (e.g., hide an "Edit" button).
+
+2. Global Integration Requirements
+Authentication: The Login page will send credentials to the backend. Upon success, the backend will return a JWT (JSON Web Token) and user role object. This token must be stored securely on the client and sent in the header of all subsequent API requests.
+
+State Management: Use a global state management solution (like Redux, Vuex, or similar) to handle user authentication state and other shared data to avoid redundant API calls.
+
+Error Handling: Implement a global API error handler to gracefully manage server errors (e.g., 403 Forbidden, 404 Not Found, 500 Internal Server Error) and display user-friendly messages.
+
+Notifications: The frontend will establish a connection (e.g., WebSocket or polling) to the Centralized Notification Engine to display real-time alerts to the user.
+
+3. Page-by-Page Integration Plan
+This section details the specific API connections required for each page or view.
+
+Login & Dashboard
+Page: Login
+
+Data Fetch: None.
+
+Actions:
+
+On form submit, POST to /api/auth/login with email/password.
+
+On success, store auth token, redirect to the user's specific dashboard.
+
+Page: Role-Specific Dashboards (Admin, Teacher, Parent, etc.)
+
+Data Fetch: On page load, GET /api/dashboard. The backend API should return the specific widget data required for the logged-in user's role.
+
+Actions: All widgets are for display; actions are navigational links to other pages.
+
+Student Management
+Page: Student List
+
+Data Fetch: GET /api/students to populate the list. Implement frontend controls for pagination, search, and filtering that pass parameters to the API (e.g., /api/students?page=2&search=John).
+
+Actions:
+
+"Add Student" button navigates to the create form.
+
+"Edit" button navigates to the edit form for a specific student ID.
+
+Page: Add/Edit Student Form
+
+Data Fetch: For the Edit page, GET /api/students/{id} to pre-populate the form fields.
+
+Actions:
+
+On save, perform a POST to /api/students (for new) or PUT to /api/students/{id} (for updates) with the form data.
+
+Parent information entered here must be sent to the backend to automatically link/create Parent Portal accounts.
+
+Page: Student Profile (Read-only view)
+
+Data Fetch:
+
+GET /api/students/{id} for core profile and parent data.
+
+GET /api/students/{id}/grades for academic history.
+
+GET /api/students/{id}/attendance for attendance summary.
+
+Actions:
+
+"Generate ID Card" button triggers a POST to /api/students/{id}/generate-id-card.
+
+Classes & Timetable
+Page: Class Management
+
+Data Fetch: GET /api/classes to display all classes by grade level.
+
+Actions:
+
+"Assign Students" button opens a modal.
+
+"Assign Teacher" button opens a modal.
+
+Modal: Assign Students to Class
+
+Data Fetch: GET /api/students?class=unassigned to show available students.
+
+Actions: On save, POST to /api/classes/{id}/students with a list of selected student IDs.
+
+Page: Timetable View (For all roles)
+
+Data Fetch: GET /api/timetable. The backend will return the correct schedule based on the logged-in user's role and assignments (e.g., a teacher sees their classes, a student sees theirs).
+
+Actions: Display only.
+
+Exams & Reports
+Page: Grade Entry Form (For Teachers)
+
+Data Fetch:
+
+GET /api/classes/{classId}/students to get the list of students for the selected class.
+
+GET /api/exams/{examId}/grades?class={classId} to fetch any existing grades to pre-populate the form.
+
+Actions: On "Save Grades", POST to /api/exams/{examId}/grades with a payload containing an array of { studentId, marks } objects.
+
+Page: Report Card Generation (For Admins)
+
+Data Fetch: Use frontend selectors for Grade Level, Class, and Exam.
+
+Actions:
+
+"Generate Reports" button POSTs to /api/reports/generate with the selected parameters.
+
+"Publish to Portal" button POSTs to /api/reports/publish to make the generated reports visible to parents.
+
+Parent Portal
+NOTE: This section is almost entirely data display. The frontend must be structured to show data for the parent's selected child.
+
+Page: Child's Dashboard
+
+Data Fetch: GET /api/portal/children/{childId}/summary to get overview data (grades, attendance, fees).
+
+Page: Grades & Reports
+
+Data Fetch: GET /api/portal/children/{childId}/reports to list and view published report cards.
+
+Page: Attendance
+
+Data Fetch: GET /api/portal/children/{childId}/attendance to display a calendar or list view of attendance.
+
+Page: Payments
+
+Data Fetch: GET /api/portal/children/{childId}/invoices to show all due and paid invoices.
+
+Actions:
+
+"Pay Now" button initiates the online payment gateway flow.
+
+After the gateway (e.g., Stripe.js) provides a payment token, POST this token to /api/payments/charge for the backend to process.
+
+Homework & Assignments
+Page: Assignment View (For Teachers)
+
+Data Fetch: GET /api/assignments?class={classId} to see assignments created for a class.
+
+Actions: "Create Assignment" opens a form that POSTs to /api/assignments with title, description, due date, and attachments.
+
+Page: Assignment View (For Students/Parents)
+
+Data Fetch: GET /api/assignments/my-assignments to see a list of all relevant homework.
+
+Actions: Display only.
+
+Settings & Administration (Frontend pages to be created)
+The following pages may not have a frontend yet and need to be built from scratch using the design system and integrated as described.
+
+Page: System Settings (Super Admin)
+
+Objective: Manage global configurations.
+
+Data Fetch: GET /api/settings to load current settings (academic year, school name, grading scales).
+
+Actions: On save, PUT to /api/settings with the updated configuration object.
+
+Page: Branch Management (Super Admin)
+
+Objective: Add or edit school branches.
+
+Data Fetch: GET /api/branches.
+
+Actions:
+
+"Add Branch" form POSTs to /api/branches.
+
+"Edit Branch" form PUTs to /api/branches/{id}.
+
+Page: User Management (Admin)
+
+Objective: Create/manage user accounts for teachers, accountants, etc.
+
+Data Fetch: GET /api/users?role=teacher etc.
+
+Actions: Forms for creating (POST to /api/users) and updating (PUT to /api/users/{id}) user accounts and assigning roles.
+
+4. Definition of Done
+This integration phase will be considered complete when:
+
+✅ All mock data has been removed from the frontend application.
+
+✅ Every page and component listed in this PRD correctly fetches, displays, and updates data via backend APIs.
+
+✅ All frontend pages, including the newly created ones, are built and fully functional.
+
+✅ Role-based access control is visually enforced on the frontend (e.g., non-admins cannot see "Settings").
+
+✅ The application has been tested end-to-end by a QA team or user group, confirming data consistency and functionality.

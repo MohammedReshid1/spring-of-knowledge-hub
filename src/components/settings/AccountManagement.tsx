@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { User, Settings, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 
 export const AccountManagement = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -50,15 +50,11 @@ export const AccountManagement = () => {
 
     setIsChangingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-
-      if (error) throw error;
-
+      // For now, we'll show a message that password change is not yet implemented
+      // In a real implementation, you'd need a password change endpoint
       toast({
-        title: "Success",
-        description: "Password updated successfully",
+        title: "Info",
+        description: "Password change functionality is not yet implemented. Please contact system administrator.",
       });
 
       setCurrentPassword('');

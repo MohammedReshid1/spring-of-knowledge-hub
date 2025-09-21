@@ -4,19 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Database } from '@/integrations/supabase/types';
-
-type GradeLevel = Database['public']['Enums']['grade_level'];
+import { useBranch } from '@/contexts/BranchContext';
 
 interface MismatchedStudent {
   id: string;
   first_name: string;
   last_name: string;
   student_id: string;
-  grade_level: GradeLevel;
+  grade_level: string;
   current_class_name: string;
+  current_class_grade: string;
   suggested_class_name: string;
   suggested_class_id: string | null;
 }
@@ -24,99 +23,119 @@ interface MismatchedStudent {
 export const GradeMismatchFixer = () => {
   const [isFixing, setIsFixing] = useState(false);
   const queryClient = useQueryClient();
+  const { selectedBranch } = useBranch();
 
   const { data: mismatchedStudents, isLoading } = useQuery({
-    queryKey: ['grade-mismatches'],
+    queryKey: ['grade-mismatches', selectedBranch],
     queryFn: async () => {
-      // Get students with their current class assignments
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select(`
-          id,
-          first_name,
-          last_name,
-          student_id,
-          grade_level,
-          class_id,
-          classes:class_id (
-            id,
-            class_name,
-            grade_levels:grade_level_id (
-              grade
-            )
-          )
-        `)
-        .eq('status', 'Active')
-        .not('class_id', 'is', null);
-
-      if (studentsError) throw studentsError;
-
-      // Get all classes for finding correct assignments
-      const { data: allClasses, error: classesError } = await supabase
-        .from('classes')
-        .select(`
-          id,
-          class_name,
-          grade_levels:grade_level_id (
-            grade
-          )
-        `);
-
-      if (classesError) throw classesError;
-
+      // Get all students from FastAPI
+      const studentsResponse = await apiClient.getAllStudents(selectedBranch);
+      if (studentsResponse.error) throw new Error(studentsResponse.error);
+      
+      // Get all classes from FastAPI
+      const classesResponse = await apiClient.getClasses();
+      if (classesResponse.error) throw new Error(classesResponse.error);
+      
+      // Get all grade levels from FastAPI
+      const gradeLevelsResponse = await apiClient.getGradeLevels();
+      if (gradeLevelsResponse.error) throw new Error(gradeLevelsResponse.error);
+      
+      const students = studentsResponse.data || [];
+      const classes = classesResponse.data || [];
+      const gradeLevels = gradeLevelsResponse.data || [];
+      
+      // Filter by branch
+      const filteredStudents = selectedBranch === 'all' 
+        ? students 
+        : students.filter(s => s.branch_id === selectedBranch);
+        
+      const filteredClasses = selectedBranch === 'all'
+        ? classes
+        : classes.filter(c => c.branch_id === selectedBranch);
+      
+      // Create a map of grade level IDs to grade names
+      const gradeLevelMap = new Map(gradeLevels.map(g => [g.id, g.grade]));
+      
+      // Check for mismatches
       const mismatches: MismatchedStudent[] = [];
-
-      students?.forEach(student => {
-        if (student.classes && student.classes.grade_levels) {
-          const studentGrade = student.grade_level;
-          const classGrade = student.classes.grade_levels.grade;
+      
+      filteredStudents.forEach(student => {
+        if (student.class_id && student.status === 'Active') {
+          // Find the student's current class
+          const currentClass = filteredClasses.find(c => c.id === student.class_id);
           
-          // Check if there's a grade mismatch
-          if (studentGrade !== classGrade) {
-            // Find the correct class for this student's grade level
-            const currentClassSection = student.classes.class_name.split(' - ')[1] || 'A';
+          if (currentClass && currentClass.grade_level_id) {
+            const classGrade = gradeLevelMap.get(currentClass.grade_level_id);
             
-            const gradeMap: Record<string, string> = {
-              'pre_k': 'PRE-KG',
-              'kg': 'KG',
-              'prep': 'PREP',
-              'grade_1': 'GRADE 1',
-              'grade_2': 'GRADE 2',
-              'grade_3': 'GRADE 3',
-              'grade_4': 'GRADE 4',
-              'grade_5': 'GRADE 5',
-              'grade_6': 'GRADE 6',
-              'grade_7': 'GRADE 7',
-              'grade_8': 'GRADE 8',
-              'grade_9': 'GRADE 9',
-              'grade_10': 'GRADE 10',
-              'grade_11': 'GRADE 11',
-              'grade_12': 'GRADE 12',
-            };
-
-            const correctGradeName = gradeMap[studentGrade];
-            const suggestedClassName = `${correctGradeName} - ${currentClassSection}`;
-            
-            // Find if the suggested class exists
-            const suggestedClass = allClasses?.find(cls => 
-              cls.class_name === suggestedClassName &&
-              cls.grade_levels?.grade === studentGrade
-            );
-
-            mismatches.push({
-              id: student.id,
-              first_name: student.first_name,
-              last_name: student.last_name,
-              student_id: student.student_id,
-              grade_level: studentGrade,
-              current_class_name: student.classes.class_name,
-              suggested_class_name: suggestedClassName,
-              suggested_class_id: suggestedClass?.id || null
-            });
+            // Check if there's a grade mismatch
+            if (student.grade_level !== classGrade) {
+              // Extract section from current class name
+              const currentClassSection = currentClass.class_name.split(' - ')[1] || 'A';
+              
+              // Map the student grade level to the expected class name format
+              // This should match the format used by BulkStudentImport.tsx (GRADE X format)
+              const studentGradeToClassNameMap: Record<string, string> = {
+                'KG': 'KG',
+                'G1': 'GRADE 1', 
+                'G2': 'GRADE 2',
+                'G3': 'GRADE 3',
+                'G4': 'GRADE 4',
+                'G5': 'GRADE 5',
+                'G6': 'GRADE 6',
+                'G7': 'GRADE 7',
+                'G8': 'GRADE 8',
+                'G9': 'GRADE 9',
+                'G10': 'GRADE 10',
+                'G11': 'GRADE 11',
+                'G12': 'GRADE 12',
+                // Also handle full grade name format
+                'pre_k': 'PRE KG',
+                'kg': 'KG', 
+                'prep': 'PREP',
+                'grade_1': 'GRADE 1',
+                'grade_2': 'GRADE 2',
+                'grade_3': 'GRADE 3',
+                'grade_4': 'GRADE 4',
+                'grade_5': 'GRADE 5',
+                'grade_6': 'GRADE 6',
+                'grade_7': 'GRADE 7',
+                'grade_8': 'GRADE 8',
+                'grade_9': 'GRADE 9',
+                'grade_10': 'GRADE 10',
+                'grade_11': 'GRADE 11',
+                'grade_12': 'GRADE 12'
+              };
+              
+              const correctGradeName = studentGradeToClassNameMap[student.grade_level] || student.grade_level;
+              const suggestedClassName = `${correctGradeName} - ${currentClassSection}`;
+              
+              // Only add to mismatches if the student is actually in the wrong class
+              // Skip if the current class name already matches what it should be
+              if (currentClass.class_name !== suggestedClassName) {
+                // Find if the suggested class exists (should match both grade and class name)
+                const suggestedClass = filteredClasses.find(cls => {
+                  const clsGrade = gradeLevelMap.get(cls.grade_level_id);
+                  const clsGradeFormatted = studentGradeToClassNameMap[clsGrade || ''] || clsGrade;
+                  return cls.class_name === suggestedClassName && clsGradeFormatted === correctGradeName;
+                });
+                
+                mismatches.push({
+                  id: student.id,
+                  first_name: student.first_name,
+                  last_name: student.last_name,
+                  student_id: student.student_id,
+                  grade_level: student.grade_level,
+                  current_class_name: currentClass.class_name,
+                  current_class_grade: classGrade || 'Unknown',
+                  suggested_class_name: suggestedClassName,
+                  suggested_class_id: suggestedClass?.id || null
+                });
+              }
+            }
           }
         }
       });
-
+      
       return mismatches;
     }
   });
@@ -126,7 +145,12 @@ export const GradeMismatchFixer = () => {
       let fixedCount = 0;
       let createdClasses = 0;
       const classCache = new Map<string, string>(); // Cache for class names to IDs
-
+      
+      // Get grade levels for creating new classes
+      const gradeLevelsResponse = await apiClient.getGradeLevels();
+      if (gradeLevelsResponse.error) throw new Error(gradeLevelsResponse.error);
+      const gradeLevels = gradeLevelsResponse.data || [];
+      
       // Group students by suggested class name to avoid duplicates
       const studentsByClass = new Map<string, MismatchedStudent[]>();
       
@@ -137,86 +161,85 @@ export const GradeMismatchFixer = () => {
         }
         studentsByClass.get(className)!.push(student);
       }
-
+      
       // Process each unique class
       for (const [className, studentsForClass] of studentsByClass) {
         let classId = studentsForClass[0].suggested_class_id;
-
+        
         // If suggested class doesn't exist, check if we already created it or create it
         if (!classId) {
           // Check cache first
           if (classCache.has(className)) {
             classId = classCache.get(className)!;
           } else {
-            // Check if class exists by name (in case it was created by another process)
-            const { data: existingClass } = await supabase
-              .from('classes')
-              .select('id')
-              .eq('class_name', className)
-              .single();
-
+            // Check if class exists by fetching fresh class list
+            const classesResponse = await apiClient.getClasses();
+            if (classesResponse.error) throw new Error(classesResponse.error);
+            
+            const existingClass = (classesResponse.data || []).find(
+              cls => cls.class_name === className && cls.branch_id === selectedBranch
+            );
+            
             if (existingClass) {
               classId = existingClass.id;
               classCache.set(className, classId);
             } else {
-              // Get grade level ID for the first student in this class
-              const { data: gradeLevel, error: gradeError } = await supabase
-                .from('grade_levels')
-                .select('id')
-                .eq('grade', studentsForClass[0].grade_level)
-                .single();
-
-              if (gradeError || !gradeLevel) {
+              // Find grade level ID for the first student in this class
+              const gradeLevel = gradeLevels.find(
+                g => g.grade === studentsForClass[0].grade_level
+              );
+              
+              if (!gradeLevel) {
                 console.error(`Grade level ${studentsForClass[0].grade_level} not found`);
                 continue;
               }
-
+              
               // Create the class
-              const { data: newClass, error: createError } = await supabase
-                .from('classes')
-                .insert({
-                  class_name: className,
-                  grade_level_id: gradeLevel.id,
-                  max_capacity: 30,
-                  current_enrollment: 0,
-                  academic_year: new Date().getFullYear().toString()
-                })
-                .select('id')
-                .single();
-
-              if (createError || !newClass) {
-                console.error(`Failed to create class ${className}:`, createError);
+              const createResponse = await apiClient.createClass({
+                class_name: className,
+                grade_level_id: gradeLevel.id,
+                max_capacity: 30,
+                academic_year: new Date().getFullYear().toString(),
+                branch_id: selectedBranch === 'all' ? null : selectedBranch
+              });
+              
+              if (createResponse.error) {
+                console.error(`Failed to create class ${className}:`, createResponse.error);
                 continue;
               }
-
-              classId = newClass.id;
-              classCache.set(className, classId);
-              createdClasses++;
+              
+              if (createResponse.data) {
+                classId = createResponse.data.id;
+                classCache.set(className, classId);
+                createdClasses++;
+              }
             }
           }
         }
-
+        
         // Assign all students to this class
-        for (const student of studentsForClass) {
-          const { error: updateError } = await supabase
-            .from('students')
-            .update({ class_id: classId })
-            .eq('id', student.id);
-
-          if (!updateError) {
-            fixedCount++;
-          } else {
-            console.error(`Failed to assign student ${student.student_id} to class ${className}:`, updateError);
+        if (classId) {
+          for (const student of studentsForClass) {
+            const updateResponse = await apiClient.updateStudent(student.id, {
+              class_id: classId
+            });
+            
+            if (!updateResponse.error) {
+              fixedCount++;
+            } else {
+              console.error(`Failed to assign student ${student.student_id} to class ${className}:`, updateResponse.error);
+            }
           }
         }
       }
-
+      
       return { fixedCount, createdClasses };
     },
     onSuccess: ({ fixedCount, createdClasses }) => {
       queryClient.invalidateQueries({ queryKey: ['grade-mismatches'] });
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['classes'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
       
       toast({
         title: "Grade Mismatches Fixed",
@@ -265,7 +288,7 @@ export const GradeMismatchFixer = () => {
     return (
       <Card>
         <CardContent className="py-6">
-          <div className="text-center">Loading grade mismatches...</div>
+          <div className="text-center">Checking for grade mismatches...</div>
         </CardContent>
       </Card>
     );
@@ -290,7 +313,7 @@ export const GradeMismatchFixer = () => {
   }
 
   return (
-    <Card>
+    <Card className="border-orange-200 bg-orange-50">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <AlertTriangle className="h-5 w-5 text-orange-500" />
@@ -304,7 +327,7 @@ export const GradeMismatchFixer = () => {
         <div className="space-y-4">
           <div className="max-h-64 overflow-y-auto space-y-2">
             {mismatchedStudents.map((student) => (
-              <div key={student.id} className="flex items-center justify-between p-3 border rounded-lg">
+              <div key={student.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
                 <div className="flex items-center gap-3">
                   <div>
                     <p className="font-medium">{student.first_name} {student.last_name}</p>
@@ -320,7 +343,7 @@ export const GradeMismatchFixer = () => {
             ))}
           </div>
           
-          <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-orange-100 rounded-lg">
             <div>
               <p className="font-medium">Fix All Mismatches</p>
               <p className="text-sm text-muted-foreground">

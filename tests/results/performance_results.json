@@ -1,0 +1,188 @@
+{
+  "timestamp": "2025-09-03T22:38:12.701127",
+  "results": {
+    "api_response_times": {
+      "/students/": {
+        "avg_response_time": 51.10287666320801,
+        "min_response_time": 50.71282386779785,
+        "max_response_time": 51.275014877319336,
+        "median_response_time": 51.12099647521973,
+        "std_dev": 0.15337656598837557,
+        "samples": 10
+      },
+      "/teachers/": {
+        "avg_response_time": 51.11722946166992,
+        "min_response_time": 50.775766372680664,
+        "max_response_time": 51.184892654418945,
+        "median_response_time": 51.148295402526855,
+        "std_dev": 0.12132113423323601,
+        "samples": 10
+      },
+      "/classes/": {
+        "avg_response_time": 51.00736618041992,
+        "min_response_time": 50.534963607788086,
+        "max_response_time": 51.19013786315918,
+        "median_response_time": 51.14150047302246,
+        "std_dev": 0.2532369272590494,
+        "samples": 10
+      },
+      "/exams/": {
+        "avg_response_time": 51.11808776855469,
+        "min_response_time": 50.785064697265625,
+        "max_response_time": 51.18107795715332,
+        "median_response_time": 51.15091800689697,
+        "std_dev": 0.11892001764648116,
+        "samples": 10
+      },
+      "/homework/assignments/": {
+        "avg_response_time": 51.125454902648926,
+        "min_response_time": 51.077842712402344,
+        "max_response_time": 51.178932189941406,
+        "median_response_time": 51.12612247467041,
+        "std_dev": 0.03875735009696093,
+        "samples": 10
+      },
+      "/payments/": {
+        "avg_response_time": 50.97813606262207,
+        "min_response_time": 50.19712448120117,
+        "max_response_time": 51.213979721069336,
+        "median_response_time": 51.15056037902832,
+        "std_dev": 0.40124553460113077,
+        "samples": 10
+      },
+      "/notifications/": {
+        "avg_response_time": 51.13964080810547,
+        "min_response_time": 51.0249137878418,
+        "max_response_time": 51.2387752532959,
+        "median_response_time": 51.14543437957764,
+        "std_dev": 0.05828518074675108,
+        "samples": 10
+      },
+      "/dashboard/stats/": {
+        "avg_response_time": 51.08780860900879,
+        "min_response_time": 50.63605308532715,
+        "max_response_time": 51.18370056152344,
+        "median_response_time": 51.131606101989746,
+        "std_dev": 0.1617188455385708,
+        "samples": 10
+      }
+    },
+    "database_performance": {
+      "student_lookup": {
+        "avg_time": 50.983524322509766,
+        "min_time": 50.27508735656738,
+        "max_time": 51.207780838012695,
+        "samples": 5
+      },
+      "complex_join": {
+        "avg_time": 150.9829044342041,
+        "min_time": 150.238037109375,
+        "max_time": 151.2467861175537,
+        "samples": 5
+      },
+      "bulk_insert": {
+        "avg_time": 201.07040405273438,
+        "min_time": 200.7579803466797,
+        "max_time": 201.171875,
+        "samples": 5
+      },
+      "aggregate_report": {
+        "avg_time": 300.91724395751953,
+        "min_time": 300.3802299499512,
+        "max_time": 301.1629581451416,
+        "samples": 5
+      },
+      "index_scan": {
+        "avg_time": 21.09699249267578,
+        "min_time": 21.06475830078125,
+        "max_time": 21.12293243408203,
+        "samples": 5
+      }
+    },
+    "concurrent_users": {
+      "user_count": 50,
+      "total_test_time": 1.3391380310058594,
+      "avg_session_time": 1336.3778257369995,
+      "max_session_time": 1336.8570804595947,
+      "min_session_time": 1335.9630107879639,
+      "operations": {
+        "login": {
+          "avg_time": 116.83053493499756,
+          "max_time": 117.10214614868164,
+          "min_time": 116.54782295227051,
+          "p95_time": 117.09070205688477
+        },
+        "dashboard_load": {
+          "avg_time": 234.1521978378296,
+          "max_time": 234.3270778656006,
+          "min_time": 234.0259552001953,
+          "p95_time": 234.3149185180664
+        },
+        "student_list": {
+          "avg_time": 218.3381986618042,
+          "max_time": 218.43981742858887,
+          "min_time": 218.31607818603516,
+          "p95_time": 218.36423873901367
+        },
+        "create_assignment": {
+          "avg_time": 389.5363712310791,
+          "max_time": 389.6210193634033,
+          "min_time": 389.42599296569824,
+          "p95_time": 389.61291313171387
+        },
+        "grade_submission": {
+          "avg_time": 326.0136842727661,
+          "max_time": 326.1277675628662,
+          "min_time": 325.8199691772461,
+          "p95_time": 326.11703872680664
+        },
+        "logout": {
+          "avg_time": 51.50683879852295,
+          "max_time": 51.8648624420166,
+          "min_time": 51.21278762817383,
+          "p95_time": 51.86295509338379
+        }
+      },
+      "throughput": 37.33745054081078,
+      "avg_response_time": 222.72963762283325
+    },
+    "memory_usage": {
+      "estimated_usage_mb": 10.0,
+      "data_objects_created": 1000,
+      "memory_efficient": true,
+      "cleanup_successful": true
+    },
+    "data_processing": {
+      "grade_calculation": {
+        "duration": 0.1011650562286377,
+        "records_processed": 500,
+        "processing_speed": 4942.418050655524,
+        "efficient": true
+      },
+      "attendance_aggregation": {
+        "duration": 0.15103411674499512,
+        "records_processed": 1000,
+        "processing_speed": 6621.020611444979,
+        "efficient": true
+      },
+      "report_generation": {
+        "duration": 0.20114874839782715,
+        "records_processed": 100,
+        "processing_speed": 497.1445300878652,
+        "efficient": true
+      },
+      "fee_calculation": {
+        "duration": 0.08113312721252441,
+        "records_processed": 300,
+        "processing_speed": 3697.6264850997804,
+        "efficient": true
+      },
+      "bulk_data_import": {
+        "duration": 0.5021159648895264,
+        "records_processed": 2000,
+        "processing_speed": 3983.1436159175546,
+        "efficient": true
+      }
+    }
+  }
+}

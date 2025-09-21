@@ -5,11 +5,13 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api';
 import * as XLSX from 'xlsx';
-import { Database } from '@/integrations/supabase/types';
+import { useBranch } from '@/contexts/BranchContext';
+// Removed GradeLevel imported interface; using simple string alias for grade levels
+type GradeLevel = string;
 
-type GradeLevel = Database['public']['Enums']['grade_level'];
 
 interface ImportResult {
   success: number;
@@ -19,7 +21,7 @@ interface ImportResult {
 
 interface ClassInfo {
   name: string;
-  gradeLevel: string;
+  gradeLevel: GradeLevel;
   students: any[];
 }
 
@@ -28,6 +30,8 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   const [progress, setProgress] = useState(0);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [currentStatus, setCurrentStatus] = useState<string>('');
+  const queryClient = useQueryClient();
+  const { selectedBranch } = useBranch();
 
   const updateProgress = (current: number, total: number, status: string) => {
     const percentage = Math.round((current / total) * 100);
@@ -165,9 +169,11 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       return detectGenderFromName(firstName);
     }
 
-    const normalized = genderInput.toLowerCase().trim();
-    if (['m', 'male', 'boy', '1'].includes(normalized)) return 'Male';
-    if (['f', 'female', 'girl', '2'].includes(normalized)) return 'Female';
+    const normalized = genderInput.toString().toLowerCase().trim();
+    
+    // Handle common gender formats including M/F
+    if (['m', 'male', 'boy', '1', 'm.'].includes(normalized)) return 'Male';
+    if (['f', 'female', 'girl', '2', 'f.'].includes(normalized)) return 'Female';
     
     // Try to detect from name if gender input is unclear
     return detectGenderFromName(firstName);
@@ -340,54 +346,95 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   };
 
   const createOrFindClass = async (className: string, gradeLevel: GradeLevel): Promise<string | null> => {
+    console.log('createOrFindClass called for', className, gradeLevel);
     try {
-      // First, get the grade level ID
-      const { data: gradeLevelData } = await supabase
-        .from('grade_levels')
-        .select('id')
-        .eq('grade', gradeLevel)
-        .single();
-
-      if (!gradeLevelData) {
+      // First, get the grade level object via API
+      console.log('Fetching grade levels...');
+      const gradeLevelsResp = await apiClient.getGradeLevels();
+      console.log('gradeLevelsResp', gradeLevelsResp);
+      if (gradeLevelsResp.error) {
+        console.error('Error fetching grade levels:', gradeLevelsResp.error);
+        return null;
+      }
+      // Find the grade level object via API (allow fuzzy fallback)
+      let gradeLevelObj = gradeLevelsResp.data?.find(gl => gl.grade === gradeLevel);
+      console.log('Found grade level object:', gradeLevelObj);
+      // Fallback: search by numeric grade if exact match not found
+      if (!gradeLevelObj && gradeLevel.startsWith('grade_')) {
+        const num = gradeLevel.split('_')[1];
+        const fuzzyMatch = gradeLevelsResp.data?.find(gl => gl.grade.includes(num));
+        if (fuzzyMatch) {
+          console.warn(`Using fuzzy match for grade level: ${fuzzyMatch.grade}`);
+          gradeLevelObj = fuzzyMatch;
+        }
+      }
+      if (!gradeLevelObj) {
         console.error(`Grade level ${gradeLevel} not found`);
         return null;
       }
 
-      // Try to find existing class
-      const { data: existingClass } = await supabase
-        .from('classes')
-        .select('id')
-        .eq('class_name', className)
-        .single();
-
+      // Try to find existing class via API
+      console.log('Fetching existing classes...');
+      const classesResp = await apiClient.getClasses();
+      console.log('classesResp', classesResp);
+      if (classesResp.error) {
+        console.error('Error fetching classes:', classesResp.error);
+        return null;
+      }
+      const existingClass = classesResp.data?.find(c => c.class_name === className);
       if (existingClass) {
+        console.log('Existing class found:', existingClass);
         return existingClass.id;
       }
 
-      // Create new class
-      const { data: newClass, error } = await supabase
-        .from('classes')
-        .insert({
-          class_name: className,
-          grade_level_id: gradeLevelData.id,
-          max_capacity: 50, // Default capacity, will be adjusted based on actual students
-          current_enrollment: 0,
-        })
-        .select('id')
-        .single();
-
-      if (error) {
-        console.error('Error creating class:', error);
+      // Create new class via API
+      const classData = {
+        class_name: className,
+        grade_level_id: gradeLevelObj.id,
+        max_capacity: 50,
+        current_enrollment: 0,
+        academic_year: new Date().getFullYear().toString(),
+        branch_id: selectedBranch || undefined,
+      };
+      console.log('Creating class with data:', classData);
+      const newClassResp = await apiClient.createClass(classData);
+      console.log('newClassResp', newClassResp);
+      if (newClassResp.error) {
+        console.error('Error creating class:', newClassResp.error);
         return null;
       }
-
-      return newClass.id;
+      console.log('Class created with ID:', newClassResp.data.id);
+      return newClassResp.data.id;
     } catch (error) {
       console.error('Error in createOrFindClass:', error);
       return null;
     }
   };
 
+  
+  // Generate unique student ID: SCH-YYYY-XXXXX
+  const generateStudentId = async (): Promise<string> => {
+    const resp = await apiClient.getStudents();
+    // Handle new pagination structure: { items: [...], total: number, ... }
+    const students: any[] = resp.data?.items || [];
+    const year = new Date().getFullYear().toString();
+    const regex = new RegExp(`^SCH-${year}-(\\d{5})$`);
+    let max = 0;
+    
+    // Find the highest existing number for this year
+    students.forEach(s => {
+      const m = s.student_id.match(regex);
+      if (m && m[1]) {
+        const num = parseInt(m[1], 10);
+        if (num > max) max = num;
+      }
+    });
+    
+    // Generate the next sequential number
+    const next = (max + 1).toString().padStart(5, '0');
+    return `SCH-${year}-${next}`;
+  };
+  
   const processExcelData = async (jsonData: any[], filename: string = '') => {
     if (!jsonData || jsonData.length === 0) {
       throw new Error('No data found in the Excel file');
@@ -428,31 +475,32 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
       
-      // If we don't have a class from filename, check headers in the content
-      if (!currentClass) {
-        // Check all values in the row for class headers
-        const allValues = Object.values(row);
-        let classFound = false;
-        
-        for (const value of allValues) {
-          if (value && typeof value === 'string') {
-            const classInfo = extractClassFromHeader(value.toString());
-            if (classInfo) {
-              console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
+      // Always check for class headers to handle multiple classes in one file.
+      const allValues = Object.values(row);
+      let classFound = false;
+      for (const value of allValues) {
+        if (value && typeof value === 'string') {
+          const classInfo = extractClassFromHeader(value.toString());
+          if (classInfo) {
+            console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
+            // Check if this is a new class, different from the current one
+            if (!classes.has(classInfo.className)) {
               currentClass = {
                 name: classInfo.className,
                 gradeLevel: classInfo.gradeLevel,
                 students: []
               };
               classes.set(classInfo.className, currentClass);
-              classFound = true;
-              break;
+            } else {
+              currentClass = classes.get(classInfo.className)!;
             }
+            classFound = true;
+            break;
           }
         }
-        
-        if (classFound) continue;
       }
+      
+      if (classFound) continue; // Skip to the next row after finding a class header
 
       // Look for student data - check for student name in the row
       const studentName = row['__EMPTY'] || row['Student\'s Name'] || Object.values(row).find(val => 
@@ -467,16 +515,33 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         !val.toLowerCase().includes('semester') &&
         !val.toLowerCase().includes('absent') &&
         !val.toLowerCase().includes('present') &&
-        !val.toLowerCase().includes('when students')
+        !val.toLowerCase().includes('when students') &&
+        !val.toLowerCase().includes('student') &&
+        !val.toLowerCase().includes('name') &&
+        !val.toLowerCase().includes('sex') &&
+        !val.toLowerCase().includes('gender')
       );
 
       if (currentClass && studentName && typeof studentName === 'string') {
         const cleanName = studentName.toString().trim();
-        if (cleanName.length > 2) {
+        
+        // Skip header-like rows
+        const isHeaderRow = cleanName.toLowerCase().includes('student') || 
+                           cleanName.toLowerCase().includes('name') ||
+                           cleanName.toLowerCase().includes('sex') ||
+                           cleanName.toLowerCase().includes('gender') ||
+                           cleanName.toLowerCase().includes('class') ||
+                           cleanName.toLowerCase().includes('grade') ||
+                           cleanName.toLowerCase().includes('section');
+        
+        if (cleanName.length > 2 && !isHeaderRow && cleanName.trim() !== '') {
           console.log(`Adding student ${cleanName} to class ${currentClass.name}`);
+          // Extract gender from various possible column names
+          const genderValue = row['__EMPTY_1'] || row['Gen.'] || row['SEX'] || row['Sex'] || row['Gender'] || row['GENDER'] || 'M';
+          
           currentClass.students.push({
             name: cleanName,
-            gender: row['__EMPTY_1'] || row['Gen.'] || 'M', // Default gender from Excel or fallback
+            gender: genderValue,
             ...row
           });
         }
@@ -511,20 +576,52 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       const classId = await createOrFindClass(className, classInfo.gradeLevel as GradeLevel);
       if (classId) {
         classIdMap.set(className, classId);
-        
-        // Update class capacity based on student count
-        await supabase
-          .from('classes')
-          .update({ 
+        // Update class capacity based on student count via API
+        try {
+          // Fetch grade levels to get id
+          const gradesResp = await apiClient.getGradeLevels();
+          const gradeLevelObj = gradesResp.data?.find(gl => gl.grade === classInfo.gradeLevel) || gradesResp.data?.find(gl => gl.grade.includes(classInfo.gradeLevel.split('_')[1]));
+          const updateData = {
+            class_name: className,
+            grade_level_id: gradeLevelObj?.id,
+            academic_year: new Date().getFullYear().toString(),
+            branch_id: selectedBranch || undefined,
             max_capacity: Math.max(classInfo.students.length, 25),
-            current_enrollment: 0 // Will be updated by triggers
-          })
-          .eq('id', classId);
+            current_enrollment: 0
+          };
+          await apiClient.updateClass(classId, updateData);
+         } catch (err) {
+           console.error('Error updating class capacity for', className, err);
+         }
       }
     }
 
+    // Update grade level capacities by summing all classes per grade
+    updateProgress(30, 100, 'Updating grade level capacities...');
+    try {
+      // Fetch all classes and grade levels
+      const allClassesResp = await apiClient.getClasses();
+      const allClasses = allClassesResp.data || [];
+      const gradeLevelsResp2 = await apiClient.getGradeLevels();
+      const existingGradeLevels = gradeLevelsResp2.data || [];
+      // For each grade level, sum class capacities and enrollments
+      for (const gl of existingGradeLevels) {
+        const classesForGrade = allClasses.filter(c => c.grade_level_id === gl.id);
+        const totalCapacity = classesForGrade.reduce((sum, c) => sum + (c.max_capacity || 0), 0);
+        const totalEnrollment = classesForGrade.reduce((sum, c) => sum + (c.current_enrollment || 0), 0);
+        const updateData = {
+          grade: gl.grade,
+          academic_year: new Date().getFullYear().toString(),
+          max_capacity: totalCapacity,
+          current_enrollment: totalEnrollment
+        };
+        await apiClient.updateGradeLevel(gl.id, updateData);
+      }
+    } catch (err) {
+      console.error('Error updating grade level capacities', err);
+    }
+    
     updateProgress(40, 100, 'Processing student data...');
-
     // Second pass: Insert students
     let totalStudents = 0;
     for (const classInfo of classes.values()) {
@@ -558,7 +655,8 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           }
 
           const parsedName = parseName(studentName);
-          const gender = normalizeGender('', parsedName.first_name);
+          // Use the gender from Excel data, fallback to name detection
+          const gender = normalizeGender(studentRow.gender || '', parsedName.first_name);
 
           // Default date of birth based on grade level
           let defaultAge = 6; // Default age
@@ -585,35 +683,46 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           defaultDate.setFullYear(defaultDate.getFullYear() - defaultAge);
 
           const studentData = {
-            student_id: '', // Will be auto-generated
+            student_id: await generateStudentId(),
             first_name: parsedName.first_name,
             last_name: parsedName.last_name,
             father_name: parsedName.father_name,
             grandfather_name: parsedName.grandfather_name,
             mother_name: null,
             date_of_birth: defaultDate.toISOString().split('T')[0],
-            grade_level: classInfo.gradeLevel as GradeLevel,
+            grade_level: classInfo.gradeLevel,
             gender: gender,
             address: null,
             phone: null,
             email: null,
             status: 'Active' as const,
             admission_date: new Date().toISOString().split('T')[0],
-            class_id: classId
+            class_id: classId,
+            branch_id: selectedBranch || undefined,
           };
 
           console.log(`Inserting student ${processedStudents}:`, studentData);
 
-          const { error } = await supabase
-            .from('students')
-            .insert(studentData);
-
-          if (error) {
-            console.error(`Error inserting student ${processedStudents}:`, error);
-            results.errors.push(`${studentName} in ${className}: ${error.message}`);
+          const studentResp = await apiClient.createStudent(studentData);
+          if (studentResp.error) {
+            console.error(`Error inserting student ${processedStudents}:`, studentResp.error);
+            results.errors.push(`${studentName} in ${className}: ${studentResp.error}`);
             results.failed++;
           } else {
             console.log(`Successfully inserted student ${processedStudents}: ${studentName} in ${className}`);
+            // Create initial registration fee payment (mark as paid)
+            try {
+              await apiClient.createRegistrationPayment({
+                student_id: studentData.student_id,
+                branch_id: selectedBranch || undefined,
+                academic_year: new Date().getFullYear().toString(),
+                payment_status: 'Paid',
+                amount_paid: 0,
+                payment_date: new Date().toISOString().split('T')[0],
+              });
+            } catch (err) {
+              console.error(`Error creating registration payment for ${studentData.student_id}:`, err);
+            }
             results.success++;
           }
 
@@ -636,6 +745,12 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     setCurrentStatus('Import completed!');
 
     if (results.success > 0) {
+      // Refresh data for students and dashboard
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['student-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      // Refresh grade levels to reflect updated capacities
+      queryClient.invalidateQueries({ queryKey: ['grade-levels'] });
       onImportComplete();
       toast({
         title: "Import Completed",
@@ -727,38 +842,73 @@ Hassan Ali Ibrahim`;
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <FileSpreadsheet className="h-5 w-5" />
-          Bulk Student Import with Class Detection
+    <Card className="bg-white/80 backdrop-blur-sm border border-white/30 shadow-xl rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300">
+      <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100/50">
+        <CardTitle className="flex items-center gap-3 text-xl font-bold">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <FileSpreadsheet className="h-6 w-6 text-purple-600" />
+          </div>
+          <span className="bg-gradient-to-r from-purple-800 to-purple-600 bg-clip-text text-transparent">
+            Bulk Student Import with Class Detection
+          </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <h4 className="font-medium text-blue-800 mb-2">How it works:</h4>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li>• <strong>Filename Method:</strong> Name your files like "5AA.xlsx" for "GRADE 5 - A", "5BB.xlsx" for "GRADE 5 - B"</li>
-            <li>• <strong>Header Method:</strong> Put class names like "PRE KG - A", "KG - B", "PREP - A" in separate rows</li>
-            <li>• List student names in rows below each class header (or entire file for filename method)</li>
-            <li>• The system will automatically create classes and assign students</li>
-            <li>• Supports PRE KG, KG, PREP, and Grade 1-12 with sections A-Z</li>
-            <li>• Class capacity will be adjusted based on actual student count</li>
+      <CardContent className="space-y-6 p-6">
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/50 p-6 rounded-xl">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+            </div>
+            <h4 className="font-bold text-blue-900 text-lg">How it works:</h4>
+          </div>
+          <ul className="text-sm text-blue-800 space-y-2">
+            <li className="flex items-start gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+              <span><strong>Filename Method:</strong> Name your files like "5AA.xlsx" for "GRADE 5 - A", "5BB.xlsx" for "GRADE 5 - B"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+              <span><strong>Header Method:</strong> Put class names like "PRE KG - A", "KG - B", "PREP - A" in separate rows</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+              <span>List student names in rows below each class header (or entire file for filename method)</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+              <span>The system will automatically create classes and assign students</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+              <span>Supports PRE KG, KG, PREP, and Grade 1-12 with sections A-Z</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+              <span>Class capacity will be adjusted based on actual student count</span>
+            </li>
           </ul>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button onClick={downloadExcelTemplate} variant="outline" size="sm">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button
+            onClick={downloadExcelTemplate}
+            variant="outline"
+            className="bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 border-emerald-200 text-emerald-700 hover:text-emerald-800 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+          >
             <Download className="h-4 w-4 mr-2" />
             Download Excel Template
           </Button>
-          
-          <Button onClick={downloadCsvTemplate} variant="outline" size="sm">
+
+          <Button
+            onClick={downloadCsvTemplate}
+            variant="outline"
+            className="bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border-amber-200 text-amber-700 hover:text-amber-800 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+          >
             <Download className="h-4 w-4 mr-2" />
             Download CSV Template
           </Button>
-          
-          <label className="cursor-pointer">
+
+          <label className="cursor-pointer flex-1">
             <input
               type="file"
               accept=".xlsx,.xls,.csv"
@@ -766,49 +916,87 @@ Hassan Ali Ibrahim`;
               className="hidden"
               disabled={isImporting}
             />
-            <Button disabled={isImporting} asChild>
+            <Button
+              disabled={isImporting}
+              asChild
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
+            >
               <span>
                 <Upload className="h-4 w-4 mr-2" />
-                {isImporting ? 'Importing...' : 'Select Excel File'}
+                {isImporting ? 'Importing Students...' : 'Select Excel File to Import'}
               </span>
             </Button>
           </label>
         </div>
 
         {isImporting && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span>{currentStatus}</span>
-              <span>{progress}%</span>
+          <div className="bg-white/80 backdrop-blur-sm border border-white/30 shadow-xl rounded-xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-gray-900">Processing Import</h4>
+                <p className="text-sm text-gray-600">{currentStatus}</p>
+              </div>
+              <span className="text-2xl font-bold text-purple-600">{progress}%</span>
             </div>
-            <Progress value={progress} className="w-full" />
+            <Progress value={progress} className="w-full h-3 bg-purple-100" />
           </div>
         )}
 
         {importResult && (
-          <div className="space-y-2">
-            <Alert className={importResult.success > 0 ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
-              <div className="flex items-center gap-2">
-                {importResult.success > 0 ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-red-600" />
-                )}
-                <AlertDescription>
-                  Import completed: {importResult.success} successful, {importResult.failed} failed
+          <div className="space-y-4">
+            <Alert className={`border-0 shadow-xl rounded-xl overflow-hidden ${
+              importResult.success > 0
+                ? "bg-gradient-to-r from-emerald-50 to-emerald-100"
+                : "bg-gradient-to-r from-red-50 to-red-100"
+            }`}>
+              <div className="flex items-center gap-4 p-2">
+                <div className={`p-2 rounded-full ${
+                  importResult.success > 0 ? "bg-emerald-500" : "bg-red-500"
+                }`}>
+                  {importResult.success > 0 ? (
+                    <CheckCircle className="h-6 w-6 text-white" />
+                  ) : (
+                    <AlertCircle className="h-6 w-6 text-white" />
+                  )}
+                </div>
+                <AlertDescription className="text-lg font-semibold">
+                  <span className={importResult.success > 0 ? "text-emerald-800" : "text-red-800"}>
+                    Import completed:
+                  </span>
+                  <span className="text-emerald-700 ml-2">{importResult.success} successful</span>
+                  {importResult.failed > 0 && (
+                    <span className="text-red-700 ml-2">, {importResult.failed} failed</span>
+                  )}
                 </AlertDescription>
               </div>
             </Alert>
 
             {importResult.errors.length > 0 && (
-              <div className="max-h-40 overflow-y-auto bg-gray-50 p-3 rounded text-sm">
-                <p className="font-medium text-red-600 mb-2">Errors:</p>
-                {importResult.errors.slice(0, 10).map((error, index) => (
-                  <p key={index} className="text-red-700">{error}</p>
-                ))}
-                {importResult.errors.length > 10 && (
-                  <p className="text-gray-600 mt-2">... and {importResult.errors.length - 10} more errors</p>
-                )}
+              <div className="bg-white/80 backdrop-blur-sm border border-red-200/50 shadow-xl rounded-xl overflow-hidden">
+                <div className="bg-gradient-to-r from-red-50 to-rose-50 p-4 border-b border-red-100">
+                  <h4 className="font-bold text-red-800 flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    Import Errors ({importResult.errors.length})
+                  </h4>
+                </div>
+                <div className="max-h-48 overflow-y-auto p-4 space-y-2">
+                  {importResult.errors.slice(0, 10).map((error, index) => (
+                    <div key={index} className="flex items-start gap-2 p-2 bg-red-50 rounded-lg">
+                      <span className="w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold mt-0.5">
+                        {index + 1}
+                      </span>
+                      <p className="text-red-700 text-sm">{error}</p>
+                    </div>
+                  ))}
+                  {importResult.errors.length > 10 && (
+                    <div className="text-center p-3 bg-gray-50 rounded-lg">
+                      <p className="text-gray-600 font-medium">... and {importResult.errors.length - 10} more errors</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

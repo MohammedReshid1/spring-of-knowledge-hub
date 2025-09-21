@@ -4,11 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Users } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Database } from '@/integrations/supabase/types';
-
-type GradeLevel = Database['public']['Enums']['grade_level'];
+import { useBranch } from '@/contexts/BranchContext';
 
 interface ClassSuggestion {
   gradeLevel: string;
@@ -16,111 +14,183 @@ interface ClassSuggestion {
   suggestedClasses: string[];
   currentCount: number;
   missingClasses: string[];
+  hasAvailableSpace: boolean;
+  existingClassesWithSpace: Array<{
+    id: string;
+    name: string;
+    availableSpots: number;
+  }>;
 }
 
 export const ClassSuggestions = () => {
   const [isCreating, setIsCreating] = useState(false);
   const queryClient = useQueryClient();
+  const { selectedBranch } = useBranch();
 
-  const { data: suggestions, isLoading } = useQuery({
-    queryKey: ['class-suggestions'],
+  // Query to fetch class suggestions
+  const { data: suggestions, isLoading } = useQuery<ClassSuggestion[], Error>({
+    queryKey: ['class-suggestions', selectedBranch],
     queryFn: async () => {
-      // Get all students grouped by grade level
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select('grade_level, class_id, classes:class_id(class_name)')
-        .eq('status', 'Active');
-
-      if (studentsError) throw studentsError;
-
-      // Get existing classes
-      const { data: classes, error: classesError } = await supabase
-        .from('classes')
-        .select('*, grade_levels:grade_level_id(grade)');
-
-      if (classesError) throw classesError;
-
-      // Group students by grade level
-      const gradeGroups: Record<string, any[]> = {};
-      students?.forEach(student => {
-        if (!gradeGroups[student.grade_level]) {
-          gradeGroups[student.grade_level] = [];
-        }
-        gradeGroups[student.grade_level].push(student);
-      });
-
-      // Create suggestions for each grade level
-      const suggestions: ClassSuggestion[] = [];
+      const [studRes, clsRes, gradeLevelsRes] = await Promise.all([
+        apiClient.getAllStudents(selectedBranch),
+        apiClient.getClasses(),
+        apiClient.getGradeLevels(),
+      ]);
+      if (studRes.error) throw new Error(studRes.error);
+      if (clsRes.error) throw new Error(clsRes.error);
+      if (gradeLevelsRes.error) throw new Error(gradeLevelsRes.error);
       
+      const gradeLevels = gradeLevelsRes.data || [];
+      console.log('ClassSuggestions - Grade levels fetched:', gradeLevels.length);
+      
+      // Filter by branch and active status
+      const allStudents = (studRes.data || []).filter(s =>
+        s.status === 'Active' && (selectedBranch === 'all' || s.branch_id === selectedBranch)
+      );
+      console.log('ClassSuggestions - Total active students in branch:', allStudents.length, 'Branch:', selectedBranch);
+      
+      // Enrich classes with grade level information
+      const allClasses = (clsRes.data || [])
+        .filter(c => selectedBranch === 'all' || c.branch_id === selectedBranch)
+        .map(cls => {
+          const gradeLevel = gradeLevels.find(gl => gl.id === cls.grade_level_id);
+          console.log(`Class ${cls.class_name}: grade_level_id=${cls.grade_level_id}, found grade=${gradeLevel?.grade}`);
+          return {
+            ...cls,
+            grade_level: gradeLevel ? { grade: gradeLevel.grade } : null
+          };
+        });
+      // Group students by grade_level
+      const gradeGroups: Record<string, any[]> = {};
+      allStudents.forEach(s => {
+        gradeGroups[s.grade_level] = gradeGroups[s.grade_level] || [];
+        gradeGroups[s.grade_level].push(s);
+      });
+      const result: ClassSuggestion[] = [];
       for (const [gradeLevel, studentsInGrade] of Object.entries(gradeGroups)) {
+        const studentsWithout = studentsInGrade.filter(s => !s.class_id);
+        
+        console.log(`ClassSuggestions - Grade ${gradeLevel}:`, {
+          totalInGrade: studentsInGrade.length,
+          withoutClass: studentsWithout.length,
+          students: studentsWithout.map(s => ({
+            name: `${s.first_name} ${s.last_name}`,
+            id: s.student_id,
+            class_id: s.class_id,
+            branch_id: s.branch_id
+          }))
+        });
+        
+        if (studentsWithout.length === 0) continue;
         const gradeName = formatGradeLevel(gradeLevel);
-        const studentsWithoutClasses = studentsInGrade.filter(s => !s.class_id);
+        // existing class names for this grade
+        // Convert formatted grade back to database format for comparison
+        const gradeToDbFormat: Record<string, string> = {
+          'Pre KG': 'pre_k',
+          'KG': 'kg', 
+          'PREP': 'prep',
+          'Grade 1': 'grade_1',
+          'Grade 2': 'grade_2',
+          'Grade 3': 'grade_3',
+          'Grade 4': 'grade_4',
+          'Grade 5': 'grade_5',
+          'Grade 6': 'grade_6',
+          'Grade 7': 'grade_7',
+          'Grade 8': 'grade_8',
+          'Grade 9': 'grade_9',
+          'Grade 10': 'grade_10',
+          'Grade 11': 'grade_11',
+          'Grade 12': 'grade_12',
+        };
         
-        if (studentsWithoutClasses.length === 0) continue;
-
-      // Get existing classes for this grade
-      const existingClasses = classes?.filter(c => c.grade_levels?.grade === gradeLevel as GradeLevel) || [];
-      const existingClassNames = existingClasses.map(c => c.class_name);
-
-        // Generate suggested class names
-        const suggestedClasses = [];
+        // Find existing classes for this grade level
+        const gradeClasses = allClasses.filter(c => {
+          const classGradeDb = gradeToDbFormat[c.grade_level?.grade] || c.grade_level?.grade;
+          const matches = classGradeDb === gradeLevel;
+          console.log(`Class ${c.class_name}: grade="${c.grade_level?.grade}" -> db="${classGradeDb}" vs student="${gradeLevel}" = ${matches}`);
+          return matches;
+        });
+        
+        console.log(`Found ${gradeClasses.length} classes for grade ${gradeLevel}:`, gradeClasses.map(c => c.class_name));
+        
+        // Check for existing classes with available space
+        const existingClassesWithSpace = gradeClasses.map(cls => {
+          const availableSpots = cls.max_capacity - (cls.current_enrollment || 0);
+          console.log(`Class ${cls.class_name}: ${cls.current_enrollment}/${cls.max_capacity} = ${availableSpots} available`);
+          return {
+            id: cls.id,
+            name: cls.class_name,
+            availableSpots
+          };
+        }).filter(cls => cls.availableSpots > 0);
+        
+        const totalAvailableSpots = existingClassesWithSpace.reduce((sum, cls) => sum + cls.availableSpots, 0);
+        const hasAvailableSpace = totalAvailableSpots >= studentsWithout.length;
+        
+        console.log(`Grade ${gradeLevel}: ${studentsWithout.length} unassigned, ${totalAvailableSpots} available spots, hasSpace: ${hasAvailableSpace}`);
+        
+        const existingNames = gradeClasses.map(c => c.class_name);
         const sections = ['A', 'B', 'C', 'D', 'E'];
+        const suggestionsArr: string[] = [];
         
-        for (const section of sections) {
-          const className = `${gradeName} - ${section}`;
-          if (!existingClassNames.includes(className)) {
-            suggestedClasses.push(className);
-          }
+        // Only suggest new classes if existing ones don't have enough space
+        if (!hasAvailableSpace) {
+          sections.forEach(sec => {
+            const name = `${gradeName} - ${sec}`;
+            if (!existingNames.includes(name)) suggestionsArr.push(name);
+          });
         }
-
-        suggestions.push({
+        
+        const additionalStudents = Math.max(0, studentsWithout.length - totalAvailableSpots);
+        const countNeeded = Math.ceil(additionalStudents / 30);
+        
+        result.push({
           gradeLevel,
           gradeName,
-          suggestedClasses: suggestedClasses.slice(0, Math.ceil(studentsWithoutClasses.length / 30)),
-          currentCount: studentsWithoutClasses.length,
-          missingClasses: suggestedClasses.slice(0, Math.ceil(studentsWithoutClasses.length / 30))
+          suggestedClasses: suggestionsArr.slice(0, countNeeded),
+          currentCount: studentsWithout.length,
+          missingClasses: suggestionsArr.slice(0, countNeeded),
+          hasAvailableSpace,
+          existingClassesWithSpace,
         });
       }
-
-      return suggestions.filter(s => s.currentCount > 0);
-    }
+      return result;
+    },
   });
 
+  // Mutation to create classes via backend API
   const createClassesMutation = useMutation({
     mutationFn: async (suggestion: ClassSuggestion) => {
-      // Get grade level ID
-      const { data: gradeLevel, error: gradeError } = await supabase
-        .from('grade_levels')
-        .select('id')
-        .eq('grade', suggestion.gradeLevel as GradeLevel)
-        .single();
-
-      if (gradeError || !gradeLevel) {
-        throw new Error(`Grade level ${suggestion.gradeLevel} not found`);
+      // Fetch grade levels to find matching ID
+      const { data: gradeLevels, error: glError } = await apiClient.getGradeLevels();
+      if (glError) throw new Error(glError);
+      let gl = gradeLevels?.find(g => g.grade === suggestion.gradeLevel);
+      // Fallback: try matching by formatted grade name
+      if (!gl) {
+        gl = gradeLevels?.find(g => formatGradeLevel(g.grade) === suggestion.gradeName);
       }
-
-      // Create classes
-      const classesToCreate = suggestion.missingClasses.map(className => ({
-        class_name: className,
-        grade_level_id: gradeLevel.id,
+      if (!gl) throw new Error(`Grade level ${suggestion.gradeLevel} not found`);
+      // Prepare class objects
+      const classesToCreate = suggestion.missingClasses.map(name => ({
+        class_name: name,
+        grade_level_id: gl.id,
         max_capacity: 30,
-        current_enrollment: 0,
-        academic_year: new Date().getFullYear().toString()
+        academic_year: new Date().getFullYear().toString(),
+        branch_id: selectedBranch,
       }));
-
-      const { error } = await supabase
-        .from('classes')
-        .insert(classesToCreate);
-
-      if (error) throw error;
-
+      // Call API to create each class and check for errors
+      const responses = await Promise.all(classesToCreate.map(c => apiClient.createClass(c)));
+      responses.forEach(res => {
+        if (res.error) {
+          throw new Error(res.error);
+        }
+      });
       return classesToCreate.length;
     },
     onSuccess: (createdCount, suggestion) => {
-      queryClient.invalidateQueries({ queryKey: ['class-suggestions'] });
-      queryClient.invalidateQueries({ queryKey: ['classes'] });
-      queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
-      
+      queryClient.invalidateQueries({ queryKey: ['class-suggestions', selectedBranch] });
+      queryClient.invalidateQueries({ queryKey: ['classes', selectedBranch] });
+      queryClient.invalidateQueries({ queryKey: ['grade-stats', selectedBranch] });
       toast({
         title: "Classes Created",
         description: `Created ${createdCount} classes for ${suggestion.gradeName}`,
@@ -140,18 +210,18 @@ export const ClassSuggestions = () => {
       'pre_k': 'PRE KG',
       'kg': 'KG',
       'prep': 'PREP',
-      'grade_1': 'Grade 1',
-      'grade_2': 'Grade 2',
-      'grade_3': 'Grade 3',
-      'grade_4': 'Grade 4',
-      'grade_5': 'Grade 5',
-      'grade_6': 'Grade 6',
-      'grade_7': 'Grade 7',
-      'grade_8': 'Grade 8',
-      'grade_9': 'Grade 9',
-      'grade_10': 'Grade 10',
-      'grade_11': 'Grade 11',
-      'grade_12': 'Grade 12',
+      'grade_1': 'GRADE 1',
+      'grade_2': 'GRADE 2',
+      'grade_3': 'GRADE 3',
+      'grade_4': 'GRADE 4',
+      'grade_5': 'GRADE 5',
+      'grade_6': 'GRADE 6',
+      'grade_7': 'GRADE 7',
+      'grade_8': 'GRADE 8',
+      'grade_9': 'GRADE 9',
+      'grade_10': 'GRADE 10',
+      'grade_11': 'GRADE 11',
+      'grade_12': 'GRADE 12',
     };
     return gradeMap[grade] || grade;
   };
@@ -165,8 +235,8 @@ export const ClassSuggestions = () => {
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="py-6">
-          <div className="text-center">Loading class suggestions...</div>
+        <CardContent className="py-6 text-center">
+          Loading class suggestions...
         </CardContent>
       </Card>
     );
@@ -202,23 +272,46 @@ export const ClassSuggestions = () => {
                   <p className="text-sm text-muted-foreground">
                     {suggestion.currentCount} students without classes
                   </p>
+                  {suggestion.hasAvailableSpace && (
+                    <p className="text-xs text-green-600">
+                      {suggestion.existingClassesWithSpace.reduce((sum, cls) => sum + cls.availableSpots, 0)} spots available in existing classes
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
-                  {suggestion.suggestedClasses.map(className => (
-                    <Badge key={className} variant="outline">
-                      {className}
-                    </Badge>
-                  ))}
+                  {suggestion.hasAvailableSpace ? (
+                    suggestion.existingClassesWithSpace.map(cls => (
+                      <Badge key={cls.id} variant="secondary">
+                        {cls.name} ({cls.availableSpots} spots)
+                      </Badge>
+                    ))
+                  ) : (
+                    suggestion.suggestedClasses.map(className => (
+                      <Badge key={className} variant="outline">
+                        {className}
+                      </Badge>
+                    ))
+                  )}
                 </div>
               </div>
-              <Button
-                onClick={() => handleCreateClasses(suggestion)}
-                disabled={isCreating}
-                size="sm"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Classes
-              </Button>
+              {suggestion.hasAvailableSpace ? (
+                <div className="text-sm text-muted-foreground">
+                  Use "Assign Students to Classes" below
+                </div>
+              ) : suggestion.suggestedClasses.length > 0 ? (
+                <Button
+                  onClick={() => handleCreateClasses(suggestion)}
+                  disabled={isCreating}
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Classes
+                </Button>
+              ) : (
+                <div className="text-sm text-red-600">
+                  All section letters used
+                </div>
+              )}
             </div>
           ))}
         </div>

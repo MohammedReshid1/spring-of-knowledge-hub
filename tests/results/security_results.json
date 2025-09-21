@@ -1,0 +1,450 @@
+{
+  "timestamp": "2025-09-03T22:38:24.998025",
+  "results": {
+    "authentication": {
+      "Password Strength Validation": {
+        "success": true,
+        "details": {
+          "test_results": [
+            {
+              "password": "wea****",
+              "expected": false,
+              "actual": false,
+              "correct": true
+            },
+            {
+              "password": "Str***********",
+              "expected": true,
+              "actual": true,
+              "correct": true
+            },
+            {
+              "password": "sho**",
+              "expected": false,
+              "actual": false,
+              "correct": true
+            },
+            {
+              "password": "NoN*******",
+              "expected": false,
+              "actual": false,
+              "correct": true
+            },
+            {
+              "password": "non*********",
+              "expected": false,
+              "actual": false,
+              "correct": true
+            },
+            {
+              "password": "NOL************",
+              "expected": false,
+              "actual": false,
+              "correct": true
+            },
+            {
+              "password": "nou********",
+              "expected": false,
+              "actual": false,
+              "correct": true
+            }
+          ]
+        },
+        "status": "PASS"
+      },
+      "JWT Token Security": {
+        "success": true,
+        "details": {
+          "uses_strong_secret": true,
+          "proper_expiration": true,
+          "secure_algorithm": true,
+          "no_sensitive_data": true,
+          "proper_validation": true
+        },
+        "status": "PASS"
+      },
+      "Session Management": {
+        "success": true,
+        "details": {
+          "secure_session_ids": true,
+          "session_timeout": true,
+          "session_invalidation": true,
+          "concurrent_session_limit": true
+        },
+        "status": "PASS"
+      },
+      "Brute Force Protection": {
+        "success": true,
+        "details": {
+          "attempts": [
+            {
+              "attempt": 1,
+              "blocked": false
+            },
+            {
+              "attempt": 2,
+              "blocked": false
+            },
+            {
+              "attempt": 3,
+              "blocked": false
+            },
+            {
+              "attempt": 4,
+              "blocked": false
+            },
+            {
+              "attempt": 5,
+              "blocked": false
+            },
+            {
+              "attempt": 6,
+              "blocked": true
+            },
+            {
+              "attempt": 7,
+              "blocked": true
+            },
+            {
+              "attempt": 8,
+              "blocked": true
+            },
+            {
+              "attempt": 9,
+              "blocked": true
+            },
+            {
+              "attempt": 10,
+              "blocked": true
+            }
+          ],
+          "protection_enabled": true
+        },
+        "status": "PASS"
+      },
+      "Account Lockout": {
+        "success": true,
+        "details": {
+          "lockout_enabled": true,
+          "lockout_duration": "15 minutes"
+        },
+        "status": "PASS"
+      },
+      "Password Reset Security": {
+        "success": true,
+        "details": {
+          "secure_tokens": true,
+          "token_expiration": true,
+          "single_use_tokens": true,
+          "rate_limiting": true
+        },
+        "status": "PASS"
+      }
+    },
+    "authorization": {
+      "RBAC Permission Enforcement": {
+        "success": true,
+        "details": {
+          "student_access_grades": true,
+          "student_cannot_modify_grades": true,
+          "teacher_access_class_data": true,
+          "teacher_cannot_access_other_classes": true,
+          "admin_full_access": true,
+          "parent_child_data_only": true
+        },
+        "status": "PASS"
+      },
+      "Branch Isolation": {
+        "success": true,
+        "details": {
+          "branch_data_isolation": true,
+          "cross_branch_access_blocked": true,
+          "super_admin_override": true
+        },
+        "status": "PASS"
+      },
+      "Cross-User Data Access": {
+        "success": true,
+        "details": {
+          "cross_user_blocked": true
+        },
+        "status": "PASS"
+      },
+      "Privilege Escalation": {
+        "success": true,
+        "details": {
+          "privilege_escalation_blocked": true
+        },
+        "status": "PASS"
+      },
+      "API Endpoint Protection": {
+        "success": true,
+        "details": {
+          "/admin/users/": {
+            "protected": true,
+            "requires_auth": true
+          },
+          "/teacher/grades/": {
+            "protected": true,
+            "requires_auth": true
+          },
+          "/student/profile/": {
+            "protected": true,
+            "requires_auth": true
+          },
+          "/parent/children/": {
+            "protected": true,
+            "requires_auth": true
+          }
+        },
+        "status": "PASS"
+      },
+      "Resource Access Control": {
+        "success": true,
+        "details": {
+          "resource_access_controlled": true
+        },
+        "status": "PASS"
+      }
+    },
+    "data_protection": {
+      "Sensitive Data Encryption": {
+        "success": true,
+        "details": {
+          "password": {
+            "encrypted": true,
+            "algorithm": "AES-256"
+          },
+          "ssn": {
+            "encrypted": true,
+            "algorithm": "AES-256"
+          },
+          "phone": {
+            "encrypted": true,
+            "algorithm": "AES-256"
+          },
+          "email": {
+            "encrypted": true,
+            "algorithm": "AES-256"
+          }
+        },
+        "status": "PASS"
+      },
+      "PII Protection": {
+        "success": true,
+        "details": {
+          "pii_encrypted_at_rest": true,
+          "pii_masked_in_logs": true,
+          "access_logging": true,
+          "data_minimization": true
+        },
+        "status": "PASS"
+      },
+      "Data Sanitization": {
+        "success": false,
+        "details": {
+          "tests": [
+            {
+              "input": "<script>alert('xss')...",
+              "sanitized": true,
+              "expected": "sanitized"
+            },
+            {
+              "input": "'; DROP TABLE users;...",
+              "sanitized": false,
+              "expected": "sanitized"
+            },
+            {
+              "input": "normal text",
+              "sanitized": true,
+              "expected": "unchanged"
+            },
+            {
+              "input": "<img src=x onerror=a...",
+              "sanitized": true,
+              "expected": "sanitized"
+            }
+          ]
+        },
+        "status": "FAIL"
+      },
+      "SQL Injection Prevention": {
+        "success": true,
+        "details": {
+          "tests": [
+            {
+              "injection_attempt": "'; DROP TABLE students; --...",
+              "prevented": true
+            },
+            {
+              "injection_attempt": "' OR '1'='1...",
+              "prevented": true
+            },
+            {
+              "injection_attempt": "1; DELETE FROM users WHERE 1=1...",
+              "prevented": true
+            },
+            {
+              "injection_attempt": "' UNION SELECT * FROM password...",
+              "prevented": true
+            }
+          ],
+          "uses_parameterized_queries": true
+        },
+        "status": "PASS"
+      },
+      "XSS Protection": {
+        "success": true,
+        "details": {
+          "tests": [
+            {
+              "xss_attempt": "<script>alert('xss')</script>...",
+              "filtered": true
+            },
+            {
+              "xss_attempt": "<img src=x onerror=alert(1)>...",
+              "filtered": true
+            },
+            {
+              "xss_attempt": "javascript:alert('xss')...",
+              "filtered": true
+            },
+            {
+              "xss_attempt": "<svg onload=alert(1)>...",
+              "filtered": true
+            }
+          ],
+          "content_security_policy": true
+        },
+        "status": "PASS"
+      },
+      "File Upload Security": {
+        "success": true,
+        "details": {
+          "file_type_validation": true,
+          "file_size_limits": true,
+          "virus_scanning": false,
+          "secure_file_storage": true,
+          "filename_sanitization": true
+        },
+        "status": "PASS"
+      }
+    },
+    "api_security": {
+      "Rate Limiting": {
+        "success": true,
+        "details": {
+          "rate_limiting_enabled": true
+        },
+        "status": "PASS"
+      },
+      "Input Validation": {
+        "success": true,
+        "details": {
+          "input_validation_enabled": true
+        },
+        "status": "PASS"
+      },
+      "CORS Configuration": {
+        "success": true,
+        "details": {
+          "allowed_origins": [
+            "https://school.example.com"
+          ],
+          "credentials_allowed": true,
+          "max_age": 86400,
+          "proper_configuration": true
+        },
+        "status": "PASS"
+      },
+      "HTTP Security Headers": {
+        "success": true,
+        "details": {
+          "headers": {
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "X-XSS-Protection": "1; mode=block",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Content-Security-Policy": "default-src 'self'"
+          },
+          "all_present": true
+        },
+        "status": "PASS"
+      },
+      "API Authentication": {
+        "success": true,
+        "details": {
+          "authentication_required": true,
+          "token_based": true
+        },
+        "status": "PASS"
+      },
+      "Request Size Limits": {
+        "success": true,
+        "details": {
+          "max_request_size": "50MB",
+          "limits_enforced": true
+        },
+        "status": "PASS"
+      }
+    },
+    "infrastructure": {
+      "Environment Variables": {
+        "success": true,
+        "details": {
+          "no_secrets_in_code": true,
+          "env_vars_used": true,
+          "secure_defaults": true,
+          "production_config": true
+        },
+        "status": "PASS"
+      },
+      "Database Security": {
+        "success": true,
+        "details": {
+          "connection_encryption": true,
+          "access_controls": true,
+          "backup_encryption": true,
+          "audit_logging": true
+        },
+        "status": "PASS"
+      },
+      "File System Security": {
+        "success": true,
+        "details": {
+          "secure_file_permissions": true
+        },
+        "status": "PASS"
+      },
+      "Network Security": {
+        "success": true,
+        "details": {
+          "https_enforced": true,
+          "secure_protocols": true
+        },
+        "status": "PASS"
+      },
+      "Logging Security": {
+        "success": true,
+        "details": {
+          "no_sensitive_data_logged": true,
+          "log_access_controlled": true,
+          "log_integrity": true,
+          "audit_trail": true
+        },
+        "status": "PASS"
+      },
+      "Error Handling": {
+        "success": true,
+        "details": {
+          "no_stack_traces": true,
+          "generic_error_messages": true,
+          "error_logging": true,
+          "no_sensitive_info_in_errors": true
+        },
+        "status": "PASS"
+      }
+    }
+  },
+  "vulnerabilities": []
+}
