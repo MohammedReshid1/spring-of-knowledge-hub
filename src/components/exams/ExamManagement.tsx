@@ -20,6 +20,7 @@ import {
 import { format } from 'date-fns';
 import { GradeResults } from './GradeResults';
 import { ViewReports } from './ViewReports';
+import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
 
 interface Exam {
   id: string;
@@ -71,6 +72,9 @@ export const ExamManagement = () => {
   const { selectedBranch } = useBranch();
   const { getBranchFilter } = useBranchData();
 
+  // Fetch current academic year from database
+  const academicYearQuery = useAcademicYear();
+
   // Fetch exams
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ['exams', filters, selectedBranch],
@@ -79,19 +83,21 @@ export const ExamManagement = () => {
         ...filters,
         ...(selectedBranch && selectedBranch !== 'all' && { branch_id: selectedBranch })
       };
-      
+
       // Remove empty values and 'all' values
       Object.keys(params).forEach(key => {
         if (!params[key] || params[key] === 'all') {
           delete params[key];
         }
       });
-      
+
       const { data, error } = await apiClient.getExams(params);
       if (error) throw new Error(error);
       return data || [];
     }
   });
+
+  // DEBUG: Log exams data and viewMode
 
   // Fetch subjects for dropdown (subjects are global but can be filtered by grade levels in the branch)
   const { data: subjects = [] } = useQuery({
@@ -258,7 +264,6 @@ export const ExamManagement = () => {
       branch_id: selectedBranch && selectedBranch !== 'all' ? selectedBranch : null,
     };
 
-    console.log('Exam data being sent:', examData); // Debug log
     createExamMutation.mutate(examData);
   };
 
@@ -294,7 +299,6 @@ export const ExamManagement = () => {
       branch_id: selectedBranch && selectedBranch !== 'all' ? selectedBranch : null,
     };
 
-    console.log('Updated exam data being sent:', examData); // Debug log
     updateExamMutation.mutate({ id: selectedExam.id, examData });
   };
 
@@ -365,62 +369,104 @@ export const ExamManagement = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Exam Management</h2>
-          <p className="text-muted-foreground">Create and manage exams, view statistics</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
-            onClick={() => setViewMode('list')}
-          >
-            <BookOpen className="h-4 w-4 mr-2" />
-            Exams
-          </Button>
-          <Button
-            variant={viewMode === 'stats' ? 'default' : 'outline'}
-            onClick={() => setViewMode('stats')}
-          >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Statistics
-          </Button>
-          <Button
-            variant={viewMode === 'grade' ? 'default' : 'outline'}
-            onClick={() => handleQuickAction('grade')}
-          >
-            <Award className="h-4 w-4 mr-2" />
-            Grade Results
-          </Button>
-          <Button
-            variant={viewMode === 'reports' ? 'default' : 'outline'}
-            onClick={() => handleQuickAction('reports')}
-          >
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Reports
-          </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Exam
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create New Exam</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                handleCreateExam(new FormData(e.target as HTMLFormElement));
-              }} className="space-y-4">
-                {/* Basic Information */}
-                <div className="space-y-3">
-                  <h3 className="text-base font-medium text-gray-900">Basic Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
+    <>
+      {/* Premium Animation Styles */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+          }
+        }
+
+        .animate-fadeInUp {
+          animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-slideInRight {
+          animation: slideInRight 0.6s ease-out;
+        }
+
+        .animate-pulseGlow {
+          animation: pulseGlow 2s infinite;
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+        {/* Premium Header Section */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-8">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+
+          {/* Floating Shapes */}
+          <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse" />
+          <div className="absolute top-20 right-20 w-16 h-16 bg-white/10 rounded-full animate-pulse delay-1000" />
+          <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-500" />
+
+          <div className="relative z-10 px-6">
+            <div className="flex justify-between items-start mb-8">
+              <div className="animate-fadeInUp">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
+                    <BookOpen className="h-8 w-8 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-bold text-white mb-2">Exam Management</h1>
+                    <p className="text-blue-100 text-lg">
+                      Create, schedule, and manage examinations with comprehensive analytics and reporting
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 animate-slideInRight">
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      className="bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm animate-pulseGlow"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Exam
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Create New Exam</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateExam} className="space-y-6">
+                      {/* Basic Information */}
+                      <div className="space-y-3">
+                        <h3 className="text-base font-medium text-gray-900">Basic Information</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
                       <Label htmlFor="name">Exam Name *</Label>
                       <Input 
                         id="name" 
@@ -567,13 +613,15 @@ export const ExamManagement = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="academic_year">Academic Year *</Label>
-                      <Input 
-                        id="academic_year" 
-                        name="academic_year" 
-                        placeholder="2024-2025" 
-                        defaultValue={currentAcademicYear?.name || ''}
-                        required 
+                      <div className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-md text-gray-700 font-medium">
+                        {getAcademicYearString(academicYearQuery)}
+                      </div>
+                      <input
+                        type="hidden"
+                        name="academic_year"
+                        value={getAcademicYearString(academicYearQuery)}
                       />
+                      <p className="text-xs text-gray-500">Automatically set from system configuration</p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="term">Term *</Label>
@@ -612,11 +660,48 @@ export const ExamManagement = () => {
                     {createExamMutation.isPending ? 'Creating...' : 'Create Exam'}
                   </Button>
                 </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+
+            {/* Premium View Mode Tabs */}
+            <div className="animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
+              <div className="bg-white/20 backdrop-blur-glass rounded-2xl p-2 inline-flex space-x-2">
+                {[
+                  { mode: 'list', icon: BookOpen, label: 'Exams' },
+                  { mode: 'stats', icon: BarChart3, label: 'Statistics' },
+                  { mode: 'grade', icon: Award, label: 'Grade Results' },
+                  { mode: 'reports', icon: Eye, label: 'Reports' }
+                ].map(({ mode, icon: Icon, label }) => (
+                  <button
+                    key={mode}
+                    onClick={() => mode === 'grade' ? handleQuickAction('grade') : mode === 'reports' ? handleQuickAction('reports') : setViewMode(mode as any)}
+                    className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
+                      viewMode === mode
+                        ? 'bg-white text-blue-700 shadow-lg'
+                        : 'text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Wave Bottom */}
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg className="w-full h-20 fill-current text-slate-50" viewBox="0 0 1440 120">
+              <path d="M0,60 C240,120 480,0 720,60 C960,120 1200,0 1440,60 L1440,120 L0,120 Z" />
+            </svg>
+          </div>
         </div>
-      </div>
+
+        {/* Main Content */}
+        <div className="relative z-10 -mt-10 space-y-8 px-6 pb-16">
 
       {/* Filters */}
       <Card>
@@ -723,7 +808,31 @@ export const ExamManagement = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {exams.map((exam) => (
+                  {(() => {
+
+                    const filtered = exams.filter((exam) => {
+                      // Only show future/today exams in Active Exams section
+                      const examDate = new Date(exam.exam_date);
+                      const today = new Date();
+
+                      // Compare only dates (YYYY-MM-DD), not times
+                      const examDateStr = examDate.toISOString().split('T')[0];
+                      const todayStr = today.toISOString().split('T')[0];
+
+                      // Debug: log filter logic
+                        examName: exam.name,
+                        examDate: exam.exam_date,
+                        examDateStr,
+                        todayStr,
+                        comparison: examDateStr >= todayStr,
+                        shouldShow: examDateStr >= todayStr
+                      });
+
+                      return examDateStr >= todayStr;
+                    });
+
+                    return filtered;
+                  })().map((exam) => (
                     <TableRow key={exam.id}>
                       <TableCell className="font-medium">{exam.name}</TableCell>
                       <TableCell>{getSubjectName(exam.subject_id)}</TableCell>
@@ -769,8 +878,8 @@ export const ExamManagement = () => {
                           >
                             <Award className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             size="sm"
                             onClick={() => handleEditExam(exam)}
                             title="Edit Exam"
@@ -1026,8 +1135,23 @@ export const ExamManagement = () => {
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                  <Badge variant={selectedExam.is_active ? "default" : "secondary"}>
-                    {selectedExam.is_active ? "Active" : "Inactive"}
+                  <Badge variant={(() => {
+                    const examDate = new Date(selectedExam.exam_date);
+                    const today = new Date();
+                    const examDateStr = examDate.toISOString().split('T')[0];
+                    const todayStr = today.toISOString().split('T')[0];
+                    const isPast = examDateStr < todayStr;
+                    return (!isPast && selectedExam.is_active) ? "default" : "secondary";
+                  })()}>
+                    {(() => {
+                      const examDate = new Date(selectedExam.exam_date);
+                      const today = new Date();
+                      const examDateStr = examDate.toISOString().split('T')[0];
+                      const todayStr = today.toISOString().split('T')[0];
+                      const isPast = examDateStr < todayStr;
+                      if (isPast) return "Completed";
+                      return selectedExam.is_active ? "Active" : "Inactive";
+                    })()}
                   </Badge>
                 </div>
               </div>
@@ -1177,13 +1301,15 @@ export const ExamManagement = () => {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-academic_year">Academic Year</Label>
-                  <Input 
-                    id="edit-academic_year" 
-                    name="academic_year" 
-                    placeholder="2023-2024" 
-                    defaultValue={selectedExam.academic_year} 
-                    required 
+                  <div className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-md text-gray-700 font-medium">
+                    {selectedExam.academic_year}
+                  </div>
+                  <input
+                    type="hidden"
+                    name="academic_year"
+                    value={selectedExam.academic_year}
                   />
+                  <p className="text-xs text-gray-500">Academic year cannot be changed</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-term">Term</Label>
@@ -1222,6 +1348,6 @@ export const ExamManagement = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 };

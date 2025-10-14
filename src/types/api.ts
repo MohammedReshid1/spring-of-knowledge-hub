@@ -105,12 +105,16 @@ export interface Attendance {
   id: string;
   student_id: string;
   class_id: string;
+  subject_id?: string;
   attendance_date: string;
   status: string;
   notes?: string;
+  check_in_time?: string;
+  check_out_time?: string;
   recorded_by: string;
   branch_id: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Fee {
@@ -438,11 +442,18 @@ export interface Substitution {
 }
 
 // Payment Management Types
+export interface GradeLevelTier {
+  grade_levels: string[];
+  amount: number;
+}
+
 export interface FeeCategory {
   id: string;
   name: string;
   description?: string;
   base_amount: number;
+  amount?: number; // Default amount if no tiers
+  grade_level_tiers?: GradeLevelTier[]; // Tiers with different amounts per grade range
   is_active: boolean;
   is_mandatory: boolean;
   due_period: 'monthly' | 'quarterly' | 'annually' | 'one_time';
@@ -457,27 +468,72 @@ export interface FeeCategory {
 
 export interface Payment {
   id: string;
-  student_id: string;
-  fee_category_id: string;
-  amount: number;
-  payment_method: 'cash' | 'card' | 'bank_transfer' | 'cheque' | 'online';
-  payment_date: string;
-  due_date: string;
-  status: 'pending' | 'completed' | 'cancelled' | 'refunded' | 'partial';
-  reference_number?: string;
   receipt_number: string;
-  notes?: string;
-  late_fee_amount?: number;
+  payment_id?: string;
+  student_id: string;
+  payment_date: string;
+  academic_year?: string;
+  semester?: string;
+  due_date?: string;
+
+  // Amount fields
+  amount: number;
+  currency?: string;
   discount_amount?: number;
-  created_by: string;
+  discount_percentage?: number;
+  discount_reason?: string;
+  tax_amount?: number;
+  late_fee_amount?: number;
+
+  // Payment category and description
+  category?: string;
+  description?: string;
+
+  // Payment details
+  payment_method: 'cash' | 'card' | 'bank_transfer' | 'check' | 'mobile_money';
+  payment_reference?: string;
+  payment_gateway?: string;
+
+  // Payer information
+  payer_name?: string;
+  payer_phone?: string;
+  payer_email?: string;
+
+  // Bank/Card specific fields
+  bank_name?: string;
+  cheque_number?: string;
+  cheque_date?: string;
+  card_last_four?: string;
+
+  // Status and metadata
+  status: 'pending' | 'completed' | 'overdue' | 'partial' | 'refunded' | 'partial_refund';
+  verification_status?: 'unverified' | 'verified' | 'rejected';
+  verified_by?: string;
+  verified_at?: string;
+  remarks?: string;
+  internal_notes?: string;
+
+  // Additional fields
+  fee_template_id?: string;
+
+  // Cancellation/Refund info
+  cancellation_reason?: string;
+  cancelled_by?: string;
+  cancelled_at?: string;
+  refund_amount?: number;
+  refund_date?: string;
+  refund_reference?: string;
+
+  // System fields
   branch_id: string;
-  academic_year: string;
+  created_by: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+
   // Enriched fields from joins
   student?: Student;
+  payment_details?: PaymentDetail[];
   fee_category?: FeeCategory;
-  creator?: User;
 }
 
 export interface PaymentItem {
@@ -491,6 +547,33 @@ export interface PaymentItem {
   late_fee_amount?: number;
   notes?: string;
   fee_category?: FeeCategory;
+}
+
+export interface PaymentDetail {
+  id: string;
+  payment_id: string;
+  fee_category_id: string;
+  quantity: number;
+  unit_amount: number;
+  total_amount: number;
+  discount_amount?: number;
+  late_fee_amount?: number;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
+  fee_category?: FeeCategory;
+}
+
+export interface PaymentWithDetails {
+  payment: Payment;
+  details: PaymentDetail[];
+}
+
+export interface FeeItemCreate {
+  fee_category_id: string;
+  quantity: number;
+  discount_amount?: number;
+  notes?: string;
 }
 
 export interface PaymentReceipt {
@@ -516,22 +599,6 @@ export interface PaymentReport {
   generated_by: string;
 }
 
-export interface BulkPaymentImport {
-  id: string;
-  file_name: string;
-  file_path: string;
-  total_records: number;
-  processed_records: number;
-  successful_imports: number;
-  failed_imports: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  error_summary?: string;
-  uploaded_by: string;
-  branch_id: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface PaymentStats {
   total_payments: number;
   total_amount_collected: number;
@@ -553,3 +620,69 @@ export interface PaymentStats {
   }>;
 }
 
+// Grade-level Fee Rates and Bulk Import Types
+export interface GradeLevelFeeRate {
+  id: string;
+  grade_range: string;
+  branch_id: string;
+  registration_fee: number;
+  quarterly_fee: number;
+  academic_year: string;
+  is_active: boolean;
+  description?: string;
+  created_at: string;
+  updated_at?: string;
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface GradeLevelFeeRateCreate {
+  grade_range: string;
+  branch_id: string;
+  registration_fee: number;
+  quarterly_fee: number;
+  academic_year: string;
+  is_active?: boolean;
+  description?: string;
+}
+
+export interface BulkPaymentImportRequest {
+  branch_id: string;
+  academic_year: string;
+  payment_period: string;
+  fee_type: 'registration' | 'quarterly';
+  due_date: string;
+  validate_only?: boolean;
+  notes?: string;
+}
+
+export interface BulkPaymentImportResult {
+  id: string;
+  total_items: number;
+  successful_imports: number;
+  failed_imports: number;
+  validation_errors: Array<{
+    row: number;
+    error: string;
+  }>;
+  import_summary: {
+    grade_breakdown: Record<string, {
+      count: number;
+      total_amount: string;
+    }>;
+    total_amount: string;
+  };
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'completed_with_errors';
+  created_at: string;
+  processed_at?: string;
+  branch_id: string;
+  academic_year: string;
+  created_by: string;
+}
+
+export interface BulkImportValidationInfo {
+  required_columns: string[];
+  optional_columns: string[];
+  example_row: Record<string, string>;
+  supported_grade_levels: Record<string, string[]>;
+}

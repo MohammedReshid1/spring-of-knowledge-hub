@@ -1,5 +1,5 @@
 // API Client for FastAPI Backend
-import type { ApiResponse, User, Branch, Student, Teacher, SchoolClass, Attendance, Fee, GradeLevel, Subject, StudentEnrollment, PaymentMode, RegistrationPayment, BackupLog, GradeTransition, Parent, FeeCategory, Payment, PaymentItem, PaymentReceipt, PaymentReport, BulkPaymentImport, PaymentStats } from '@/types/api';
+import type { ApiResponse, User, Branch, Student, Teacher, SchoolClass, Attendance, Fee, GradeLevel, Subject, StudentEnrollment, PaymentMode, RegistrationPayment, BackupLog, GradeTransition, Parent, FeeCategory, Payment, PaymentItem, PaymentDetail, PaymentWithDetails, FeeItemCreate, PaymentReceipt, PaymentReport, BulkPaymentImport, PaymentStats, GradeLevelFeeRate, GradeLevelFeeRateCreate, BulkPaymentImportRequest, BulkPaymentImportResult, BulkImportValidationInfo } from '@/types/api';
 import { config } from './config';
 import { isTokenExpired, shouldRefreshToken } from '@/utils/jwt';
 import { TokenStorage } from '@/utils/tokenStorage';
@@ -57,6 +57,8 @@ function mapToBackendFeeCategory(payload: Partial<FrontendFeeCategory>): Record<
   if (payload.is_active !== undefined) backend.is_active = payload.is_active;
   if ((payload as any).branch_id !== undefined) backend.branch_id = (payload as any).branch_id;
   if (payload.late_fee_days !== undefined) backend['late_fee_grace_days'] = payload.late_fee_days;
+  if ((payload as any).grade_level_tiers !== undefined) backend.grade_level_tiers = (payload as any).grade_level_tiers;
+  if ((payload as any).amount !== undefined) backend.amount = (payload as any).amount;
 
   return backend;
 }
@@ -86,6 +88,7 @@ function mapFromBackendFeeCategory(doc: any): FrontendFeeCategory {
     branch_id: doc.branch_id ?? '',
     academic_year: doc.academic_year ?? yearRange,
     grade_levels: Array.isArray(doc.grade_levels) ? doc.grade_levels : [],
+    grade_level_tiers: Array.isArray(doc.grade_level_tiers) ? doc.grade_level_tiers : undefined,
     created_at: doc.created_at ?? now.toISOString(),
     updated_at: doc.updated_at ?? now.toISOString(),
   } as FrontendFeeCategory;
@@ -153,7 +156,6 @@ class ApiClient {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
         await new Promise(resolve => setTimeout(resolve, delay));
         
-        console.log(`Retrying API request (attempt ${attempt + 1}/${maxAttempts}): ${endpoint}`);
         
       } catch (error) {
         lastError = error;
@@ -192,9 +194,22 @@ class ApiClient {
         const refreshResponse = await this.refreshToken();
         if (refreshResponse.data?.access_token) {
           this.setToken(refreshResponse.data.access_token);
+        } else if (refreshResponse.error) {
+          // Refresh failed, trigger logout
+          console.warn('Token refresh failed, logging out');
+          this.removeToken();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth:logout'));
+          }
+          return { error: 'Authentication failed' };
         }
       } catch (error) {
-        console.warn('Token refresh failed:', error);
+        console.warn('Token refresh error, logging out:', error);
+        this.removeToken();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth:logout'));
+        }
+        return { error: 'Authentication failed' };
       }
     }
     
@@ -226,10 +241,20 @@ class ApiClient {
           if (refreshResponse.data?.access_token) {
             this.setToken(refreshResponse.data.access_token);
             return this.request(endpoint, options, retryCount + 1);
+          } else {
+            // Refresh returned but no token - logout
+            this.removeToken();
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('auth:logout'));
+            }
+            return { error: 'Authentication failed' };
           }
         } catch (refreshError) {
-          // Refresh failed, remove token
+          // Refresh failed, remove token and trigger logout
           this.removeToken();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth:logout'));
+          }
           return { error: 'Authentication failed' };
         }
       }
@@ -277,7 +302,7 @@ class ApiClient {
     formData.append('password', password);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/users/login`, {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -312,7 +337,8 @@ class ApiClient {
   }
 
   async getCurrentUser(): Promise<ApiResponse<User>> {
-    return this.request('/users/me');
+    // Use /auth/me which includes permissions
+    return this.request('/auth/me');
   }
 
   async refreshToken(): Promise<ApiResponse<{ access_token: string; token_type: string }>> {
@@ -321,26 +347,131 @@ class ApiClient {
     });
   }
 
-  // RBAC methods
-  async getUserPermissions(): Promise<ApiResponse<{ 
-    permissions: string[]; 
-    role: string;
-    normalized_role: string;
-    role_hierarchy_level: number;
-    branch_access: string;
-  }>> {
-    return this.request('/permissions/me');
+  // Generic HTTP methods
+  async get<T>(endpoint: string, options?: RequestInit & { params?: Record<string, any> }): Promise<ApiResponse<T>> {
+    let url = endpoint;
+
+    // Handle params if provided
+    if (options?.params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(options.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+
+      const queryString = searchParams.toString();
+      if (queryString) {
+        url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${queryString}`;
+      }
+
+      // Remove params from options to avoid passing it to fetch
+      const { params, ...restOptions } = options;
+      return this.request<T>(url, { ...restOptions, method: 'GET' });
+    }
+
+    return this.request<T>(url, { ...options, method: 'GET' });
   }
 
-  async checkUserPermission(permission: string): Promise<ApiResponse<{ 
+  async post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<ApiResponse<T>> {
+    const body = data ? JSON.stringify(data) : undefined;
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+      }
+    });
+  }
+
+  async put<T>(endpoint: string, data?: any, options?: RequestInit): Promise<ApiResponse<T>> {
+    const body = data ? JSON.stringify(data) : undefined;
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PUT',
+      body,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+      }
+    });
+  }
+
+  async patch<T>(endpoint: string, data?: any, options?: RequestInit & { params?: Record<string, any> }): Promise<ApiResponse<T>> {
+    let url = endpoint;
+
+    // Handle params if provided
+    if (options?.params) {
+      const searchParams = new URLSearchParams();
+      Object.entries(options.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+
+      const queryString = searchParams.toString();
+      if (queryString) {
+        url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${queryString}`;
+      }
+
+      // Remove params from options to avoid passing it to fetch
+      const { params, ...restOptions } = options;
+      const body = data ? JSON.stringify(data) : undefined;
+      return this.request<T>(url, {
+        ...restOptions,
+        method: 'PATCH',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          ...restOptions?.headers
+        }
+      });
+    }
+
+    const body = data ? JSON.stringify(data) : undefined;
+    return this.request<T>(url, {
+      ...options,
+      method: 'PATCH',
+      body,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+      }
+    });
+  }
+
+  async delete<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { ...options, method: 'DELETE' });
+  }
+
+  // RBAC methods
+  async getUserPermissions(): Promise<ApiResponse<{
+    user_id: string;
+    roles: Array<{name: string; display_name: string; branch_specific: boolean; branch_id?: string}>;
+    permissions: string[];
+    branch_id?: string;
+    cached: boolean;
+    computed_at: string;
+  }>> {
+    return this.request('/rbac/me/permissions');
+  }
+
+  // ❌ DEPRECATED: Do not use this method
+  // Permissions are now loaded ONCE via /auth/me and checked locally
+  // Using this method can cause 520 errors if called in loops
+  // @deprecated Use hasPermission() from usePermissions hook instead
+  /*
+  async checkUserPermission(permission: string): Promise<ApiResponse<{
     has_permission: boolean;
     hasPermission?: boolean; // For backward compatibility
   }>> {
-    return this.request('/permissions/check', {
+    return this.request(`/rbac/me/check-permission?permission=${encodeURIComponent(permission)}`, {
       method: 'POST',
-      body: JSON.stringify({ permission, resource_id: null }),
     });
   }
+  */
 
   async getUsers(): Promise<ApiResponse<User[]>> {
     return this.request('/users/');
@@ -533,7 +664,7 @@ class ApiClient {
   }
 
   async updateAttendance(attendanceId: string, attendanceData: any): Promise<ApiResponse<any>> {
-    return this.request(`/attendance/${attendanceId}`, {
+    return this.request(`/attendance/record/${attendanceId}`, {
       method: 'PUT',
       body: JSON.stringify(attendanceData),
     });
@@ -602,11 +733,16 @@ class ApiClient {
 
   async getClassAttendanceReport(
     classId: string,
-    reportDate?: string
+    params?: { start_date?: string; end_date?: string; report_date?: string }
   ): Promise<ApiResponse<any>> {
     const searchParams = new URLSearchParams();
-    if (reportDate) searchParams.append('report_date', reportDate);
-    
+    if (params?.report_date) {
+      searchParams.append('report_date', params.report_date);
+    } else if (params?.start_date && params?.end_date) {
+      searchParams.append('start_date', params.start_date);
+      searchParams.append('end_date', params.end_date);
+    }
+
     const queryString = searchParams.toString();
     const url = queryString ? `/attendance/reports/class/${classId}?${queryString}` : `/attendance/reports/class/${classId}`;
     return this.request(url);
@@ -705,6 +841,15 @@ class ApiClient {
   // Grade Level methods
   async getGradeLevels(): Promise<ApiResponse<any[]>> {
     return this.request('/grade-levels/');
+  }
+
+  async getGradeLevelsByBranch(branchId?: string): Promise<ApiResponse<any[]>> {
+    const params = branchId ? `?branch_id=${encodeURIComponent(branchId)}` : '';
+    return this.request(`/grade-levels-branch/${params}`);
+  }
+
+  async getGradeLevelStats(branchId: string): Promise<ApiResponse<any[]>> {
+    return this.request(`/grade-levels-branch/stats/${encodeURIComponent(branchId)}`);
   }
 
   async createGradeLevel(gradeLevelData: any): Promise<ApiResponse<any>> {
@@ -1021,41 +1166,89 @@ class ApiClient {
     });
   }
 
-  // Backup Log methods
-  async getBackupLogs(): Promise<ApiResponse<any[]>> {
-    return this.request('/backup-logs/');
-  }
+  // Advanced Backup methods
+  async createAdvancedBackup(params: { compress?: boolean; encrypt?: boolean; notes?: string }): Promise<ApiResponse<any>> {
+    const queryParams = new URLSearchParams();
+    if (params.compress !== undefined) queryParams.append('compress', String(params.compress));
+    if (params.encrypt !== undefined) queryParams.append('encrypt', String(params.encrypt));
+    if (params.notes) queryParams.append('notes', params.notes);
 
-  async createBackupLog(backupData: any): Promise<ApiResponse<any>> {
-    return this.request('/backup-logs/', {
-      method: 'POST',
-      body: JSON.stringify(backupData),
-    });
-  }
-
-  async createManualBackup(): Promise<ApiResponse<any>> {
-    return this.request('/backup-logs/create-backup', {
+    return this.request(`/backups/create?${queryParams.toString()}`, {
       method: 'POST',
     });
   }
 
-  async restoreFromBackup(backupId: string): Promise<ApiResponse<any>> {
-    return this.request(`/backup-logs/restore/${backupId}`, {
+  async restoreAdvancedBackup(backupId: string, params: { create_safety_backup?: boolean; collections?: string }): Promise<ApiResponse<any>> {
+    const queryParams = new URLSearchParams();
+    if (params.create_safety_backup !== undefined) queryParams.append('create_safety_backup', String(params.create_safety_backup));
+    if (params.collections) queryParams.append('collections', params.collections);
+
+    return this.request(`/backups/restore/${backupId}?${queryParams.toString()}`, {
       method: 'POST',
     });
   }
 
-  async updateBackupLog(backupId: string, backupData: any): Promise<ApiResponse<any>> {
-    return this.request(`/backup-logs/${backupId}`, {
-      method: 'PUT',
-      body: JSON.stringify(backupData),
-    });
+  async listAdvancedBackups(params: { backup_type?: string; status_filter?: string; limit?: number; offset?: number }): Promise<ApiResponse<any>> {
+    const queryParams = new URLSearchParams();
+    if (params.backup_type) queryParams.append('backup_type', params.backup_type);
+    if (params.status_filter) queryParams.append('status_filter', params.status_filter);
+    if (params.limit) queryParams.append('limit', String(params.limit));
+    if (params.offset) queryParams.append('offset', String(params.offset));
+
+    return this.request(`/backups/list?${queryParams.toString()}`);
   }
 
-  async deleteBackupLog(backupId: string): Promise<ApiResponse<void>> {
-    return this.request(`/backup-logs/${backupId}`, {
+  async getAdvancedBackupStats(): Promise<ApiResponse<any>> {
+    return this.request('/backups/stats');
+  }
+
+  async deleteAdvancedBackup(backupId: string): Promise<ApiResponse<any>> {
+    return this.request(`/backups/${backupId}`, {
       method: 'DELETE',
     });
+  }
+
+  async applyBackupRetentionPolicy(params: { retention_days?: number; keep_count?: number }): Promise<ApiResponse<any>> {
+    const queryParams = new URLSearchParams();
+    if (params.retention_days) queryParams.append('retention_days', String(params.retention_days));
+    if (params.keep_count) queryParams.append('keep_count', String(params.keep_count));
+
+    return this.request(`/backups/retention/apply?${queryParams.toString()}`, {
+      method: 'POST',
+    });
+  }
+
+  async downloadAdvancedBackup(backupId: string): Promise<Blob> {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${this.baseURL}/backups/download/${backupId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+    }
+
+    return response.blob();
+  }
+
+  async verifyAdvancedBackup(backupId: string): Promise<ApiResponse<any>> {
+    return this.request(`/backups/verify/${backupId}`, {
+      method: 'POST',
+    });
+  }
+
+  // Database Cleanup methods
+  async cleanupDatabase(tableName: string): Promise<ApiResponse<any>> {
+    return this.request(`/database-cleanup/${tableName}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getDatabaseStatus(): Promise<ApiResponse<any>> {
+    return this.request('/database-cleanup/status');
   }
 
   // Grade Transition methods
@@ -1091,6 +1284,10 @@ class ApiClient {
     return this.request('/grade-transitions/execute/transition', {
       method: 'POST',
     });
+  }
+
+  async getGradeTransitionHistory(limit: number = 10): Promise<ApiResponse<any[]>> {
+    return this.request(`/grade-transitions/history?limit=${limit}`);
   }
 
   // Parent methods
@@ -1793,58 +1990,6 @@ class ApiClient {
     return { data: upcomingExams };
   }
 
-  // Generic HTTP methods for flexibility (used by inventory and other modules)
-  async get<T>(endpoint: string): Promise<{ data: T }> {
-    const response = await this.request<T>(endpoint);
-    if (response.error) {
-      throw new Error(response.error);
-    }
-    return { data: response.data };
-  }
-
-  async post<T>(endpoint: string, data?: any): Promise<{ data: T }> {
-    const response = await this.request<T>(endpoint, {
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-    if (response.error) {
-      throw new Error(response.error);
-    }
-    return { data: response.data };
-  }
-
-  async put<T>(endpoint: string, data?: any): Promise<{ data: T }> {
-    const response = await this.request<T>(endpoint, {
-      method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-    if (response.error) {
-      throw new Error(response.error);
-    }
-    return { data: response.data };
-  }
-
-  async patch<T>(endpoint: string, data?: any): Promise<{ data: T }> {
-    const response = await this.request<T>(endpoint, {
-      method: 'PATCH',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-    if (response.error) {
-      throw new Error(response.error);
-    }
-    return { data: response.data };
-  }
-
-  async delete<T>(endpoint: string): Promise<{ data: T }> {
-    const response = await this.request<T>(endpoint, {
-      method: 'DELETE',
-    });
-    if (response.error) {
-      throw new Error(response.error);
-    }
-    return { data: response.data };
-  }
-
   // Payment API methods
   async getPaymentAnalyticsSummary(params?: {
     academic_year?: string;
@@ -1881,7 +2026,6 @@ class ApiClient {
     const url = queryString ? `/payments/dashboard?${queryString}` : '/payments/dashboard';
     return this.request(url);
   }
-
 
   async getStudentPaymentStatus(
     studentId: string,
@@ -2909,7 +3053,7 @@ class ApiClient {
 
   async createFeeCategory(categoryData: Omit<FeeCategory, 'id' | 'created_at' | 'updated_at'>): Promise<ApiResponse<FeeCategory>> {
     const backendPayload = mapToBackendFeeCategory(categoryData);
-    const res = await this.request<any>('/fee-categories', {
+    const res = await this.request<any>('/fee-categories/', {
       method: 'POST',
       body: JSON.stringify(backendPayload),
     });
@@ -2939,8 +3083,8 @@ class ApiClient {
     return res as ApiResponse<FeeCategory>;
   }
 
-  async deleteFeeCategory(categoryId: string): Promise<ApiResponse<void>> {
-    return this.request(`/fee-categories/${categoryId}`, {
+  async deleteFeeCategory(categoryId: string, permanent: boolean = true): Promise<ApiResponse<void>> {
+    return this.request(`/fee-categories/${categoryId}?permanent=${permanent}`, {
       method: 'DELETE',
     });
   }
@@ -3082,37 +3226,6 @@ class ApiClient {
     return this.request(url);
   }
 
-  // Bulk Import
-  async uploadBulkPaymentFile(file: File, options?: {
-    validate_only?: boolean;
-    branch_id?: string;
-    academic_year?: string;
-  }): Promise<ApiResponse<BulkPaymentImport>> {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    if (options) {
-      Object.entries(options).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          formData.append(key, value.toString());
-        }
-      });
-    }
-
-    return this.request('/payment-bulk-import', {
-      method: 'POST',
-      body: formData,
-      headers: {
-        // Don't set Content-Type for FormData, let browser set it with boundary
-        ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
-      },
-    });
-  }
-
-  async getBulkImportStatus(importId: string): Promise<ApiResponse<BulkPaymentImport>> {
-    return this.request(`/payment-bulk-import/${importId}`);
-  }
-
   // Payment Receipts
   async generatePaymentReceipt(paymentId: string, format: 'pdf' | 'html' = 'pdf'): Promise<ApiResponse<Blob>> {
     // Backend expects POST to /payment-receipts/generate with JSON body
@@ -3152,6 +3265,101 @@ class ApiClient {
     const url = queryString ? `/payments/dashboard-stats?${queryString}` : '/payments/dashboard-stats';
     return this.request(url);
   }
+
+  // User Management
+  async changePassword(currentPassword: string, newPassword: string): Promise<ApiResponse<any>> {
+    return this.request('/users/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+  }
+
+  // Grade-Level Fee Rates Management
+  async createGradeLevelFeeRate(data: GradeLevelFeeRateCreate): Promise<ApiResponse<GradeLevelFeeRate>> {
+    return this.request('/grade-level-bulk-import/grade-rates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getGradeLevelFeeRates(params: {
+    branch_id: string;
+    academic_year?: string;
+    is_active?: boolean;
+  }): Promise<ApiResponse<GradeLevelFeeRate[]>> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, value.toString());
+      }
+    });
+    return this.request(`/grade-level-bulk-import/grade-rates?${searchParams.toString()}`);
+  }
+
+  async updateGradeLevelFeeRate(rateId: string, data: Partial<GradeLevelFeeRateCreate>): Promise<ApiResponse<GradeLevelFeeRate>> {
+    return this.request(`/grade-level-bulk-import/grade-rates/${rateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteGradeLevelFeeRate(rateId: string): Promise<ApiResponse<void>> {
+    return this.request(`/grade-level-bulk-import/grade-rates/${rateId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Grade-Level Bulk Import
+  async bulkImportGradeLevelPayments(
+    file: File,
+    importRequest: BulkPaymentImportRequest
+  ): Promise<ApiResponse<BulkPaymentImportResult>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('import_request', JSON.stringify(importRequest));
+
+    return this.request('/grade-level-bulk-import/bulk-import', {
+      method: 'POST',
+      body: formData,
+      headers: {}, // Don't set Content-Type, let browser set it for FormData
+    });
+  }
+
+  async getBulkImportStatus(importId: string): Promise<ApiResponse<BulkPaymentImportResult>> {
+    return this.request(`/grade-level-bulk-import/bulk-import/${importId}`);
+  }
+
+  async getBulkImportHistory(params: {
+    branch_id: string;
+    limit?: number;
+    skip?: number;
+  }): Promise<ApiResponse<BulkPaymentImportResult[]>> {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, value.toString());
+      }
+    });
+    return this.request(`/grade-level-bulk-import/bulk-import-history?${searchParams.toString()}`);
+  }
+
+  async getGradeLevelBulkImportValidation(): Promise<ApiResponse<BulkImportValidationInfo>> {
+    return this.request('/grade-level-bulk-import/validate-csv');
+  }
+
+  // RBAC Stats
+  async getRbacStats(): Promise<ApiResponse<{
+    permissions: { total: number; active: number; inactive: number };
+    roles: { total: number; active: number; system: number; custom: number };
+    users: { total: number; withRoles: number; withoutRoles: number; active: number };
+    audit: { todayEntries: number; successRate: number; failedActions: number };
+  }>> {
+    return this.request('/rbac/stats');
+  }
+
 }
 
 export const apiClient = new ApiClient();

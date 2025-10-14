@@ -12,6 +12,8 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 import { useBranch } from '@/contexts/BranchContext';
+import { useCurrency } from '@/hooks/useSystemSettings';
+import { formatCurrency } from '@/utils/currency';
 
 interface StudentPaymentHistoryProps {
   studentId: string;
@@ -22,6 +24,7 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [studentDatabaseId, setStudentDatabaseId] = useState<string | null>(null);
   const { selectedBranch } = useBranch();
+  const currency = useCurrency();
 
   // Delete mutation commented out - backend doesn't support payment deletion
   // const deletePaymentMutation = useMutation({
@@ -69,28 +72,19 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
       // Store the database ID for use in PaymentForm
       setStudentDatabaseId(student.id);
 
-      console.log('Fetching payments for student:', {
-        studentId,
-        databaseId: student.id,
-        selectedBranch
-      });
+        // Student payment query data logged for debugging
 
-      // Get payments filtered by student's database ID - only call once
+      // Get payments for this student using database ID - the API returns { payments: [...] } format
       const paymentsResp = await apiClient.getRegistrationPayments(selectedBranch!, student.id);
 
       if (paymentsResp.error) throw new Error(paymentsResp.error as string);
 
-      console.log('API response:', paymentsResp.data);
+      // Handle response format - API returns { payments: [...] } structure
+      const payments = paymentsResp.data?.payments || [];
 
-      // Handle paginated response format
-      // The API returns { payments: [...], total: X, page: Y, ... }
-      const payments = Array.isArray(paymentsResp.data) ? paymentsResp.data : (paymentsResp.data?.payments || []);
-
-      console.log('Extracted payments:', payments);
       
       // Map payments to our display format
       const mappedPayments = payments.map(payment => {
-        console.log('Processing payment:', payment);
 
         return {
           id: payment.id || payment._id,
@@ -106,7 +100,6 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                          payment.status === 'pending' ? 'Unpaid' :
                          payment.status === 'partial' ? 'Partial' :
                          payment.payment_status || 'Unknown',
-          academic_year: payment.academic_year || 'Unknown',
           payment_cycle: payment.payment_cycle || payment.fee_type || 'Annual',
           payment_method: payment.payment_method || 'Cash',
           notes: payment.notes || payment.remarks || 'No notes',
@@ -119,10 +112,7 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
       const allPayments = mappedPayments
         .sort((a, b) => new Date(b.payment_date || '').getTime() - new Date(a.payment_date || '').getTime());
 
-      console.log('Final payments:', {
-        count: allPayments.length,
-        payments: allPayments
-      });
+      // Payment summary logged for debugging
 
       return allPayments;
     }
@@ -166,118 +156,91 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Premium Payment Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-100 text-sm font-medium">Total Paid</p>
-                <p className="text-3xl font-bold mt-1">${totalPaid.toFixed(2)}</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-full">
-                <DollarSign className="h-8 w-8" />
-              </div>
+    <div className="space-y-4 p-4">
+      {/* Compact Payment Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/60 via-white/40 to-emerald-50/30 border border-white/30 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-md" />
+              <DollarSign className="relative h-8 w-8 text-emerald-600" />
             </div>
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-300 to-emerald-400" />
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Total Amount</p>
-                <p className="text-3xl font-bold mt-1">${totalAmount.toFixed(2)}</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-full">
-                <Receipt className="h-8 w-8" />
-              </div>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-300 to-blue-400" />
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-100 text-sm font-medium">Remaining</p>
-                <p className="text-3xl font-bold mt-1">${remainingAmount.toFixed(2)}</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-full">
-                <AlertCircle className="h-8 w-8" />
-              </div>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-300 to-orange-400" />
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm font-medium">Payment Records</p>
-                <p className="text-3xl font-bold mt-1">{payments?.length || 0}</p>
-              </div>
-              <div className="p-3 bg-white/20 rounded-full">
-                <CreditCard className="h-8 w-8" />
-              </div>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-300 to-purple-400" />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Premium Payment Status Overview */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-white/30 shadow-xl rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300">
-        <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-indigo-100/50">
-          <CardTitle className="flex items-center gap-3 text-xl font-bold">
-            <div className="p-2 bg-indigo-100 rounded-lg">
-              <CreditCard className="h-6 w-6 text-indigo-600" />
-            </div>
-            <span className="bg-gradient-to-r from-indigo-800 to-indigo-600 bg-clip-text text-transparent">
-              Payment Status Overview
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center p-6 bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold text-lg">✓</span>
-              </div>
-              <p className="text-sm font-medium text-emerald-600 mb-1">Paid</p>
-              <p className="text-3xl font-bold text-emerald-900">{paidPayments}</p>
-            </div>
-            <div className="text-center p-6 bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold text-lg">◐</span>
-              </div>
-              <p className="text-sm font-medium text-amber-600 mb-1">Partial</p>
-              <p className="text-3xl font-bold text-amber-900">{partialPayments}</p>
-            </div>
-            <div className="text-center p-6 bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-              <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-white font-bold text-lg">✗</span>
-              </div>
-              <p className="text-sm font-medium text-red-600 mb-1">Unpaid</p>
-              <p className="text-3xl font-bold text-red-900">{unpaidPayments}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-emerald-600/70 uppercase tracking-wide">Paid</p>
+              <p className="text-lg font-bold bg-gradient-to-r from-emerald-700 to-green-600 bg-clip-text text-transparent truncate">{formatCurrency(totalPaid, currency)}</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/60 via-white/40 to-blue-50/30 border border-white/30 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-md" />
+              <Receipt className="relative h-8 w-8 text-blue-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-blue-600/70 uppercase tracking-wide">Total</p>
+              <p className="text-lg font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent truncate">{formatCurrency(totalAmount, currency)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/60 via-white/40 to-orange-50/30 border border-white/30 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-orange-500/20 rounded-full blur-md" />
+              <AlertCircle className="relative h-8 w-8 text-orange-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-orange-600/70 uppercase tracking-wide">Due</p>
+              <p className="text-lg font-bold bg-gradient-to-r from-orange-700 to-red-600 bg-clip-text text-transparent truncate">{formatCurrency(remainingAmount, currency)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/60 via-white/40 to-slate-50/30 border border-white/30 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-slate-500/20 rounded-full blur-md" />
+              <CreditCard className="relative h-8 w-8 text-slate-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-slate-600/70 uppercase tracking-wide">Count</p>
+              <p className="text-lg font-bold bg-gradient-to-r from-slate-700 to-slate-600 bg-clip-text text-transparent">{payments?.length || 0}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Compact Status Badges */}
+      <div className="flex items-center justify-center gap-4 py-3 backdrop-blur-glass bg-gradient-to-br from-white/60 via-white/40 to-white/30 border border-white/30 rounded-xl">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+          <span className="text-sm font-medium text-slate-700">{paidPayments} Paid</span>
+        </div>
+        <div className="w-px h-4 bg-slate-300"></div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+          <span className="text-sm font-medium text-slate-700">{partialPayments} Partial</span>
+        </div>
+        <div className="w-px h-4 bg-slate-300"></div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+          <span className="text-sm font-medium text-slate-700">{unpaidPayments} Unpaid</span>
+        </div>
+      </div>
 
       {/* Premium Payment History */}
-      <Card className="bg-white/80 backdrop-blur-sm border border-white/30 shadow-xl rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300">
-        <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-slate-100/50">
+      <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-lg transition-all duration-500">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-500/[0.02] via-gray-500/[0.02] to-zinc-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <CardHeader className="relative">
           <div className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-3 text-xl font-bold">
-              <div className="p-2 bg-slate-100 rounded-lg">
-                <Receipt className="h-6 w-6 text-slate-600" />
+              <div className="relative">
+                <div className="absolute inset-0 bg-slate-500/20 rounded-full blur-lg" />
+                <Receipt className="relative h-6 w-6 text-slate-600" />
               </div>
-              <span className="bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-slate-700 to-slate-600 bg-clip-text text-transparent">
                 Payment History - {studentName}
               </span>
             </CardTitle>
@@ -305,20 +268,31 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
             </Sheet>
           </div>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="relative p-6">
           {isLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
-              <p className="text-gray-600 mt-2">Loading payment history...</p>
+            <div className="text-center py-12">
+              <div className="relative mx-auto w-16 h-16 mb-4">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-r from-blue-500/20 to-indigo-500/20 animate-pulse" />
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-transparent border-t-blue-500 border-r-indigo-500"></div>
+              </div>
+              <p className="text-slate-600 font-medium animate-pulse">Loading payment history...</p>
             </div>
           ) : !payments || payments.length === 0 ? (
-            <div className="text-center py-8">
-              <Receipt className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">No payment records found</p>
-              <p className="text-gray-500 text-sm mb-4">Start by recording the first payment</p>
-              <Button onClick={() => setIsFormOpen(true)}>
+            <div className="text-center py-12">
+              <div className="relative mx-auto w-20 h-20 mb-6">
+                <div className="absolute inset-0 bg-slate-200/50 rounded-full blur-xl" />
+                <div className="relative w-20 h-20 backdrop-blur-glass bg-gradient-to-br from-white/60 via-white/40 to-slate-50/30 border border-white/30 rounded-full flex items-center justify-center shadow-lg">
+                  <Receipt className="h-10 w-10 text-slate-400" />
+                </div>
+              </div>
+              <h3 className="text-lg font-bold bg-gradient-to-r from-slate-700 to-slate-600 bg-clip-text text-transparent mb-2">No Payment Records</h3>
+              <p className="text-slate-500 text-sm mb-6 max-w-sm mx-auto">This student doesn't have any payment history yet. Record the first payment to get started.</p>
+              <Button
+                onClick={() => setIsFormOpen(true)}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Record Payment
+                Record First Payment
               </Button>
             </div>
           ) : (
@@ -330,9 +304,7 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                   <TableHead>Total Amount</TableHead>
                   <TableHead>Remaining</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Cycle</TableHead>
                   <TableHead>Method</TableHead>
-                  <TableHead>Academic Year</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -342,7 +314,7 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-gray-500" />
-                        {payment.payment_date 
+                        {payment.payment_date
                           ? format(new Date(payment.payment_date), 'MMM dd, yyyy')
                           : 'No date'
                         }
@@ -351,11 +323,11 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                     <TableCell>
                       <div className="space-y-1">
                         <span className="font-medium text-green-600">
-                          ${(Number(payment.amount_paid) || 0).toFixed(2)}
+                          {formatCurrency(Number(payment.amount_paid) || 0, currency)}
                         </span>
                         {payment.total_amount && Number(payment.total_amount) !== Number(payment.amount_paid) && (
                           <div className="text-xs text-gray-500">
-                            of ${(Number(payment.total_amount) || 0).toFixed(2)}
+                            of {formatCurrency(Number(payment.total_amount) || 0, currency)}
                           </div>
                         )}
                       </div>
@@ -363,14 +335,14 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                     <TableCell>
                       <div className="space-y-1">
                         <span className="font-medium text-blue-600">
-                          ${(Number(payment.total_amount) || 0).toFixed(2)}
+                          {formatCurrency(Number(payment.total_amount) || 0, currency)}
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
                         <span className={`font-medium ${Number(payment.remaining_amount) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          ${(Number(payment.remaining_amount) || 0).toFixed(2)}
+                          {formatCurrency(Number(payment.remaining_amount) || 0, currency)}
                         </span>
                       </div>
                     </TableCell>
@@ -380,17 +352,9 @@ export const StudentPaymentHistory = ({ studentId, studentName }: StudentPayment
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {payment.payment_cycle ? payment.payment_cycle.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Annual'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
                       <span className="text-gray-600">
                         {payment.payment_method || 'Unknown'}
                       </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-gray-600">{payment.academic_year || 'Unknown'}</span>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">

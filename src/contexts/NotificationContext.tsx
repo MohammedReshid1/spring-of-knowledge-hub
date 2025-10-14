@@ -14,6 +14,7 @@ export interface Notification {
   timestamp: string;
   read: boolean;
   clicked: boolean;
+  dismissed?: boolean;  // For hiding from bell dropdown but keeping in full list
   action_url?: string;
   action_text?: string;
   sender_name?: string;
@@ -56,6 +57,7 @@ type NotificationAction =
   | { type: 'MARK_READ'; payload: string }
   | { type: 'MARK_ALL_READ' }
   | { type: 'MARK_CLICKED'; payload: string }
+  | { type: 'DISMISS_NOTIFICATION'; payload: string }
   | { type: 'REMOVE_NOTIFICATION'; payload: string }
   | { type: 'DISMISS_ALERT'; payload: string }
   | { type: 'SET_CONNECTION_STATUS'; payload: ConnectionStatus }
@@ -145,6 +147,15 @@ function notificationReducer(state: NotificationState, action: NotificationActio
         ...state,
         notifications: state.notifications.map(n =>
           n.id === action.payload ? { ...n, clicked: true } : n
+        )
+      };
+    }
+
+    case 'DISMISS_NOTIFICATION': {
+      return {
+        ...state,
+        notifications: state.notifications.map(n =>
+          n.id === action.payload ? { ...n, dismissed: true } : n
         )
       };
     }
@@ -256,7 +267,7 @@ interface NotificationContextType {
   addSystemAlert: (alert: SystemAlert) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
-  markAsClicked: (id: string) => void;
+  dismissNotification: (id: string) => void;
   removeNotification: (id: string) => void;
   dismissAlert: (id: string) => void;
   toggleSound: () => void;
@@ -289,31 +300,106 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cleanupIntervalRef = useRef<NodeJS.Timeout>();
 
-  // Initialize notification sound
+  // Request notification permission on mount
   useEffect(() => {
-    if (state.soundEnabled) {
-      audioRef.current = new Audio('/sounds/notification.mp3');
-      audioRef.current.volume = 0.5;
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          console.info('Browser notifications enabled');
+        }
+      });
     }
-  }, [state.soundEnabled]);
+  }, []);
 
-  const playNotificationSound = (priority: string) => {
-    if (state.soundEnabled && audioRef.current) {
-      // Different volumes for different priorities
+  const playNotificationSound = async (priority: string) => {
+    if (!state.soundEnabled) {
+      return;
+    }
+
+    try {
+      // Try to play custom audio file first
+      const audio = new Audio('/sounds/notification.mp3');
+
+      // Adjust volume based on priority
       switch (priority) {
         case 'urgent':
-          audioRef.current.volume = 0.8;
+          audio.volume = 0.8;
           break;
         case 'high':
-          audioRef.current.volume = 0.6;
+          audio.volume = 0.6;
+          break;
+        case 'medium':
+          audio.volume = 0.5;
           break;
         default:
-          audioRef.current.volume = 0.4;
+          audio.volume = 0.4;
       }
-      
-      audioRef.current.play().catch(error => {
-        console.warn('Could not play notification sound:', error);
-      });
+
+      await audio.play();
+    } catch (error) {
+      console.warn('Could not play audio file, falling back to Web Audio API:', error);
+
+      // Fallback to Web Audio API if file doesn't exist
+      try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContext();
+
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+
+        // Telegram-style notification sound (accurate tri-tone)
+        const notes: { freq: number; start: number; duration: number }[] = [
+          { freq: 1318.51, start: 0, duration: 0.07 },
+          { freq: 1046.50, start: 0.075, duration: 0.07 },
+          { freq: 880.00, start: 0.15, duration: 0.1 }
+        ];
+
+        let volume = 0.4;
+        switch (priority) {
+          case 'urgent':
+            volume = 0.5;
+            break;
+          case 'high':
+            volume = 0.45;
+            break;
+          case 'medium':
+            volume = 0.4;
+            break;
+          default:
+            volume = 0.35;
+        }
+
+        const now = audioContext.currentTime;
+
+        notes.forEach(note => {
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+
+          oscillator.frequency.value = note.freq;
+          oscillator.type = 'sine';
+
+          const startTime = now + note.start;
+          const endTime = startTime + note.duration;
+
+          gainNode.gain.setValueAtTime(0, startTime);
+          gainNode.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+          gainNode.gain.setValueAtTime(volume, endTime - 0.02);
+          gainNode.gain.linearRampToValueAtTime(0, endTime);
+
+          oscillator.start(startTime);
+          oscillator.stop(endTime);
+        });
+
+        setTimeout(() => {
+          audioContext.close();
+        }, 500);
+      } catch (fallbackError) {
+        console.error('Could not play any notification sound:', fallbackError);
+      }
     }
   };
 
@@ -323,7 +409,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       action: notification.action_url ? {
         label: notification.action_text || 'View',
         onClick: () => {
-          markAsClicked(notification.id);
           if (notification.action_url) {
             window.open(notification.action_url, '_blank');
           }
@@ -351,20 +436,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       case MessageType.NOTIFICATION: {
         const notificationData = message.payload;
         const notification: Notification = {
-          id: message.message_id || crypto.randomUUID(),
-          type: notificationData.type || 'general',
+          id: notificationData.id || message.message_id || crypto.randomUUID(),  // Use recipient ID from payload
+          type: notificationData.notification_type || notificationData.type || 'general',
           title: notificationData.title || 'New Notification',
           message: notificationData.message || '',
           priority: notificationData.priority || 'medium',
-          category: notificationData.category || 'general',
-          timestamp: message.timestamp || new Date().toISOString(),
-          read: false,
-          clicked: false,
+          category: notificationData.category || notificationData.notification_type || 'general',
+          timestamp: notificationData.created_at || notificationData.timestamp || message.timestamp || new Date().toISOString(),
+          read: notificationData.recipient_status === 'read' || false,
+          clicked: notificationData.clicked || false,
           action_url: notificationData.action_url,
-          action_text: notificationData.action_text,
+          action_text: notificationData.action_text || (notificationData.type === 'message' ? 'View Message' : undefined),
           sender_name: notificationData.sender_name,
           sender_role: notificationData.sender_role,
-          data: notificationData.data,
+          data: notificationData.data || notificationData.metadata,
           expires_at: notificationData.expires_at
         };
 
@@ -482,11 +567,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
       // Subscribe to relevant collections based on user role
       const roleSubscriptions = {
-        student: ['grades', 'attendance', 'assignments', 'exams'],
-        parent: ['grades', 'attendance', 'assignments', 'fees', 'exams'],
-        teacher: ['students', 'classes', 'attendance', 'grades', 'assignments', 'exams'],
-        admin: ['students', 'teachers', 'classes', 'grades', 'attendance', 'fees', 'assignments', 'exams'],
-        superadmin: ['students', 'teachers', 'classes', 'grades', 'attendance', 'fees', 'assignments', 'exams']
+        student: ['grades', 'attendance', 'exams'],
+        parent: ['grades', 'attendance', 'fees', 'exams'],
+        teacher: ['students', 'classes', 'attendance', 'grades', 'exams'],
+        admin: ['students', 'teachers', 'classes', 'grades', 'attendance', 'fees', 'exams'],
+        superadmin: ['students', 'teachers', 'classes', 'grades', 'attendance', 'fees', 'exams']
       };
 
       const collections = roleSubscriptions[user.role as keyof typeof roleSubscriptions] || [];
@@ -495,6 +580,58 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       });
     }
   }, [wsIsAuthenticated, user, wsSubscribe]);
+
+  // Fetch existing notifications from API when user is authenticated
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!authIsAuthenticated || !user) {
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          return;
+        }
+
+        const url = `${config.API_BASE_URL}/api/notifications/me`;
+
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const apiNotifications: Notification[] = data.notifications.map((n: any) => ({
+            id: n.id || n._id,  // Use n.id first, fallback to n._id
+            type: n.notification_type || n.type || 'system',
+            title: n.title,
+            message: n.message,
+            priority: n.priority || 'medium',
+            category: n.notification_type || n.category || 'general',
+            timestamp: n.created_at || n.timestamp,
+            read: n.recipient_status === 'read',
+            clicked: n.clicked || false,
+            dismissed: n.dismissed || false,
+            action_url: n.action_url,
+            action_text: n.action_text,
+            sender_name: n.sender_name,
+            sender_role: n.sender_role,
+            data: n.metadata || n.data
+          }));
+
+          dispatch({ type: 'LOAD_NOTIFICATIONS', payload: apiNotifications });
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+      }
+    };
+
+    fetchNotifications();
+  }, [authIsAuthenticated, user]);
 
   // Update subscriptions in state
   useEffect(() => {
@@ -514,6 +651,103 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     };
   }, []);
 
+  // API-backed actions
+  const markAsRead = async (id: string) => {
+    dispatch({ type: 'MARK_READ', payload: id });
+    // Auto-dismiss from bell when marking as read
+    dispatch({ type: 'DISMISS_NOTIFICATION', payload: id });
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        await fetch(`${config.API_BASE_URL}/api/notifications/mark-read/${id}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const removeNotification = async (id: string) => {
+    dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        await fetch(`${config.API_BASE_URL}/api/notifications/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    // Get all unread notifications before marking them
+    const unreadNotifications = state.notifications.filter(n => !n.read);
+
+    dispatch({ type: 'MARK_ALL_READ' });
+
+    // Auto-dismiss all from bell when marking all as read
+    unreadNotifications.forEach(n => {
+      dispatch({ type: 'DISMISS_NOTIFICATION', payload: n.id });
+    });
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        // Use the mark-all-read endpoint
+        await fetch(`${config.API_BASE_URL}/api/notifications/mark-all-read`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+    }
+  };
+
+  // Dismiss notification function
+  const dismissNotification = async (id: string) => {
+
+    // Optimistically update UI
+    dispatch({ type: 'DISMISS_NOTIFICATION', payload: id });
+    // Also mark as read when dismissing
+    dispatch({ type: 'MARK_READ', payload: id });
+
+    // Update backend
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        const url = `${config.API_BASE_URL}/api/notifications/dismiss/${id}`;
+
+        await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to dismiss notification:', error);
+      // Could revert optimistic update here if needed
+    }
+  };
+
   // Context value
   const contextValue: NotificationContextType = {
     // State
@@ -530,12 +764,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     // Actions
     addNotification: (notification) => dispatch({ type: 'ADD_NOTIFICATION', payload: notification }),
     addSystemAlert: (alert) => dispatch({ type: 'ADD_SYSTEM_ALERT', payload: alert }),
-    markAsRead: (id) => dispatch({ type: 'MARK_READ', payload: id }),
-    markAllAsRead: () => dispatch({ type: 'MARK_ALL_READ' }),
-    markAsClicked: (id) => dispatch({ type: 'MARK_CLICKED', payload: id }),
-    removeNotification: (id) => dispatch({ type: 'REMOVE_NOTIFICATION', payload: id }),
+    markAsRead,
+    markAllAsRead,
+    dismissNotification,
+    removeNotification,
     dismissAlert: (id) => dispatch({ type: 'DISMISS_ALERT', payload: id }),
-    toggleSound: () => dispatch({ type: 'SET_SOUND_ENABLED', payload: !state.soundEnabled }),
+    toggleSound: () => {
+      const newSoundState = !state.soundEnabled;
+      dispatch({ type: 'SET_SOUND_ENABLED', payload: newSoundState });
+
+      // Play a test sound when enabling to allow browser audio and let user hear it
+      if (newSoundState) {
+        setTimeout(() => playNotificationSound('medium'), 100);
+      }
+    },
     subscribe: wsSubscribe,
     unsubscribe: wsUnsubscribe,
 

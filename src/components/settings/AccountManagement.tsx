@@ -50,20 +50,22 @@ export const AccountManagement = () => {
 
     setIsChangingPassword(true);
     try {
-      // For now, we'll show a message that password change is not yet implemented
-      // In a real implementation, you'd need a password change endpoint
-      toast({
-        title: "Info",
-        description: "Password change functionality is not yet implemented. Please contact system administrator.",
-      });
+      const response = await apiClient.changePassword(currentPassword, newPassword);
 
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      if (response.data) {
+        toast({
+          title: "Success",
+          description: "Password changed successfully!",
+        });
+
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: error.response?.data?.detail || error.message || "Failed to change password",
         variant: "destructive",
       });
     } finally {

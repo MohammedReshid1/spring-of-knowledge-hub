@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useBranch } from '@/contexts/BranchContext';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useAuth } from '@/hooks/useAuth';
+import { useLiveDataForPage } from '@/hooks/useLiveData';
+import { usePermissionCheck } from '@/contexts/RoleAccessContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,11 +17,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
-import { 
-  Calendar as CalendarIcon, Users, UserCheck, UserX, Clock, 
+import { format, subDays } from 'date-fns';
+import {
+  Calendar as CalendarIcon, Users, UserCheck, UserX,
   TrendingUp, AlertCircle, CheckCircle2, XCircle, Timer,
-  Download, Upload, RefreshCw, Filter, Search, Save
+  Download, Search, Save
 } from 'lucide-react';
 import {
   Table,
@@ -30,13 +32,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { StatsCardLoader, TableLoader } from '@/components/ui/loading-states';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AttendanceReports } from '@/components/reports/AttendanceReports';
 
-// Dev-only debugger
-const __DEV__ = (import.meta as any)?.env?.MODE !== 'production';
-const dbg = (...args: any[]) => { if (__DEV__) console.log('[Attendance][Teacher]', ...args); };
 
 // Helper function to convert data to CSV format
-function convertToCSV(data: any[]): string {
+function convertToCSV<T extends Record<string, unknown>>(data: T[]): string {
   if (!data || data.length === 0) return '';
   
   // Get headers from first object
@@ -44,14 +46,23 @@ function convertToCSV(data: any[]): string {
   const csvHeaders = headers.join(',');
   
   // Convert each object to CSV row
-  const csvRows = data.map(row => {
-    return headers.map(header => {
-      const value = row[header];
-      // Handle values that might contain commas
-      if (typeof value === 'string' && value.includes(',')) {
-        return `"${value}"`;
+  const csvRows = data.map((row) => {
+    return headers.map((header) => {
+      const rawValue = row[header];
+      if (rawValue === null || rawValue === undefined) {
+        return '';
       }
-      return value ?? '';
+      if (typeof rawValue === 'string') {
+        return rawValue.includes(',') ? `"${rawValue}"` : rawValue;
+      }
+      if (typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+        return String(rawValue);
+      }
+      try {
+        return JSON.stringify(rawValue);
+      } catch {
+        return '';
+      }
     }).join(',');
   });
   
@@ -78,22 +89,66 @@ interface Student {
   class_id: string;
 }
 
+type StudentProfile = Student & {
+  first_name?: string;
+  father_name?: string;
+  grandfather_name?: string;
+};
+
+interface TeacherSummary {
+  id?: string;
+  email?: string;
+}
+
+interface SubjectSummary {
+  id: string;
+  subject_name?: string;
+  subject_code?: string;
+}
+
+interface ClassSummary {
+  id?: string;
+  class_id?: string;
+  class_name?: string;
+  name?: string;
+  section?: string;
+  teacher_id?: string;
+  subject_teachers?: Array<{ subject_id?: string; teacher_id?: string }>;
+  branch_id?: string;
+}
+
 interface AttendanceRecord {
   id?: string;
   student_id: string;
   student_name?: string;
   class_id: string;
+  subject_id?: string;
+  subject_name?: string;
+  subject_code?: string;
   attendance_date: string;
   status: 'present' | 'absent' | 'late' | 'excused';
+  notes?: string;
   remarks?: string;
+  check_in_time?: string;
+  check_out_time?: string;
   recorded_by?: string;
   created_at?: string;
 }
 
 export default function AttendancePage() {
   const [activeTab, setActiveTab] = useState('mark');
+  const { selectedBranch } = useBranch();
+
+  // Enable real-time updates for attendance and related data
+  useLiveDataForPage('attendance', {
+    relatedCollections: ['students', 'classes', 'subjects'],
+    filters: selectedBranch && selectedBranch !== 'all' ? { branch_id: selectedBranch } : {}
+  });
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedMarkSubject, setSelectedMarkSubject] = useState<string>('');
+  const [selectedHistorySubject, setSelectedHistorySubject] = useState<string>('all');
+  const [selectedReportClass, setSelectedReportClass] = useState<string>('all');
+  const [reportPeriod, setReportPeriod] = useState<string>('30');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchTerm, setSearchTerm] = useState('');
   const [attendanceData, setAttendanceData] = useState<Record<string, string>>({});
@@ -101,112 +156,144 @@ export default function AttendancePage() {
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editStatus, setEditStatus] = useState<string>('');
   const [editRemarks, setEditRemarks] = useState<string>('');
-  
-  const { selectedBranch } = useBranch();
+
+  const historySubjectManuallySet = useRef(false);
   const { user } = useAuth();
   const { userRole } = useRoleAccess();
   const queryClient = useQueryClient();
 
+  const userId = typeof user === 'object' && user !== null && 'id' in user ? (user as { id?: string }).id : undefined;
+  const userEmail = typeof user === 'object' && user !== null && 'email' in user ? (user as { email?: string }).email : undefined;
+
+  // Permission checks
+  const { hasPermission } = usePermissionCheck();
+  const canRead = hasPermission('attendance.read');
+  const canCreate = hasPermission('attendance.create');
+  const canUpdate = hasPermission('attendance.update');
+  const canManage = hasPermission('attendance.manage');
+
   useEffect(() => {
     if (userRole === 'teacher') {
-      dbg('Opened Attendance page', { userId: (user as any)?.id, email: (user as any)?.email, branch: selectedBranch });
+      // Teacher opened Attendance page
     }
-  }, [userRole, (user as any)?.id, (user as any)?.email, selectedBranch]);
+  }, [userRole, userId, userEmail, selectedBranch]);
 
   // Fetch teachers to resolve current teacher's teacher_id by email
-  const { data: allTeachers = [] } = useQuery({
+  const { data: allTeachers = [] } = useQuery<TeacherSummary[]>({
     queryKey: ['teachers', selectedBranch],
     queryFn: async () => {
       const resp = await apiClient.getTeachers();
       if (resp.error) throw resp.error;
-      return resp.data || [];
-    }
+      const items = resp.data;
+      return Array.isArray(items) ? (items as TeacherSummary[]) : [];
+    },
+    staleTime: 300000, // Cache for 5 minutes (teachers don't change often)
+    refetchOnWindowFocus: false
   });
 
   const teacherSelfId = (() => {
     if (userRole !== 'teacher') return null;
-    const email = (user as any)?.email;
-    const self = (allTeachers as any[]).find(t => t.email === email);
+    const email = typeof user === 'object' && user !== null && 'email' in user ? (user as { email?: string }).email : undefined;
+    const self = allTeachers.find((t) => t.email === email);
     const id = self?.id || null;
-    dbg('Resolved teacherSelfId from email lookup', { email, teacherSelfId: id });
     return id;
   })();
 
   // Fetch classes - filter by branch
-  const { data: classes = [], isLoading: classesLoading } = useQuery({
+  const { data: classes = [], isLoading: classesLoading } = useQuery<ClassSummary[]>({
     queryKey: ['classes', selectedBranch],
     queryFn: async () => {
       const { data, error } = await apiClient.getClasses();
       if (error) throw error;
-      // Filter classes by selected branch
-      const allClasses = data || [];
-      const byBranch = (selectedBranch && selectedBranch !== 'all') ? allClasses.filter((cls: any) => cls.branch_id === selectedBranch) : allClasses;
+      const allClasses = Array.isArray(data) ? (data as ClassSummary[]) : [];
+      const byBranch = (selectedBranch && selectedBranch !== 'all')
+        ? allClasses.filter((cls) => cls.branch_id === selectedBranch)
+        : allClasses;
       if (userRole === 'teacher' && teacherSelfId) {
-        // Only show classes assigned to this teacher (primary or subject mapping)
-        const byTeacher = byBranch.filter((c: any) => c.teacher_id === teacherSelfId || (Array.isArray(c.subject_teachers) && c.subject_teachers.some((m: any) => m.teacher_id === teacherSelfId)));
-        dbg('Classes fetched', { byBranch: byBranch.length, byTeacher: byTeacher.length });
-        return byTeacher;
+        const byTeacher = byBranch.filter((cls) => {
+          if (cls.teacher_id === teacherSelfId) return true;
+          return Array.isArray(cls.subject_teachers)
+            ? cls.subject_teachers.some((mapping) => mapping?.teacher_id === teacherSelfId)
+            : false;
+        });
+  return byTeacher;
       }
-      dbg('Classes fetched (non-teacher)', { byBranch: byBranch.length });
       return byBranch;
     },
-    enabled: !!selectedBranch
+    enabled: !!selectedBranch,
+    staleTime: 60000, // Cache for 60 seconds
+    refetchOnWindowFocus: false // Prevent refetch on window focus
   });
 
   // Auto-select first class for teachers to streamline flow
   useEffect(() => {
     if (userRole === 'teacher' && !selectedClass && Array.isArray(classes) && classes.length > 0) {
-      const first = (classes as any[])[0];
-      setSelectedClass(first.id);
-      dbg('Auto-selected first class', { classId: first.id, name: first.class_name });
+      const first = classes[0];
+      if (first?.id) {
+        setSelectedClass(first.id);
+      }
     }
   }, [userRole, classes, selectedClass]);
 
+  useEffect(() => {
+    if (userRole === 'teacher' && selectedClass && selectedReportClass === 'all') {
+      setSelectedReportClass(selectedClass);
+    }
+  }, [userRole, selectedClass, selectedReportClass]);
+
   // Fetch students for selected class
-  const { data: students = [], isLoading: studentsLoading } = useQuery({
-    queryKey: ['students', selectedClass],
+  const { data: students = [], isLoading: studentsLoading } = useQuery<StudentProfile[]>({
+    queryKey: ['students', selectedClass, selectedBranch],
     queryFn: async () => {
       if (!selectedClass) return [];
-      const { data, error } = await apiClient.getStudents({ 
+      const { data, error } = await apiClient.getStudents({
         class_id: selectedClass,
         branch_id: selectedBranch,
         limit: 100  // Maximum allowed by backend validation
       });
       if (error) throw error;
       // Handle paginated response - extract items array
-      return data?.items || [];
+      const items = data?.items;
+      return Array.isArray(items) ? (items as StudentProfile[]) : [];
     },
-    enabled: !!selectedClass
+    enabled: !!selectedClass,
+    staleTime: 30000, // Cache for 30 seconds to prevent excessive refetching
+    refetchOnWindowFocus: false // Prevent refetch on window focus
   });
 
   // Fetch existing attendance for selected date and class
-  const { data: existingAttendance = [], refetch: refetchAttendance } = useQuery({
-    queryKey: ['attendance', selectedClass, selectedSubject, format(selectedDate, 'yyyy-MM-dd')],
+  const { data: existingAttendance = [], refetch: refetchAttendance, isLoading: historyLoading } = useQuery<AttendanceRecord[]>({
+    queryKey: ['attendance', selectedClass, selectedHistorySubject, format(selectedDate, 'yyyy-MM-dd'), selectedBranch],
     queryFn: async () => {
       if (!selectedClass) return [];
       const { data, error } = await apiClient.getAttendance({
         class_id: selectedClass,
         date: format(selectedDate, 'yyyy-MM-dd'),
-        subject_id: selectedSubject || undefined
+        branch_id: selectedBranch && selectedBranch !== 'all' ? selectedBranch : undefined,
+        subject_id: selectedHistorySubject && selectedHistorySubject !== 'all' ? selectedHistorySubject : undefined
       });
       if (error) throw error;
-      return data || [];
+      return Array.isArray(data) ? (data as AttendanceRecord[]) : [];
     },
-    enabled: !!selectedClass
+    enabled: !!selectedClass,
+    staleTime: 30000, // Cache for 30 seconds
+    refetchOnWindowFocus: false // Prevent refetch on window focus
   });
 
   // Load subjects
-  const { data: subjects = [] } = useQuery({
+  const { data: subjects = [] } = useQuery<SubjectSummary[]>({
     queryKey: ['subjects', selectedBranch],
     queryFn: async () => {
       const { data, error } = await apiClient.getSubjects();
       if (error) throw error;
-      return data || [];
-    }
+      return Array.isArray(data) ? (data as SubjectSummary[]) : [];
+    },
+    staleTime: 300000, // Cache for 5 minutes (subjects don't change often)
+    refetchOnWindowFocus: false
   });
 
   // Resolve selected class object and teacher-mapped subjects
-  const selectedClassObj = (classes as any[]).find((c) => c.id === selectedClass);
+  const selectedClassObj = classes.find((cls) => cls.id === selectedClass);
   const teacherId = teacherSelfId || user?.id;
   const allowedSubjectIds = (() => {
     if (userRole !== 'teacher' || !selectedClassObj) return null;
@@ -217,33 +304,197 @@ export default function AttendancePage() {
     return new Set(ids);
   })();
 
-  const filteredSubjects = (() => {
-    if (!allowedSubjectIds) return subjects as any[];
-    const arr = (subjects as any[]).filter((s) => allowedSubjectIds.has(s.id));
-    dbg('Filtered subjects', { total: (subjects as any[]).length, allowed: arr.length, allowedIds: Array.from(allowedSubjectIds as any) });
-    return arr;
-  })();
+  const filteredSubjects = useMemo(() => {
+    if (!allowedSubjectIds) return subjects;
+    const filtered = subjects.filter((subject) => subject?.id && allowedSubjectIds.has(subject.id));
+        return filtered;
+  }, [allowedSubjectIds, subjects]);
+
+  const subjectLookup = useMemo(() => {
+    const map = new Map<string, { name: string; code?: string }>();
+    subjects.forEach((subject) => {
+      if (subject?.id) {
+        map.set(subject.id, {
+          name: subject.subject_name || subject.id,
+          code: subject.subject_code,
+        });
+      }
+    });
+    return map;
+  }, [subjects]);
+
+  const formatSubjectLabel = (subjectId?: string) => {
+    if (!subjectId) return '—';
+    const subjectInfo = subjectLookup.get(subjectId);
+    if (!subjectInfo) return subjectId;
+    return subjectInfo.code ? `${subjectInfo.name} (${subjectInfo.code})` : subjectInfo.name;
+  };
+
+  const formatClassLabel = (cls: ClassSummary) => {
+    const name = cls.class_name || cls.name || cls.class_id || cls.id || 'Class';
+    return cls.section ? `${name} - ${cls.section}` : name;
+  };
+
+  const classLookup = useMemo(() => {
+    const map = new Map<string, { name: string; section?: string }>();
+    classes.forEach((cls) => {
+      const label = {
+        name: cls?.class_name || cls?.name || cls?.id || cls?.class_id || 'Unnamed Class',
+        section: cls?.section,
+      };
+      if (cls?.id) {
+        map.set(cls.id, label);
+      }
+      if (cls?.class_id) {
+        map.set(cls.class_id, label);
+      }
+    });
+    return map;
+  }, [classes]);
+
+  const attendanceRecordsForMarking = useMemo(() => {
+    if (!Array.isArray(existingAttendance) || existingAttendance.length === 0) return [];
+    if (selectedMarkSubject) {
+      return existingAttendance.filter((record: AttendanceRecord) => record.subject_id === selectedMarkSubject);
+    }
+    if (selectedHistorySubject && selectedHistorySubject !== 'all') {
+      return existingAttendance.filter((record: AttendanceRecord) => record.subject_id === selectedHistorySubject);
+    }
+    return existingAttendance;
+  }, [existingAttendance, selectedMarkSubject, selectedHistorySubject]);
+
+  const reportPeriodDays = Number(reportPeriod) || 30;
+  const { data: reportSummary, isLoading: reportSummaryLoading, isFetching: reportSummaryFetching, error: reportSummaryError } = useQuery({
+    queryKey: ['attendance-report-summary', selectedReportClass, reportPeriodDays, selectedBranch],
+    queryFn: async () => {
+      const endDate = new Date();
+      const startDate = subDays(endDate, Math.max(reportPeriodDays - 1, 0));
+      const { data, error } = await apiClient.getAttendanceReportSummary({
+        class_id: selectedReportClass !== 'all' ? selectedReportClass : undefined,
+        branch_id: selectedBranch && selectedBranch !== 'all' ? selectedBranch : undefined,
+        start_date: format(startDate, 'yyyy-MM-dd'),
+        end_date: format(endDate, 'yyyy-MM-dd')
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: (canRead || canManage) && (!!selectedBranch || userRole === 'superadmin' || userRole === 'super_admin'),
+    staleTime: 60000,
+    refetchOnWindowFocus: false
+  });
+
+  const classAttendanceEntries = useMemo(() => {
+    if (!reportSummary || !reportSummary.class_attendance_rates) return [];
+    return Object.entries(reportSummary.class_attendance_rates as Record<string, number>)
+      .map(([classId, rate]) => {
+        const info = classLookup.get(classId);
+        const label = info?.section ? `${info.name} - ${info.section}` : (info?.name || classId || 'Unknown Class');
+        return {
+          classId,
+          label,
+          rate: typeof rate === 'number' ? rate : Number(rate)
+        };
+      })
+      .sort((a, b) => (b.rate ?? 0) - (a.rate ?? 0));
+  }, [reportSummary, classLookup]);
+
+  const dailyTrendEntries = useMemo(() => {
+    if (!reportSummary || !reportSummary.daily_trends) return [];
+    return Object.entries(reportSummary.daily_trends as Record<string, number>)
+      .map(([day, percentage]) => ({
+        day,
+        percentage: typeof percentage === 'number' ? percentage : Number(percentage)
+      }))
+      .sort((a, b) => b.percentage - a.percentage);
+  }, [reportSummary]);
+
+  const isSummaryReady = !!reportSummary && !(reportSummaryLoading || reportSummaryFetching);
+
+  const summaryPeriodLabel = useMemo(() => {
+    const start = reportSummary?.date_range?.start_date;
+    const end = reportSummary?.date_range?.end_date;
+    if (!start || !end) return null;
+    try {
+      return `${format(new Date(start), 'PPP')} - ${format(new Date(end), 'PPP')}`;
+    } catch {
+      return null;
+    }
+  }, [reportSummary]);
+
+  const selectableClasses = useMemo(
+    () => classes.filter((cls): cls is ClassSummary & { id: string } => typeof cls.id === 'string' && cls.id.trim().length > 0),
+    [classes]
+  );
+
+  const concerningAttendanceEntries = Array.isArray(reportSummary?.concerning_attendance)
+    ? (reportSummary.concerning_attendance as Array<{ student_id?: string; student_name?: string; attendance_rate?: number }>)
+    : [];
+
+  // Dynamic tabs based on permissions
+  const availableTabs = useMemo(() => {
+    const tabs = [];
+
+    if (canCreate || canManage) {
+      tabs.push({ value: 'mark', label: 'Mark Attendance', icon: UserCheck });
+    }
+
+    if (canRead || canManage) {
+      tabs.push(
+        { value: 'view', label: 'View Records', icon: TrendingUp },
+        { value: 'reports', label: 'Reports', icon: Download }
+      );
+    }
+
+    return tabs;
+  }, [canRead, canCreate, canManage]);
 
   // Auto-select subject for teachers when exactly one allowed
   useEffect(() => {
-    if (userRole === 'teacher' && selectedClass && (!selectedSubject || !filteredSubjects.some((s: any) => s.id === selectedSubject))) {
-      if (Array.isArray(filteredSubjects) && filteredSubjects.length === 1) {
-        setSelectedSubject((filteredSubjects as any[])[0].id);
-        dbg('Auto-selected subject', { subjectId: (filteredSubjects as any[])[0].id });
+    const hasMatchingSubject = selectedMarkSubject ? filteredSubjects.some((subject) => subject.id === selectedMarkSubject) : false;
+    if (userRole === 'teacher' && selectedClass && (!selectedMarkSubject || !hasMatchingSubject)) {
+      if (filteredSubjects.length === 1) {
+        const soleSubjectId = filteredSubjects[0]?.id;
+        if (soleSubjectId) {
+          setSelectedMarkSubject(soleSubjectId);
+        }
       }
     }
-  }, [userRole, selectedClass, selectedSubject, filteredSubjects]);
+  }, [userRole, selectedClass, selectedMarkSubject, filteredSubjects]);
 
   // Reset subject if not allowed after class change or mapping change
   useEffect(() => {
-    if (userRole === 'teacher' && selectedSubject) {
-      const ok = filteredSubjects.some((s: any) => s.id === selectedSubject);
-      if (!ok) setSelectedSubject('');
+    if (userRole === 'teacher' && selectedMarkSubject) {
+      const ok = filteredSubjects.some((subject) => subject.id === selectedMarkSubject);
+      if (!ok) setSelectedMarkSubject('');
     }
-  }, [userRole, selectedSubject, filteredSubjects]);
+  }, [userRole, selectedMarkSubject, filteredSubjects]);
+
+  useEffect(() => {
+    if (selectedMarkSubject && !historySubjectManuallySet.current) {
+      setSelectedHistorySubject(selectedMarkSubject);
+    }
+  }, [selectedMarkSubject]);
+
+  useEffect(() => {
+    if (selectedHistorySubject && selectedHistorySubject !== 'all') {
+      const ok = filteredSubjects.some((subject) => subject.id === selectedHistorySubject);
+      if (!ok) {
+        historySubjectManuallySet.current = false;
+        const fallbackSubject = selectedMarkSubject && filteredSubjects.some((subject) => subject.id === selectedMarkSubject)
+          ? selectedMarkSubject
+          : 'all';
+        setSelectedHistorySubject(fallbackSubject || 'all');
+      }
+    }
+  }, [selectedHistorySubject, filteredSubjects, selectedMarkSubject]);
+
+  useEffect(() => {
+    historySubjectManuallySet.current = false;
+    setSelectedHistorySubject('all');
+  }, [selectedClass]);
 
   // Fetch attendance analytics
-  const { data: analytics } = useQuery({
+  const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ['attendance-analytics', selectedClass, selectedBranch],
     queryFn: async () => {
       const { data, error } = await apiClient.getAttendanceAnalytics({
@@ -253,21 +504,23 @@ export default function AttendancePage() {
         teacher_id: userRole === 'teacher' ? (teacherSelfId || undefined) : undefined
       });
       if (error) throw error;
-      dbg('Attendance analytics fetched', { hasData: !!data, class_id: selectedClass, teacher_id: userRole === 'teacher' ? (teacherSelfId || null) : null });
       return data;
     },
-    enabled: userRole !== 'teacher' ? true : !!selectedClass
+    enabled: userRole !== 'teacher' ? true : !!selectedClass,
+    staleTime: 60000, // Cache for 60 seconds
+    refetchOnWindowFocus: false // Prevent refetch on window focus
   });
 
   // Initialize attendance data when existing records are loaded
   useEffect(() => {
-    if (existingAttendance.length > 0) {
+    if (attendanceRecordsForMarking.length > 0) {
       const initialData: Record<string, string> = {};
       const initialRemarks: Record<string, string> = {};
-      existingAttendance.forEach((record: AttendanceRecord) => {
+      attendanceRecordsForMarking.forEach((record: AttendanceRecord) => {
         initialData[record.student_id] = record.status;
-        if (record.remarks) {
-          initialRemarks[record.student_id] = record.remarks;
+        const note = record.notes ?? record.remarks;
+        if (note) {
+          initialRemarks[record.student_id] = note;
         }
       });
       setAttendanceData(initialData);
@@ -280,12 +533,12 @@ export default function AttendancePage() {
       });
       setAttendanceData(initialData);
     }
-  }, [existingAttendance, students]);
+  }, [attendanceRecordsForMarking, students]);
 
   // Save attendance mutation
   const saveAttendanceMutation = useMutation({
     mutationFn: async () => {
-      if ((userRole === 'teacher') && !selectedSubject) {
+      if ((userRole === 'teacher') && !selectedMarkSubject) {
         throw new Error('Please select a subject before saving attendance');
       }
       const attendance_records = Object.entries(attendanceData).map(([student_id, status]) => ({
@@ -299,10 +552,10 @@ export default function AttendancePage() {
         attendance_records,
         class_id: selectedClass,
         attendance_date: format(selectedDate, 'yyyy-MM-dd'),
-        recorded_by: (user as any)?.id || (user as any)?.email || 'current_user',
+        recorded_by: userId || userEmail || 'current_user',
         branch_id: selectedBranch && selectedBranch !== 'all' ? selectedBranch : undefined,
         send_notifications: true,
-        subject_id: selectedSubject || undefined
+        subject_id: selectedMarkSubject || undefined
       });
 
       if (error) throw error;
@@ -415,7 +668,7 @@ export default function AttendancePage() {
   const handleEditRecord = (record: AttendanceRecord) => {
     setEditingRecord(record);
     setEditStatus(record.status);
-    setEditRemarks(record.remarks || '');
+    setEditRemarks(record.notes ?? record.remarks ?? '');
   };
 
   const handleSaveEdit = () => {
@@ -434,11 +687,12 @@ export default function AttendancePage() {
     setEditRemarks('');
   };
 
-  const filteredStudents = Array.isArray(students) ? students.filter((student: any) => {
-    const fullName = [student.first_name, student.father_name, student.grandfather_name].filter(Boolean).join(' ');
-    return fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (student.student_id?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-  }) : [];
+  const filteredStudents = students.filter((student) => {
+    const nameParts = [student.first_name, student.father_name, student.grandfather_name].filter(Boolean);
+    const fullName = nameParts.join(' ');
+    const term = searchTerm.toLowerCase();
+    return fullName.toLowerCase().includes(term) || (student.student_id?.toLowerCase() ?? '').includes(term);
+  });
 
   // Calculate attendance summary
   const attendanceSummary = {
@@ -451,61 +705,26 @@ export default function AttendancePage() {
 
   return (
     <>
-      {/* Premium Animation Styles */}
-      <style jsx global>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes slideInRight {
-          from {
-            opacity: 0;
-            transform: translateX(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
-        }
-
-        @keyframes pulseGlow {
-          0%, 100% {
-            box-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
-          }
-          50% {
-            box-shadow: 0 0 30px rgba(37, 99, 235, 0.5);
-          }
-        }
-
-        .animate-fade-in-up {
-          animation: fadeInUp 0.6s ease-out forwards;
-        }
-
-        .animate-slide-in-right {
-          animation: slideInRight 0.4s ease-out forwards;
-        }
-
-        .animate-pulse-glow:hover {
-          animation: pulseGlow 2s ease-in-out infinite;
-        }
-      `}</style>
-
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
         {/* Premium Hero Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-16">
+        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-blue-600 to-blue-700 pb-20 pt-16">
           {/* Background Pattern */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
-          <div className="absolute inset-0 opacity-20"
-               style={{
-                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-               }} />
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/90 via-blue-600/90 to-blue-700/90" />
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+
+          {/* Enhanced Floating Shapes with Animation */}
+          <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse" />
+          <div className="absolute top-20 right-20 w-16 h-16 bg-white/10 rounded-full animate-pulse delay-1000" />
+          <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-500" />
+          <div className="absolute top-1/2 left-20 w-8 h-8 bg-white/8 rounded-full animate-pulse delay-300" />
+          <div className="absolute top-1/3 right-1/4 w-14 h-14 bg-white/8 rounded-full animate-pulse delay-700" />
+          <div className="absolute bottom-1/3 right-10 w-10 h-10 bg-white/8 rounded-full animate-pulse delay-900" />
+          <div className="absolute top-1/4 left-1/2 w-6 h-6 bg-white/6 rounded-full animate-pulse delay-400" />
+          <div className="absolute bottom-10 left-1/4 w-18 h-18 bg-white/8 rounded-full animate-pulse delay-800" />
 
           <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
@@ -514,9 +733,9 @@ export default function AttendancePage() {
                 Student Attendance System
               </div>
               <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-                Attendance <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Management</span>
+                Attendance <span className="bg-gradient-to-r from-indigo-200 to-blue-200 bg-clip-text text-transparent">Management</span>
               </h1>
-              <p className="mt-6 text-lg leading-8 text-blue-100">
+              <p className="mt-6 text-lg leading-8 text-indigo-100">
                 Comprehensive attendance tracking and analytics with real-time insights.
                 Streamline your attendance operations with premium tools.
               </p>
@@ -540,22 +759,16 @@ export default function AttendancePage() {
                 <h2 className="text-xl font-semibold text-gray-900">Quick Actions</h2>
                 <p className="text-sm text-gray-600">Manage attendance efficiently with powerful tools</p>
               </div>
-              <div className="flex items-center space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => refetchAttendance()}
-                  className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-0 hover:from-indigo-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh Data
-                </Button>
-              </div>
+              {/* Real-time updates via WebSocket - no manual refresh needed */}
             </div>
           </div>
 
           {/* Premium Analytics Cards */}
-          {analytics && (userRole !== 'teacher' || (userRole === 'teacher' && selectedClass)) && (
+          {(userRole !== 'teacher' || (userRole === 'teacher' && selectedClass)) && (
             <div className="mx-auto max-w-7xl">
+              {analyticsLoading ? (
+                <StatsCardLoader count={4} />
+              ) : analytics ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Average Attendance Card */}
           <div className="relative group">
@@ -645,6 +858,7 @@ export default function AttendancePage() {
             </Card>
               </div>
             </div>
+              ) : null}
             </div>
           )}
 
@@ -652,33 +866,23 @@ export default function AttendancePage() {
           <div className="mx-auto max-w-7xl">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-2 shadow-xl">
-                <TabsList className="grid w-full grid-cols-3 gap-1 bg-transparent p-1">
-                  <TabsTrigger
-                    value="mark"
-                    className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
-                  >
-                    <UserCheck className="h-4 w-4" />
-                    <span>Mark Attendance</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="view"
-                    className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-700 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
-                  >
-                    <TrendingUp className="h-4 w-4" />
-                    <span>View Records</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="reports"
-                    className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>Reports</span>
-                  </TabsTrigger>
+                <TabsList className={`grid w-full grid-cols-${availableTabs.length} gap-1 bg-transparent p-1`}>
+                  {availableTabs.map((tab) => (
+                    <TabsTrigger
+                      key={tab.value}
+                      value={tab.value}
+                      className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
+                    >
+                      <tab.icon className="h-4 w-4" />
+                      <span>{tab.label}</span>
+                    </TabsTrigger>
+                  ))}
                 </TabsList>
               </div>
 
               {/* Mark Attendance Tab */}
-              <TabsContent value="mark" className="space-y-6">
+              {(canCreate || canManage) && (
+                <TabsContent value="mark" className="space-y-6">
                 {/* Premium Filters Section */}
                 <div className="relative">
                   <div className="absolute inset-0 bg-white/90 backdrop-blur-premium border border-white/40 rounded-3xl shadow-premium-lg"></div>
@@ -702,13 +906,11 @@ export default function AttendancePage() {
                       <SelectValue placeholder="Select a class" />
                     </SelectTrigger>
                     <SelectContent>
-                      {classes
-                        .filter((cls: any) => cls.id && cls.id.trim() !== '')
-                        .map((cls: any) => (
-                          <SelectItem key={cls.id} value={cls.id}>
-                            {cls.class_name}
-                          </SelectItem>
-                        ))}
+                      {selectableClasses.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {formatClassLabel(cls)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -742,13 +944,19 @@ export default function AttendancePage() {
                 {/* Subject selection */}
                 <div className="space-y-2">
                   <Label>Subject {userRole === 'teacher' && <span className="text-red-500">*</span>}</Label>
-                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                  <Select
+                    value={selectedMarkSubject}
+                    onValueChange={(value) => {
+                      historySubjectManuallySet.current = false;
+                      setSelectedMarkSubject(value);
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select a subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(filteredSubjects as any[]).map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.subject_name} ({s.subject_code})</SelectItem>
+                      {filteredSubjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>{formatSubjectLabel(subject.id)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -826,39 +1034,41 @@ export default function AttendancePage() {
               </div>
 
                 {/* Premium Quick Actions */}
-                <div className="flex justify-between items-center">
-                  <div className="flex gap-3">
+                {(canCreate || canManage) && (
+                  <div className="flex justify-between items-center">
+                    <div className="flex gap-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={markAllPresent}
+                        className="group relative overflow-hidden bg-white/90 hover:bg-green-50 border-green-200/50 hover:border-green-300 shadow-sm hover:shadow-md transition-all duration-300 transform hover:scale-105"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <UserCheck className="h-4 w-4 mr-2 text-green-600" />
+                        Mark All Present
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={markAllAbsent}
+                        className="group relative overflow-hidden bg-white/90 hover:bg-red-50 border-red-200/50 hover:border-red-300 shadow-sm hover:shadow-md transition-all duration-300 transform hover:scale-105"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        <UserX className="h-4 w-4 mr-2 text-red-600" />
+                        Mark All Absent
+                      </Button>
+                    </div>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={markAllPresent}
-                      className="group relative overflow-hidden bg-white/90 hover:bg-green-50 border-green-200/50 hover:border-green-300 shadow-sm hover:shadow-md transition-all duration-300 transform hover:scale-105"
+                      onClick={() => saveAttendanceMutation.mutate()}
+                      disabled={saveAttendanceMutation.isPending || !selectedClass}
+                      className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <UserCheck className="h-4 w-4 mr-2 text-green-600" />
-                      Mark All Present
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={markAllAbsent}
-                      className="group relative overflow-hidden bg-white/90 hover:bg-red-50 border-red-200/50 hover:border-red-300 shadow-sm hover:shadow-md transition-all duration-300 transform hover:scale-105"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      <UserX className="h-4 w-4 mr-2 text-red-600" />
-                      Mark All Absent
+                      <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      <Save className="h-4 w-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
+                      {saveAttendanceMutation.isPending ? 'Saving...' : 'Save Attendance'}
                     </Button>
                   </div>
-                  <Button
-                    onClick={() => saveAttendanceMutation.mutate()}
-                    disabled={saveAttendanceMutation.isPending || !selectedClass}
-                    className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <Save className="h-4 w-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-                    {saveAttendanceMutation.isPending ? 'Saving...' : 'Save Attendance'}
-                  </Button>
-                </div>
+                )}
 
               {/* Student List */}
               <Card>
@@ -874,11 +1084,20 @@ export default function AttendancePage() {
                     </TableHeader>
                     <TableBody>
                       {studentsLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center">
-                            Loading students...
-                          </TableCell>
-                        </TableRow>
+                        Array.from({ length: 5 }).map((_, index) => (
+                          <TableRow key={index} className="animate-pulse">
+                            <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                            <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                {Array.from({ length: 4 }).map((_, i) => (
+                                  <Skeleton key={i} className="h-8 w-20" />
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell><Skeleton className="h-10 w-full" /></TableCell>
+                          </TableRow>
+                        ))
                       ) : filteredStudents.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center">
@@ -931,9 +1150,11 @@ export default function AttendancePage() {
             </>
           )}
         </TabsContent>
+              )}
 
-        {/* View Records Tab */}
-        <TabsContent value="view" className="space-y-4">
+              {/* View Records Tab */}
+              {(canRead || canManage) && (
+                <TabsContent value="view" className="space-y-4">
           {/* Filters for viewing records */}
           <Card>
             <CardHeader>
@@ -943,7 +1164,7 @@ export default function AttendancePage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* Class Selection */}
                 <div>
                   <Label htmlFor="view-class">Class</Label>
@@ -952,13 +1173,11 @@ export default function AttendancePage() {
                       <SelectValue placeholder="Select a class" />
                     </SelectTrigger>
                     <SelectContent>
-                      {classes
-                        .filter((cls) => cls.id && cls.id.trim() !== '')
-                        .map((cls) => (
-                          <SelectItem key={cls.id} value={cls.id}>
-                            {cls.class_name} - {cls.section}
-                          </SelectItem>
-                        ))}
+                      {selectableClasses.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {formatClassLabel(cls)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -990,6 +1209,30 @@ export default function AttendancePage() {
                   </Popover>
                 </div>
 
+                {/* Subject Selection */}
+                <div>
+                  <Label htmlFor="view-subject">Subject</Label>
+                  <Select
+                    value={selectedHistorySubject}
+                    onValueChange={(value) => {
+                      historySubjectManuallySet.current = value !== selectedMarkSubject;
+                      setSelectedHistorySubject(value);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="All subjects" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All subjects</SelectItem>
+                      {filteredSubjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {formatSubjectLabel(subject.id)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Search */}
                 <div>
                   <Label htmlFor="search-students">Search Students</Label>
@@ -1016,16 +1259,21 @@ export default function AttendancePage() {
                   Attendance Records for {format(selectedDate, 'PPP')}
                 </CardTitle>
                 <CardDescription>
-                  Total attendance records found
+                  {selectedHistorySubject === 'all'
+                    ? 'Showing all subjects for the selected class'
+                    : `Showing ${formatSubjectLabel(selectedHistorySubject)} only`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {existingAttendance.length > 0 ? (
+                {historyLoading ? (
+                  <TableLoader rows={5} columns={7} />
+                ) : existingAttendance.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Student ID</TableHead>
                         <TableHead>Name</TableHead>
+                        <TableHead>Subject</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Check In</TableHead>
                         <TableHead>Notes</TableHead>
@@ -1044,11 +1292,13 @@ export default function AttendancePage() {
                         .map((record) => {
                           const student = Array.isArray(students) ? students.find(s => s.student_id === record.student_id) : null;
                           const fullName = student ? [student.first_name, student.father_name, student.grandfather_name].filter(Boolean).join(' ') : 'Unknown Student';
+                          const subjectLabel = formatSubjectLabel(record.subject_id);
                           
                           return (
-                            <TableRow key={record.student_id}>
+                            <TableRow key={record.id || `${record.student_id}-${record.subject_id || 'all'}`}>
                               <TableCell className="font-medium">{record.student_id}</TableCell>
                               <TableCell>{fullName}</TableCell>
+                              <TableCell>{subjectLabel}</TableCell>
                               <TableCell>
                                 <Badge
                                   className={
@@ -1067,15 +1317,17 @@ export default function AttendancePage() {
                               <TableCell>
                                 {record.check_in_time ? format(new Date(record.check_in_time), 'HH:mm') : '-'}
                               </TableCell>
-                              <TableCell>{record.notes || '-'}</TableCell>
+                              <TableCell>{record.notes ?? record.remarks ?? '-'}</TableCell>
                               <TableCell>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleEditRecord(record)}
-                                >
-                                  Edit
-                                </Button>
+                                {(canUpdate || canManage) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditRecord(record)}
+                                  >
+                                    Edit
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           );
@@ -1092,272 +1344,16 @@ export default function AttendancePage() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+                </TabsContent>
+              )}
 
-        {/* Reports Tab */}
-        <TabsContent value="reports" className="space-y-4">
-          {/* Report Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Attendance Reports</CardTitle>
-              <CardDescription>
-                Generate and export attendance reports
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Class Selection */}
-                <div>
-                  <Label htmlFor="report-class">Class (Optional)</Label>
-                  <Select value={selectedClass} onValueChange={setSelectedClass}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All classes" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Classes</SelectItem>
-                      {classes
-                        .filter((cls) => cls.id && cls.id.trim() !== '')
-                        .map((cls) => (
-                          <SelectItem key={cls.id} value={cls.id}>
-                            {cls.class_name} - {cls.section}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Period Selection */}
-                <div>
-                  <Label>Report Period</Label>
-                  <Select defaultValue="30">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select period" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">Last 7 days</SelectItem>
-                      <SelectItem value="30">Last 30 days</SelectItem>
-                      <SelectItem value="90">Last 3 months</SelectItem>
-                      <SelectItem value="365">Last year</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Analytics Summary */}
-          {analytics && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Period Summary</CardTitle>
-                <CardDescription>
-                  Overview of attendance for the last 30 days
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <p className="text-2xl font-bold text-green-700">
-                      {analytics.average_attendance_rate?.toFixed(1) || 0}%
-                    </p>
-                    <p className="text-sm text-green-600">Average Attendance</p>
-                  </div>
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-700">
-                      {analytics.total_students || 0}
-                    </p>
-                    <p className="text-sm text-blue-600">Total Students</p>
-                  </div>
-                  <div className="text-center p-4 bg-purple-50 rounded-lg">
-                    <p className="text-2xl font-bold text-purple-700">
-                      {analytics.total_days || 0}
-                    </p>
-                    <p className="text-sm text-purple-600">School Days</p>
-                  </div>
-                  <div className="text-center p-4 bg-orange-50 rounded-lg">
-                    <p className="text-2xl font-bold text-orange-700">
-                      {analytics.unresolved_alerts || 0}
-                    </p>
-                    <p className="text-sm text-orange-600">Active Alerts</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Export Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Export Reports</CardTitle>
-              <CardDescription>
-                Download attendance data in various formats
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={async () => {
-                    try {
-                      const { data, error } = await apiClient.getMonthlyAttendanceReport({
-                        class_id: selectedClass || undefined,
-                        branch_id: selectedBranch
-                      });
-                      if (error) throw error;
-                      
-                      // Create and download CSV
-                      const csv = convertToCSV(data);
-                      downloadCSV(csv, 'monthly_attendance_report.csv');
-                      
-                      toast({
-                        title: "Success",
-                        description: "Monthly report exported successfully",
-                      });
-                    } catch (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to export monthly report",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Monthly Report
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={async () => {
-                    if (!selectedClass) {
-                      toast({
-                        title: "Error",
-                        description: "Please select a class first",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    
-                    try {
-                      const { data, error } = await apiClient.getClassAttendanceReport(selectedClass, {
-                        start_date: format(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-                        end_date: format(new Date(), 'yyyy-MM-dd')
-                      });
-                      if (error) throw error;
-                      
-                      // Create and download CSV
-                      const csv = convertToCSV(data);
-                      downloadCSV(csv, 'class_attendance_summary.csv');
-                      
-                      toast({
-                        title: "Success",
-                        description: "Class summary exported successfully",
-                      });
-                    } catch (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to export class summary",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Class Summary
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={async () => {
-                    try {
-                      const { data, error } = await apiClient.exportAttendanceReport({
-                        format: 'csv',
-                        class_id: selectedClass || undefined,
-                        start_date: format(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-                        end_date: format(new Date(), 'yyyy-MM-dd')
-                      });
-                      if (error) throw error;
-                      
-                      // Handle the blob response for download
-                      const blob = new Blob([data], { type: 'text/csv' });
-                      const url = window.URL.createObjectURL(blob);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      link.download = 'attendance_detailed_report.csv';
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      window.URL.revokeObjectURL(url);
-                      
-                      toast({
-                        title: "Success",
-                        description: "Detailed report exported successfully",
-                      });
-                    } catch (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to export detailed report",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Detailed Report
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={() => {
-                    if (!analytics) {
-                      toast({
-                        title: "Error",
-                        description: "No analytics data available",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    
-                    try {
-                      // Generate analytics report
-                      const analyticsData = {
-                        report_date: format(new Date(), 'yyyy-MM-dd'),
-                        period: '30 days',
-                        average_attendance_rate: analytics.average_attendance_rate,
-                        total_students: analytics.total_students,
-                        total_days: analytics.total_days,
-                        unresolved_alerts: analytics.unresolved_alerts,
-                        class_filter: selectedClass ? 'Specific Class' : 'All Classes'
-                      };
-                      
-                      const csv = convertToCSV([analyticsData]);
-                      downloadCSV(csv, 'attendance_analytics_summary.csv');
-                      
-                      toast({
-                        title: "Success",
-                        description: "Analytics report exported successfully",
-                      });
-                    } catch (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to export analytics report",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Analytics Summary
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              {/* Reports Tab */}
+              {(canRead || canManage) && (
+                <TabsContent value="reports" className="space-y-4">
+                  <AttendanceReports />
+                </TabsContent>
+              )}
+            </Tabs>
         </div>
       </div>
       </div>
@@ -1372,6 +1368,7 @@ export default function AttendancePage() {
             <DialogTitle>Edit Attendance Record</DialogTitle>
             <DialogDescription>
               Modify the attendance status and remarks for {editingRecord?.student_name}
+              {editingRecord?.subject_id ? ` · ${formatSubjectLabel(editingRecord.subject_id)}` : ''}
             </DialogDescription>
           </DialogHeader>
           

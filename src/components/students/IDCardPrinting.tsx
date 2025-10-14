@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { debounce } from 'lodash';
 import { apiClient } from '@/lib/api';
@@ -19,6 +19,7 @@ import { StudentDetails } from './StudentDetails';
 import { CreditCard, Printer, Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { getHighlightedText } from '@/utils/searchHighlight';
+import { useDialogSidebarCollapse } from '@/hooks/useDialogSidebarCollapse';
 
 export const IDCardPrinting = () => {
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
@@ -32,6 +33,24 @@ export const IDCardPrinting = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const studentsPerPage = 15;
+
+  // Auto-collapse sidebar when dialogs open
+  useDialogSidebarCollapse(showPreview);
+  useDialogSidebarCollapse(!!selectedStudent);
+
+  // Disable page scrolling when modal is open
+  useEffect(() => {
+    if (selectedStudent) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedStudent]);
 
   // Fetch all students via API
   const { data: allStudents = [], isLoading } = useQuery<Student[], Error>({
@@ -52,7 +71,6 @@ export const IDCardPrinting = () => {
     }, 300),
     []
   );
-
 
   // Apply client-side filtering for ID card specific filters
   const students = allStudents?.filter(student => {
@@ -668,10 +686,12 @@ export const IDCardPrinting = () => {
 
       {/* Student Details Modal */}
       {selectedStudent && (
-        <StudentDetails
-          student={selectedStudent}
-          onClose={() => setSelectedStudent(null)}
-        />
+        <div className="[&>div]:!p-4 [&>div>div]:!m-0 [&>div>div]:!max-h-[95vh]">
+          <StudentDetails
+            student={selectedStudent}
+            onClose={() => setSelectedStudent(null)}
+          />
+        </div>
       )}
       </div>
     </BranchLoadingWrapper>

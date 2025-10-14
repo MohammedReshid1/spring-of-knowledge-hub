@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, UserPlus, UserMinus, Search, School } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useLiveData } from '@/hooks/useLiveData';
 
 interface ClassStudentsPopupProps {
   classData: any;
@@ -26,6 +27,13 @@ export const ClassStudentsPopup = ({ classData, isOpen, onClose }: ClassStudents
   const { selectedBranch } = useBranch();
   const queryClient = useQueryClient();
   const { isTeacher } = useRoleAccess();
+
+  // Enable real-time updates for class students popup
+  useLiveData(['students', 'classes', 'grade-levels'], {
+    enabled: isOpen, // Only subscribe when popup is open
+    additionalQueryKeys: ['all-students', 'grade-stats']
+  });
+
   // Refetch students when popup opens
   useEffect(() => {
     if (isOpen) {
@@ -43,7 +51,6 @@ export const ClassStudentsPopup = ({ classData, isOpen, onClose }: ClassStudents
         console.error('Error fetching all students:', resp.error);
         return [];
       }
-      console.log('Fetched students:', resp.data?.length, 'students total');
       return resp.data || [];
     },
     enabled: true

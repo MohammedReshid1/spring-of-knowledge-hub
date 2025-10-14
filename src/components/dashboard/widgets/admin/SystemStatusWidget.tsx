@@ -75,12 +75,18 @@ export const SystemStatusWidget: React.FC<WidgetProps> = ({ config }) => {
     security: 'secure',
     performance: 'good',
     lastUpdate: new Date(),
-    uptime: 86400
+    uptimeSeconds: 86400
   };
 
-  // Format uptime with live calculation
-  const formatUptime = (seconds: number) => {
-    const currentSeconds = Math.floor(Date.now() / 1000);
+  // Format uptime using backend data when available
+  const formatUptime = () => {
+    // If we have the new backend uptime data, use it
+    if (statusData?.uptime?.formatted) {
+      return statusData.uptime.formatted;
+    }
+
+    // Fallback to calculated uptime for backward compatibility
+    const seconds = status.uptimeSeconds || status.uptime || 86400;
     const uptimeSeconds = seconds + Math.floor((Date.now() - new Date(status.lastUpdate).getTime()) / 1000);
 
     const days = Math.floor(uptimeSeconds / 86400);
@@ -90,6 +96,36 @@ export const SystemStatusWidget: React.FC<WidgetProps> = ({ config }) => {
     if (days > 0) return `${days}d ${hours}h ${minutes}m`;
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
+  };
+
+  // Get running since date using backend data when available
+  const getRunningSinceDate = () => {
+    if (statusData?.runningSince?.date) {
+      return statusData.runningSince.date;
+    }
+
+    // Fallback calculation
+    const seconds = status.uptimeSeconds || status.uptime || 86400;
+    return new Date(Date.now() - (seconds * 1000)).toLocaleDateString();
+  };
+
+  // Get last checked time using backend data when available
+  const getLastCheckedTime = () => {
+    if (statusData?.lastChecked) {
+      return statusData.lastChecked;
+    }
+
+    return new Date(status.lastUpdate).toLocaleTimeString();
+  };
+
+  // Get overall status using backend data when available
+  const getOverallStatus = () => {
+    if (statusData?.overallStatus) {
+      return statusData.overallStatus;
+    }
+
+    // Fallback to calculated status
+    return isSystemHealthy ? 'All Systems Operational' : 'System Issues Detected';
   };
 
   const getStatusConfig = (statusType: string, statusValue: string) => {
@@ -239,11 +275,11 @@ export const SystemStatusWidget: React.FC<WidgetProps> = ({ config }) => {
           </div>
           <div className="space-y-2">
             <div className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
-              {formatUptime(status.uptime)}
+              {formatUptime()}
             </div>
             <div className="text-sm font-semibold text-emerald-700">System Uptime</div>
             <div className="text-xs text-emerald-600">
-              Running since {new Date(Date.now() - (status.uptime * 1000)).toLocaleDateString()}
+              Running since {getRunningSinceDate()}
             </div>
           </div>
         </div>
@@ -310,7 +346,7 @@ export const SystemStatusWidget: React.FC<WidgetProps> = ({ config }) => {
           <div className="flex items-center justify-center gap-2">
             <Clock className="h-4 w-4 text-slate-600" />
             <span className="text-xs text-slate-600 font-medium">
-              Last checked: {new Date(status.lastUpdate).toLocaleTimeString()}
+              Last checked: {getLastCheckedTime()}
             </span>
           </div>
 
@@ -325,7 +361,7 @@ export const SystemStatusWidget: React.FC<WidgetProps> = ({ config }) => {
             ) : (
               <AlertTriangle className="h-4 w-4 animate-pulse-glow" />
             )}
-            {isSystemHealthy ? 'All Systems Operational' : 'System Issues Detected'}
+            {getOverallStatus()}
           </div>
         </div>
       </div>

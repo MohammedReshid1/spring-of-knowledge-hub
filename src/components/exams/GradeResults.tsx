@@ -333,17 +333,7 @@ export const GradeResults = ({ examId, onClose }: GradeResultsProps) => {
     !results.some(result => result.student_id === student.id)
   );
 
-  // Debug logging for development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('Grade Results Debug:', {
-      examClassId: exam?.class_id,
-      totalStudents: allStudents.length,
-      classStudents: classStudents.length,
-      existingResults: results.length,
-      ungradedStudents: ungradedStudents.length,
-      canGrade: canGradeStudents()
-    });
-  }
+  // Exam grading statistics logged for development
 
   const passCount = results.filter(result => result.status === 'pass').length;
   const failCount = results.filter(result => result.status === 'fail').length;

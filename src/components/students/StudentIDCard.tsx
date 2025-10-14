@@ -35,13 +35,7 @@ export const StudentIDCard = ({
   const formatFullName = (student: Student) => {
     const parts = [];
     
-    // Debug logging
-    console.log('Student data for name formatting:', {
-      first_name: student.first_name,
-      last_name: student.last_name,
-      father_name: student.father_name,
-      grandfather_name: student.grandfather_name
-    });
+    // Student data logged for debugging
     
     // Add first name
     if (student.first_name && student.first_name.trim()) {
@@ -78,7 +72,6 @@ export const StudentIDCard = ({
     }
     
     const fullName = parts.join(' ');
-    console.log('Formatted full name:', fullName);
     return fullName;
   };
 
@@ -103,7 +96,6 @@ export const StudentIDCard = ({
                 frontImageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={() => {
-                console.log('Front SVG loaded successfully');
                 setFrontImageLoaded(true);
               }}
               onError={(e) => {
@@ -176,7 +168,6 @@ export const StudentIDCard = ({
                 backImageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={() => {
-                console.log('Back SVG loaded successfully');
                 setBackImageLoaded(true);
               }}
               onError={(e) => {

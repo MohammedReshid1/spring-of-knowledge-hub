@@ -45,7 +45,6 @@ export const StudentClassAssignment = () => {
       if (gradeLevelsResponse.error) throw new Error(gradeLevelsResponse.error);
       
       const gradeLevels = gradeLevelsResponse.data || [];
-      console.log('StudentClassAssignment - Grade levels fetched:', gradeLevels.length);
       
       // Filter students by selected branch
       const branchStudents = studentsResponse.data || [];
@@ -64,7 +63,6 @@ export const StudentClassAssignment = () => {
       // Enrich classes with grade level information
       const classes = filteredClasses.map(cls => {
         const gradeLevel = gradeLevels.find(gl => gl.id === cls.grade_level_id);
-        console.log(`StudentAssignment - Class ${cls.class_name}: grade_level_id=${cls.grade_level_id}, found grade=${gradeLevel?.grade}`);
         return {
           ...cls,
           grade_level: gradeLevel ? { grade: gradeLevel.grade } : null
@@ -109,8 +107,10 @@ export const StudentClassAssignment = () => {
         
         const gradeClasses = classes.filter(c => {
           const classGradeDb = gradeToDbFormat[c.grade_level?.grade] || c.grade_level?.grade;
-          return classGradeDb === gradeLevel;
+          const matches = classGradeDb === gradeLevel;
+          return matches;
         }) || [];
+
         
         group.availableClasses = gradeClasses.map(cls => ({
           id: cls.id,

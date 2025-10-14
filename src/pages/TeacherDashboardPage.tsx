@@ -4,53 +4,62 @@ import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { useBranch } from '@/contexts/BranchContext';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useLiveData } from '@/hooks/useLiveData';
 import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 import { WidgetContainer } from '@/components/dashboard/widgets/WidgetContainer';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  BookOpen, 
-  Users, 
-  Calendar, 
-  ClipboardCheck, 
+import {
+  BookOpen,
+  Users,
+  Calendar,
+  ClipboardCheck,
   TrendingUp,
   Clock,
   Bell,
   FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
 
 export const TeacherDashboardPage = () => {
   const { user } = useAuth();
   const { isTeacher } = useRoleAccess();
   const { selectedBranch } = useBranch();
 
+  // Enable real-time updates for teacher dashboard data
+  useLiveData(['classes', 'students', 'attendance', 'grades', 'teachers'], {
+    additionalQueryKeys: ['teacher-dashboard']
+  });
+
+  // Fetch current academic year from database
+  const academicYearQuery = useAcademicYear();
+
   // Fetch teacher's dashboard data
-  const { 
-    data: dashboardData, 
-    isLoading, 
+  const {
+    data: dashboardData,
+    isLoading,
     isError,
-    error 
+    error
   } = useQuery({
     queryKey: ['teacher-dashboard', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      
+
       // Try enhanced dashboard first
       const { data: enhanced, error: enhancedError } = await apiClient.getTeacherEnhancedDashboard(user.id);
       if (!enhancedError && enhanced) {
         return enhanced;
       }
-      
+
       // Fallback to regular dashboard
       const { data: regular, error: regularError } = await apiClient.getTeacherDashboardData(user.id);
       if (regularError) throw new Error(regularError);
       return regular;
     },
     enabled: isTeacher && !!user?.id,
-    staleTime: 300000, // 5 minutes
-    refetchInterval: 300000
+    staleTime: 300000 // 5 minutes - no polling, using WebSocket updates instead
   });
 
   if (!isTeacher) {
@@ -83,7 +92,7 @@ export const TeacherDashboardPage = () => {
   const summary = dashboardData?.summary || {
     total_classes: 0,
     total_students: 0,
-    active_academic_year: '2024-2025'
+    active_academic_year: getAcademicYearString(academicYearQuery)
   };
 
   return (

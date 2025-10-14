@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { WidgetProps } from '../WidgetRegistry';
 import { useWidgetData } from '@/hooks/useWidgetData';
+import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
 const mockFeeData = {
   student: 'Emma Johnson',
   academicYear: '2024-2025',
@@ -44,6 +45,7 @@ const mockFeeData = {
 export const FeeStatusWidget: React.FC<WidgetProps> = ({ config }) => {
   const { useStudentFees } = useWidgetData();
   const { data: feeData, isLoading, error } = useStudentFees();
+  const academicYearQuery = useAcademicYear();
 
   if (error) {
     return <div className="text-sm text-red-500">Failed to load fee status</div>;
@@ -129,7 +131,7 @@ export const FeeStatusWidget: React.FC<WidgetProps> = ({ config }) => {
         </div>
         {!isFullyPaid && (
           <div className="text-xs text-gray-600 mt-1">
-            Academic Year {mockFeeData.academicYear}
+            Academic Year {getAcademicYearString(academicYearQuery)}
           </div>
         )}
       </div>

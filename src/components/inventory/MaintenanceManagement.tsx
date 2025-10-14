@@ -336,143 +336,167 @@ export const MaintenanceManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Maintenance Management</h2>
-          <p className="text-muted-foreground">Schedule and track asset maintenance activities</p>
-        </div>
-        
-        <Dialog open={isScheduleMaintenanceOpen} onOpenChange={setIsScheduleMaintenanceOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Schedule Maintenance
-            </Button>
-          </DialogTrigger>
-        </Dialog>
-      </div>
+      {/* Premium Header */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                  <Wrench className="h-5 w-5 text-emerald-600" />
+                </div>
+                Maintenance Management
+              </h2>
+              <p className="text-slate-600 font-medium mt-1">Schedule and track asset maintenance activities</p>
+            </div>
 
-      {/* Quick Stats */}
+            <Dialog open={isScheduleMaintenanceOpen} onOpenChange={setIsScheduleMaintenanceOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Schedule Maintenance
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Premium Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Scheduled</p>
+                <p className="text-sm font-medium text-slate-600">Scheduled</p>
                 <p className="text-2xl font-bold text-blue-600">{scheduledCount}</p>
               </div>
-              <Calendar className="h-8 w-8 text-blue-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 border border-blue-200/50">
+                <Calendar className="h-6 w-6 text-blue-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">In Progress</p>
+                <p className="text-sm font-medium text-slate-600">In Progress</p>
                 <p className="text-2xl font-bold text-yellow-600">{inProgressCount}</p>
               </div>
-              <Clock className="h-8 w-8 text-yellow-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-yellow-100 to-yellow-50 border border-yellow-200/50">
+                <Clock className="h-6 w-6 text-yellow-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Overdue</p>
+                <p className="text-sm font-medium text-slate-600">Overdue</p>
                 <p className="text-2xl font-bold text-red-600">{overdueCount}</p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-red-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-red-100 to-red-50 border border-red-200/50">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Completed This Month</p>
+                <p className="text-sm font-medium text-slate-600">Completed This Month</p>
                 <p className="text-2xl font-bold text-green-600">{completedThisMonth}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-green-100 to-green-50 border border-green-200/50">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="flex-1 min-w-64">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by asset name, title, or maintenance code..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
+      {/* Premium Filters Card */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="p-4">
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search by asset name, title, or maintenance code..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
+                />
+              </div>
+            </div>
+
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="preventive">Preventive</SelectItem>
+                <SelectItem value="corrective">Corrective</SelectItem>
+                <SelectItem value="emergency">Emergency</SelectItem>
+                <SelectItem value="routine">Routine</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="scheduled">Scheduled</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={selectedType} onValueChange={setSelectedType}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="preventive">Preventive</SelectItem>
-            <SelectItem value="corrective">Corrective</SelectItem>
-            <SelectItem value="emergency">Emergency</SelectItem>
-            <SelectItem value="routine">Routine</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Upcoming Maintenance Schedule */}
+      {/* Premium Upcoming Maintenance Schedule */}
       {upcomingSchedule && (upcomingSchedule as any)?.upcoming_maintenance && (upcomingSchedule as any).upcoming_maintenance.length > 0 && (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Calendar className="h-5 w-5 mr-2" />
+            <CardTitle className="flex items-center text-emerald-700">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 mr-2">
+                <Calendar className="h-5 w-5 text-emerald-600" />
+              </div>
               Upcoming Maintenance (Next 30 Days)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {(upcomingSchedule as any).upcoming_maintenance.slice(0, 5).map((record: MaintenanceRecord) => (
-                <div key={record.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <div key={record.id} className="flex justify-between items-center p-3 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 hover:from-emerald-50 hover:to-teal-50 rounded-lg border border-emerald-100/50 transition-all duration-300">
                   <div className="flex items-center space-x-3">
                     <Badge className={getTypeColor(record.maintenance_type)}>
                       {record.maintenance_type}
                     </Badge>
-                    <span className="font-medium">{record.asset_name}</span>
-                    <span className="text-sm text-muted-foreground">- {record.title}</span>
+                    <span className="font-medium text-slate-700">{record.asset_name}</span>
+                    <span className="text-sm text-slate-500">- {record.title}</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{formatDate(record.scheduled_date)}</span>
+                    <Calendar className="h-4 w-4 text-emerald-600" />
+                    <span className="text-sm font-medium text-slate-700">{formatDate(record.scheduled_date)}</span>
                   </div>
                 </div>
               ))}
               {(upcomingSchedule as any).upcoming_maintenance.length > 5 && (
-                <p className="text-sm text-muted-foreground text-center pt-2">
+                <p className="text-sm text-slate-500 text-center pt-2">
                   And {(upcomingSchedule as any).upcoming_maintenance.length - 5} more...
                 </p>
               )}
@@ -481,14 +505,14 @@ export const MaintenanceManagement: React.FC = () => {
         </Card>
       )}
 
-      {/* Maintenance Records */}
+      {/* Premium Maintenance Records */}
       {filteredRecords.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredRecords.map((record: MaintenanceRecord) => {
             const isRecordOverdue = isOverdue(record.scheduled_date, record.status);
-            
+
             return (
-              <Card key={record.id} className={`hover:shadow-md transition-shadow ${isRecordOverdue ? 'border-red-200' : ''}`}>
+              <Card key={record.id} className={`bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] ${isRecordOverdue ? 'border-red-300' : ''}`}>
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -578,32 +602,32 @@ export const MaintenanceManagement: React.FC = () => {
                   <div className="space-y-2 pt-2">
                     {record.status === 'scheduled' && (
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="flex-1 text-blue-600 hover:text-blue-700"
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                           onClick={() => handleStartWork(record)}
                           disabled={startWorkMutation.isPending}
                         >
                           <Wrench className="h-3 w-3 mr-1" />
                           {startWorkMutation.isPending ? 'Starting...' : 'Start Work'}
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-green-600 hover:text-green-700"
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                         >
                           <CheckCircle className="h-3 w-3" />
                         </Button>
                       </div>
                     )}
-                    
+
                     {record.status === 'in_progress' && (
                       <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="flex-1 text-green-600 hover:text-green-700"
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                           onClick={() => handleCompleteWork(record)}
                           disabled={completeWorkMutation.isPending}
                         >
@@ -613,21 +637,21 @@ export const MaintenanceManagement: React.FC = () => {
                       </div>
                     )}
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                         onClick={() => handleEditMaintenance(record)}
                         disabled={record.status === 'completed'}
                       >
                         <Edit className="h-3 w-3 mr-1" />
                         Edit
                       </Button>
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => handleDeleteMaintenance(record)}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 border-red-200/50 hover:bg-red-50 hover:border-red-400 transition-all duration-300"
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -639,11 +663,13 @@ export const MaintenanceManagement: React.FC = () => {
           })}
         </div>
       ) : (
-        <Card>
-          <CardContent className="text-center py-8">
-            <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No maintenance records found</p>
-            <p className="text-sm text-muted-foreground mt-2">
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+          <CardContent className="text-center py-12">
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 w-fit mx-auto mb-4">
+              <Wrench className="h-12 w-12 text-emerald-600" />
+            </div>
+            <p className="text-slate-600 font-medium text-lg">No maintenance records found</p>
+            <p className="text-sm text-slate-500 mt-2">
               {searchTerm || (selectedStatus && selectedStatus !== 'all') || (selectedType && selectedType !== 'all')
                 ? 'Try adjusting your filters'
                 : 'Schedule your first maintenance to get started'
@@ -653,11 +679,13 @@ export const MaintenanceManagement: React.FC = () => {
         </Card>
       )}
 
-      {/* Schedule Maintenance Dialog */}
+      {/* Premium Schedule Maintenance Dialog */}
       <Dialog open={isScheduleMaintenanceOpen} onOpenChange={setIsScheduleMaintenanceOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-sm border-emerald-200/50">
           <DialogHeader>
-            <DialogTitle>Schedule Maintenance</DialogTitle>
+            <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
+              Schedule Maintenance
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleScheduleMaintenance} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -694,41 +722,44 @@ export const MaintenanceManagement: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="maintenance_title">Title *</Label>
+              <Label htmlFor="maintenance_title" className="text-slate-700 font-medium">Title *</Label>
               <Input
                 id="maintenance_title"
                 value={newMaintenance.title}
                 onChange={(e) => setNewMaintenance({ ...newMaintenance, title: e.target.value })}
                 placeholder="Enter maintenance title"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="maintenance_description">Description</Label>
+              <Label htmlFor="maintenance_description" className="text-slate-700 font-medium">Description</Label>
               <Textarea
                 id="maintenance_description"
                 value={newMaintenance.description}
                 onChange={(e) => setNewMaintenance({ ...newMaintenance, description: e.target.value })}
                 placeholder="Describe the maintenance work to be performed"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 rows={3}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="scheduled_date">Scheduled Date *</Label>
+                <Label htmlFor="scheduled_date" className="text-slate-700 font-medium">Scheduled Date *</Label>
                 <Input
                   id="scheduled_date"
                   type="datetime-local"
                   value={newMaintenance.scheduled_date}
                   onChange={(e) => setNewMaintenance({ ...newMaintenance, scheduled_date: e.target.value })}
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="estimated_cost">Estimated Cost ($)</Label>
+                <Label htmlFor="estimated_cost" className="text-slate-700 font-medium">Estimated Cost ($)</Label>
                 <Input
                   id="estimated_cost"
                   type="number"
@@ -737,17 +768,19 @@ export const MaintenanceManagement: React.FC = () => {
                   value={newMaintenance.estimated_cost}
                   onChange={(e) => setNewMaintenance({ ...newMaintenance, estimated_cost: e.target.value })}
                   placeholder="0.00"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="assigned_to">Assign To (User ID)</Label>
+              <Label htmlFor="assigned_to" className="text-slate-700 font-medium">Assign To (User ID)</Label>
               <Input
                 id="assigned_to"
                 value={newMaintenance.assigned_to}
                 onChange={(e) => setNewMaintenance({ ...newMaintenance, assigned_to: e.target.value })}
                 placeholder="Optional: User ID of assigned technician"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
             </div>
 
@@ -759,12 +792,14 @@ export const MaintenanceManagement: React.FC = () => {
                   setIsScheduleMaintenanceOpen(false);
                   resetMaintenanceForm();
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={scheduleMaintenance.isPending || updateMaintenanceMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {(scheduleMaintenance.isPending || updateMaintenanceMutation.isPending) ? 'Saving...' : 'Schedule Maintenance'}
               </Button>
@@ -773,11 +808,13 @@ export const MaintenanceManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Maintenance Dialog */}
+      {/* Premium Edit Maintenance Dialog */}
       <Dialog open={isEditMaintenanceOpen} onOpenChange={setIsEditMaintenanceOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-sm border-emerald-200/50">
           <DialogHeader>
-            <DialogTitle>Edit Maintenance - {selectedMaintenance?.title}</DialogTitle>
+            <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
+              Edit Maintenance - {selectedMaintenance?.title}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleScheduleMaintenance} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -814,41 +851,44 @@ export const MaintenanceManagement: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit_maintenance_title">Title *</Label>
+              <Label htmlFor="edit_maintenance_title" className="text-slate-700 font-medium">Title *</Label>
               <Input
                 id="edit_maintenance_title"
                 value={newMaintenance.title}
                 onChange={(e) => setNewMaintenance({ ...newMaintenance, title: e.target.value })}
                 placeholder="Enter maintenance title"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit_maintenance_description">Description</Label>
+              <Label htmlFor="edit_maintenance_description" className="text-slate-700 font-medium">Description</Label>
               <Textarea
                 id="edit_maintenance_description"
                 value={newMaintenance.description}
                 onChange={(e) => setNewMaintenance({ ...newMaintenance, description: e.target.value })}
                 placeholder="Describe the maintenance work to be performed"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 rows={3}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit_scheduled_date">Scheduled Date *</Label>
+                <Label htmlFor="edit_scheduled_date" className="text-slate-700 font-medium">Scheduled Date *</Label>
                 <Input
                   id="edit_scheduled_date"
                   type="datetime-local"
                   value={newMaintenance.scheduled_date}
                   onChange={(e) => setNewMaintenance({ ...newMaintenance, scheduled_date: e.target.value })}
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_estimated_cost">Estimated Cost ($)</Label>
+                <Label htmlFor="edit_estimated_cost" className="text-slate-700 font-medium">Estimated Cost ($)</Label>
                 <Input
                   id="edit_estimated_cost"
                   type="number"
@@ -857,17 +897,19 @@ export const MaintenanceManagement: React.FC = () => {
                   value={newMaintenance.estimated_cost}
                   onChange={(e) => setNewMaintenance({ ...newMaintenance, estimated_cost: e.target.value })}
                   placeholder="0.00"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit_assigned_to">Assign To (User ID)</Label>
+              <Label htmlFor="edit_assigned_to" className="text-slate-700 font-medium">Assign To (User ID)</Label>
               <Input
                 id="edit_assigned_to"
                 value={newMaintenance.assigned_to}
                 onChange={(e) => setNewMaintenance({ ...newMaintenance, assigned_to: e.target.value })}
                 placeholder="Optional: User ID of assigned technician"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
             </div>
 
@@ -880,12 +922,14 @@ export const MaintenanceManagement: React.FC = () => {
                   setSelectedMaintenance(null);
                   resetMaintenanceForm();
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={updateMaintenanceMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {updateMaintenanceMutation.isPending ? 'Updating...' : 'Update Maintenance'}
               </Button>
@@ -894,14 +938,14 @@ export const MaintenanceManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Maintenance Confirmation Dialog */}
+      {/* Premium Delete Maintenance Confirmation Dialog */}
       <Dialog open={isDeleteMaintenanceOpen} onOpenChange={setIsDeleteMaintenanceOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white/95 backdrop-blur-sm border-red-200/50">
           <DialogHeader>
-            <DialogTitle>Delete Maintenance Record</DialogTitle>
+            <DialogTitle className="text-xl text-red-700">Delete Maintenance Record</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-600">
               Are you sure you want to delete the maintenance record "{selectedMaintenance?.title}" ({selectedMaintenance?.maintenance_code})?
               This action cannot be undone.
             </p>
@@ -913,13 +957,14 @@ export const MaintenanceManagement: React.FC = () => {
                   setIsDeleteMaintenanceOpen(false);
                   setSelectedMaintenance(null);
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
-                variant="destructive"
                 onClick={() => selectedMaintenance && deleteMaintenanceMutation.mutate(selectedMaintenance.id)}
                 disabled={deleteMaintenanceMutation.isPending}
+                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {deleteMaintenanceMutation.isPending ? 'Deleting...' : 'Delete Record'}
               </Button>

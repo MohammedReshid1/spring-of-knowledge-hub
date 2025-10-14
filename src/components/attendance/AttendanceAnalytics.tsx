@@ -207,7 +207,6 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
         throw new Error(response.error);
       }
       
-      console.log('Report export initiated:', response.data);
       // Note: In a real implementation, this would handle the actual file download
       // For now, we just log the response since the backend returns a placeholder
       
@@ -589,7 +588,6 @@ export const AttendanceAnalytics: React.FC<AttendanceAnalyticsProps> = ({
               )}
             </CardContent>
           </Card>
-        </div>
         </TabsContent>
 
         <TabsContent value="trends" className="space-y-6">

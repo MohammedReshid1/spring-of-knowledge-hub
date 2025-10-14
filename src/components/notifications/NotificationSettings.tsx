@@ -50,14 +50,14 @@ export const NotificationSettings: React.FC = () => {
   const { data: preferences, isLoading } = useQuery<NotificationPreferences>({
     queryKey: ['notification-preferences'],
     queryFn: async () => {
-      const response = await apiClient.get('/notifications/preferences');
+      const response = await apiClient.get('/api/notifications/preferences');
       return response.data;
     },
   });
 
   const updatePreferencesMutation = useMutation({
     mutationFn: async (data: NotificationPreferences) => {
-      const response = await apiClient.put('/notifications/preferences', data);
+      const response = await apiClient.put('/api/notifications/preferences', data);
       return response.data;
     },
     onSuccess: () => {

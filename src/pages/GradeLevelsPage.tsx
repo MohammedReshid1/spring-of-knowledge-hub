@@ -17,6 +17,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { useLiveData } from '@/hooks/useLiveData';
 
 interface GradeLevel {
   id: string;
@@ -29,29 +31,35 @@ interface GradeLevel {
 
 interface GradeLevelCreate {
   grade: string;
+  branch_id?: string;
 }
 
 export default function GradeLevelsPage() {
+  // Enable real-time updates
+  useLiveData(['grade-levels', 'classes', 'students']);
+
   const { selectedBranch } = useBranch();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingGradeLevel, setEditingGradeLevel] = useState<GradeLevel | null>(null);
   const [formData, setFormData] = useState<GradeLevelCreate>({
     grade: '',
   });
 
-  // Fetch grade levels
+  // Fetch grade levels using branch-aware endpoint
   const { data: gradeLevels = [], isLoading } = useQuery({
     queryKey: ['grade-levels', selectedBranch],
     queryFn: async () => {
-      const { data, error } = await apiClient.get('/grade-levels');
-      if (error) {
-        console.error('Error fetching grade levels:', error);
+      const response = await apiClient.getGradeLevelsByBranch(selectedBranch);
+      if (response.error) {
+        console.error('Error fetching grade levels:', response.error);
         return [];
       }
-      return data || [];
+      // Handle different response structures
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -59,12 +67,13 @@ export default function GradeLevelsPage() {
   const { data: allStudents = [] } = useQuery({
     queryKey: ['students', selectedBranch],
     queryFn: async () => {
-      const { data, error } = await apiClient.getAllStudents(selectedBranch);
-      if (error) {
-        console.error('Error fetching students:', error);
+      const response = await apiClient.getAllStudents(selectedBranch);
+      if (response.error) {
+        console.error('Error fetching students:', response.error);
         return [];
       }
-      return data || [];
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -72,12 +81,13 @@ export default function GradeLevelsPage() {
   const { data: allClasses = [] } = useQuery({
     queryKey: ['classes', selectedBranch],
     queryFn: async () => {
-      const { data, error } = await apiClient.getClasses();
-      if (error) {
-        console.error('Error fetching classes:', error);
+      const response = await apiClient.getClasses();
+      if (response.error) {
+        console.error('Error fetching classes:', response.error);
         return [];
       }
-      return data || [];
+      const data = response.data || response;
+      return Array.isArray(data) ? data : [];
     },
   });
 
@@ -101,7 +111,7 @@ export default function GradeLevelsPage() {
     };
   };
 
-  // Create grade level mutation
+  // Create grade level mutation (still using old endpoint as creation uses main endpoint)
   const createMutation = useMutation({
     mutationFn: async (data: GradeLevelCreate) => {
       const { data: result, error } = await apiClient.post('/grade-levels', data);
@@ -110,6 +120,7 @@ export default function GradeLevelsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grade-levels'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
       setIsCreateDialogOpen(false);
       setFormData({
         grade: '',
@@ -137,6 +148,7 @@ export default function GradeLevelsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grade-levels'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
       setEditingGradeLevel(null);
       toast({
         title: 'Success',
@@ -160,6 +172,7 @@ export default function GradeLevelsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['grade-levels'] });
+      queryClient.invalidateQueries({ queryKey: ['grade-stats'] });
       toast({
         title: 'Success',
         description: 'Grade level deleted successfully',
@@ -176,10 +189,17 @@ export default function GradeLevelsPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // For superadmin users, include the selected branch
+    const dataToSubmit = {
+      ...formData,
+      ...(selectedBranch && selectedBranch !== 'all' ? { branch_id: selectedBranch } : {})
+    };
+
     if (editingGradeLevel) {
-      updateMutation.mutate({ id: editingGradeLevel.id, data: formData });
+      updateMutation.mutate({ id: editingGradeLevel.id, data: dataToSubmit });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(dataToSubmit);
     }
   };
 
@@ -197,40 +217,30 @@ export default function GradeLevelsPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen relative overflow-hidden">
-        {/* Premium Loading Background */}
-        <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-100/30"></div>
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-blue-500/6 to-indigo-500/8 animate-gradient-shift bg-[length:400%_400%] pointer-events-none"></div>
-        </div>
-
-        <div className="relative z-10 flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="relative mb-6">
-              <div className="h-16 w-16 rounded-full border-4 border-blue-200 mx-auto"></div>
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 h-16 w-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin"></div>
-            </div>
-            <div className="p-4 rounded-2xl bg-white/80 backdrop-blur-glass border border-white/30 shadow-premium inline-block">
-              <p className="text-slate-700 font-semibold text-lg mb-2">Loading Grade Levels...</p>
-              <p className="text-slate-500">Please wait while we fetch your data</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner message="Loading Grade Levels..." />;
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
       {/* Premium Hero Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-16">
+      <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-blue-600 to-blue-700 pb-20 pt-16">
         {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
-        <div className="absolute inset-0 opacity-20"
-             style={{
-               backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-             }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/90 via-blue-600/90 to-blue-700/90" />
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }} />
+        </div>
+
+        {/* Enhanced Floating Shapes with Animation */}
+        <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse" />
+        <div className="absolute top-20 right-20 w-16 h-16 bg-white/10 rounded-full animate-pulse delay-1000" />
+        <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-500" />
+        <div className="absolute top-1/2 left-20 w-8 h-8 bg-white/8 rounded-full animate-pulse delay-300" />
+        <div className="absolute top-1/3 right-1/4 w-14 h-14 bg-white/8 rounded-full animate-pulse delay-700" />
+        <div className="absolute bottom-1/3 right-10 w-10 h-10 bg-white/8 rounded-full animate-pulse delay-900" />
+        <div className="absolute top-1/4 left-1/2 w-6 h-6 bg-white/6 rounded-full animate-pulse delay-400" />
+        <div className="absolute bottom-10 left-1/4 w-18 h-18 bg-white/8 rounded-full animate-pulse delay-800" />
 
         <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
@@ -239,9 +249,9 @@ export default function GradeLevelsPage() {
               Educational Structure System
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Grade <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Levels</span>
+              Grade <span className="bg-gradient-to-r from-indigo-200 to-blue-200 bg-clip-text text-transparent">Levels</span>
             </h1>
-            <p className="mt-6 text-lg leading-8 text-blue-100">
+            <p className="mt-6 text-lg leading-8 text-indigo-100">
               Manage academic grade levels with comprehensive enrollment tracking, capacity analytics, and class distribution.
               Optimize your educational structure with premium management tools.
             </p>
@@ -433,7 +443,7 @@ export default function GradeLevelsPage() {
                                   {gradeLevel.grade}
                                 </h3>
                                 <p className="text-sm text-slate-600 font-medium">
-                                  Capacity: {gradeLevel.current_enrollment}/{gradeLevel.max_capacity}
+                                  Capacity: {stats.currentEnrollment}/{stats.maxCapacity}
                                 </p>
                               </div>
                             </div>

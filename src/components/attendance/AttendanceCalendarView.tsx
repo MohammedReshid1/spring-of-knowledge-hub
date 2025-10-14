@@ -304,8 +304,8 @@ const AttendanceCalendarView: React.FC<AttendanceCalendarViewProps> = ({
           </div>
         </div>
 
-          {/* Premium Daily Details */}
-          <div>
+        {/* Premium Daily Details */}
+        <div>
             <div className="relative">
               <div className="absolute inset-0 bg-white/90 backdrop-blur-premium border border-white/40 rounded-3xl shadow-premium-lg"></div>
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-green-500/5 rounded-3xl pointer-events-none"></div>

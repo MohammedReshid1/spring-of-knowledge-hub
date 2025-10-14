@@ -11,16 +11,18 @@ import {
   Clock,
   AlertCircle,
   CheckCircle,
-  RefreshCw,
+  Loader2,
   TrendingUp,
   Server,
   HardDrive,
   Wifi,
-  Cpu
+  Cpu,
+  Lock
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useLiveData } from '@/hooks/useLiveData';
 
 interface SystemMetrics {
   uptime: string;
@@ -48,13 +50,17 @@ interface ActivityLog {
 
 export const SystemMonitoring = () => {
   const { isSuperAdmin, isAdmin } = useRoleAccess();
-  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Enable real-time updates via WebSocket
+  useLiveData(['system-metrics', 'activity-logs'], {
+    enabled: true,
+    refetchInterval: 30000 // Auto-refresh every 30 seconds
+  });
 
   // System metrics query
-  const { data: metricsResponse, isLoading: metricsLoading, refetch: refetchMetrics, error: metricsError } = useQuery({
+  const { data: metricsResponse, isLoading: metricsLoading, error: metricsError } = useQuery({
     queryKey: ['system-metrics'],
     queryFn: () => apiClient.getSystemMetrics(),
-    refetchInterval: autoRefresh ? 30000 : false, // Refetch every 30 seconds if auto-refresh is enabled
     retry: 2,
     retryDelay: 1000
   });
@@ -65,7 +71,6 @@ export const SystemMonitoring = () => {
   const { data: activityResponse, isLoading: logsLoading, error: logsError } = useQuery({
     queryKey: ['activity-logs'],
     queryFn: () => apiClient.getActivityLogs(10),
-    refetchInterval: autoRefresh ? 60000 : false, // Refetch every minute
     retry: 2,
     retryDelay: 1000
   });
@@ -95,13 +100,13 @@ export const SystemMonitoring = () => {
   const getSeverityBadge = (severity: ActivityLog['severity']) => {
     switch (severity) {
       case 'info':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">INFO</Badge>;
+        return <Badge className="bg-gradient-to-r from-blue-100 to-indigo-100 border-blue-300/50 text-blue-800 font-semibold shadow-sm">INFO</Badge>;
       case 'warning':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">WARNING</Badge>;
+        return <Badge className="bg-gradient-to-r from-yellow-100 to-amber-100 border-yellow-300/50 text-yellow-800 font-semibold shadow-sm">WARNING</Badge>;
       case 'error':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">ERROR</Badge>;
+        return <Badge className="bg-gradient-to-r from-red-100 to-pink-100 border-red-300/50 text-red-800 font-semibold shadow-sm">ERROR</Badge>;
       default:
-        return <Badge variant="outline">UNKNOWN</Badge>;
+        return <Badge variant="outline" className="bg-white/80 border-slate-300 text-slate-700 font-medium">UNKNOWN</Badge>;
     }
   };
 
@@ -121,12 +126,21 @@ export const SystemMonitoring = () => {
 
   if (!isAdmin && !isSuperAdmin) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center">
-            <Monitor className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Access Denied</h3>
-            <p className="text-gray-600">
+      <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-red-50/50 border border-white/30 shadow-premium">
+        <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.02] via-pink-500/[0.02] to-red-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <CardHeader className="relative">
+          <CardTitle className="text-xl font-bold flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-red-100 to-pink-100 border border-red-200/50">
+              <Lock className="h-5 w-5 text-red-600" />
+            </div>
+            <span className="bg-gradient-to-r from-slate-900 via-red-800 to-pink-900 bg-clip-text text-transparent">
+              Access Denied
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="relative">
+          <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200/50 rounded-xl p-6">
+            <p className="text-red-900 font-medium">
               You don't have permission to view system monitoring information.
             </p>
           </div>
@@ -136,252 +150,353 @@ export const SystemMonitoring = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Monitor className="h-6 w-6" />
-            System Monitoring
-          </h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Real-time system performance and activity monitoring
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Auto-refresh:</span>
-            <Button
-              variant={autoRefresh ? "default" : "outline"}
-              size="sm"
-              onClick={() => setAutoRefresh(!autoRefresh)}
-            >
-              {autoRefresh ? 'On' : 'Off'}
-            </Button>
+    <>
+      {/* Premium Animation Styles */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes pulse-glow {
+          0%, 100% {
+            opacity: 0.5;
+          }
+          50% {
+            opacity: 1;
+          }
+        }
+
+        .animate-fadeInUp {
+          animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-pulse-glow {
+          animation: pulse-glow 2s ease-in-out infinite;
+        }
+      `}</style>
+
+      <div className="space-y-6 animate-fadeInUp">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-slate-600 font-medium">
+              Real-time system performance and activity monitoring (auto-updates every 30s)
+            </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetchMetrics()}
-            disabled={metricsLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${metricsLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
         </div>
-      </div>
 
-      {/* System Health Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            System Health
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {metricsError ? (
-            <div className="flex items-center gap-4 mb-4">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <span className="font-medium text-red-600">
-                UNAVAILABLE - Failed to load system metrics
+        {/* System Health Overview */}
+        <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-blue-50/50 border border-white/30 shadow-premium hover:shadow-lg transition-all duration-500">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.02] via-indigo-500/[0.02] to-purple-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <CardHeader className="relative">
+            <CardTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-green-100 to-emerald-100 border border-green-200/50">
+                <Activity className="h-5 w-5 text-green-600" />
+              </div>
+              <span className="bg-gradient-to-r from-slate-900 via-green-800 to-emerald-900 bg-clip-text text-transparent">
+                System Health
               </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4 mb-4">
-              {getHealthIcon(metrics?.system_health)}
-              <span className={`font-medium ${getHealthColor(metrics?.system_health)}`}>
-                {metrics?.system_health?.toUpperCase() || 'LOADING...'}
-              </span>
-              {metrics?.uptime && (
-                <span className="text-sm text-gray-600">
-                  System uptime: {metrics.uptime}
-                </span>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Active Users</p>
-                <p className="text-2xl font-bold">{metrics?.active_users || 0}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                <p className="text-2xl font-bold">{metrics?.total_requests?.toLocaleString() || 0}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Response Time</p>
-                <p className="text-2xl font-bold">{metrics?.average_response_time || 0}ms</p>
-              </div>
-              <Clock className="h-8 w-8 text-purple-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Error Rate</p>
-                <p className="text-2xl font-bold">{metrics?.error_rate?.toFixed(2) || 0}%</p>
-              </div>
-              <AlertCircle className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Resource Usage */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Cpu className="h-5 w-5" />
-              Resource Usage
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Memory Usage</span>
-                <span className="text-sm text-gray-600">{metrics?.memory_usage || 0}%</span>
+          <CardContent className="relative">
+            {metricsError ? (
+              <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200/50 rounded-xl p-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-red-100 to-pink-100 border border-red-200/50">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                  </div>
+                  <span className="font-bold text-red-900">
+                    UNAVAILABLE - Failed to load system metrics
+                  </span>
+                </div>
               </div>
-              <Progress value={metrics?.memory_usage || 0} className="h-2" />
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium">Storage Usage</span>
-                <span className="text-sm text-gray-600">{metrics?.storage_usage || 0}%</span>
-              </div>
-              <Progress value={metrics?.storage_usage || 0} className="h-2" />
-            </div>
-
-            <div className="flex justify-between items-center pt-2">
-              <span className="text-sm font-medium">Database Connections</span>
-              <span className="text-sm text-gray-600">{metrics?.database_connections || 0}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              System Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Server className="h-4 w-4" />
-                <span className="text-sm">Database</span>
-              </div>
-              <Badge variant="outline" className={metrics?.database_status === 'connected' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}>
-                <CheckCircle className="h-3 w-3 mr-1" />
-                {metrics?.database_status === 'connected' ? 'Online' : 'Offline'}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wifi className="h-4 w-4" />
-                <span className="text-sm">API Services</span>
-              </div>
-              <Badge variant="outline" className={metrics?.api_status === 'operational' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}>
-                <CheckCircle className="h-3 w-3 mr-1" />
-                {metrics?.api_status === 'operational' ? 'Operational' : 'Error'}
-              </Badge>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <HardDrive className="h-4 w-4" />
-                <span className="text-sm">Last Backup</span>
-              </div>
-              <span className="text-sm text-gray-600">
-                {metrics?.last_backup_time
-                  ? formatTimestamp(metrics.last_backup_time)
-                  : 'No recent backup'
-                }
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Activity Logs */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Recent Activity
-          </CardTitle>
-          <CardDescription>
-            System events and user activities
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {logsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-              Loading activity logs...
-            </div>
-          ) : logsError ? (
-            <div className="flex items-center justify-center py-8">
-              <AlertCircle className="h-6 w-6 text-red-500 mr-2" />
-              <span className="text-red-600">Failed to load activity logs</span>
-            </div>
-          ) : activityLogs.length === 0 ? (
-            <div className="flex items-center justify-center py-8">
-              <Activity className="h-6 w-6 text-gray-400 mr-2" />
-              <span className="text-gray-500">No recent activity</span>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {activityLogs.map((log: ActivityLog) => (
-                <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    {getSeverityBadge(log.severity)}
-                    <div>
-                      <p className="text-sm font-medium">{log.message}</p>
-                      {log.user && (
-                        <p className="text-xs text-gray-600">User: {log.user}</p>
-                      )}
+            ) : (
+              <div className="bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 border border-green-200/50 rounded-xl p-6">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-green-500/20 rounded-full blur-lg animate-pulse-glow" />
+                    <div className="relative p-2 rounded-lg bg-gradient-to-br from-green-100 to-emerald-100 border border-green-200/50">
+                      {getHealthIcon(metrics?.system_health)}
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {formatTimestamp(log.timestamp)}
+                  <div className="flex-1">
+                    <span className={`text-xl font-bold ${getHealthColor(metrics?.system_health)}`}>
+                      {metrics?.system_health?.toUpperCase() || 'LOADING...'}
+                    </span>
+                    {metrics?.uptime && (
+                      <p className="text-sm text-slate-600 mt-1">
+                        System uptime: <span className="font-semibold text-slate-900">{metrics.uptime}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-blue-50/50 border border-white/30 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.02] via-indigo-500/[0.02] to-blue-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-600 mb-2">Active Users</p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+                    {metrics?.active_users || 0}
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50">
+                  <Users className="h-8 w-8 text-blue-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-green-50/50 border border-white/30 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/[0.02] via-emerald-500/[0.02] to-green-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-600 mb-2">Total Requests</p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-700 bg-clip-text text-transparent">
+                    {metrics?.total_requests?.toLocaleString() || 0}
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-gradient-to-br from-green-100 to-emerald-100 border border-green-200/50">
+                  <TrendingUp className="h-8 w-8 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-purple-50/50 border border-white/30 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.02] via-violet-500/[0.02] to-purple-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-600 mb-2">Response Time</p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-purple-700 to-violet-700 bg-clip-text text-transparent">
+                    {metrics?.average_response_time || 0}<span className="text-xl">ms</span>
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-100 to-violet-100 border border-purple-200/50">
+                  <Clock className="h-8 w-8 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-red-50/50 border border-white/30 shadow-md hover:shadow-lg transition-all duration-300 hover:scale-[1.02]">
+            <div className="absolute inset-0 bg-gradient-to-br from-red-500/[0.02] via-pink-500/[0.02] to-red-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardContent className="relative p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-600 mb-2">Error Rate</p>
+                  <p className="text-3xl font-bold bg-gradient-to-r from-red-700 to-pink-700 bg-clip-text text-transparent">
+                    {metrics?.error_rate?.toFixed(2) || 0}<span className="text-xl">%</span>
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-gradient-to-br from-red-100 to-pink-100 border border-red-200/50">
+                  <AlertCircle className="h-8 w-8 text-red-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Resource Usage */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-cyan-50/50 border border-white/30 shadow-premium hover:shadow-lg transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.02] via-teal-500/[0.02] to-cyan-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <CardHeader className="relative">
+              <CardTitle className="text-xl font-bold flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-cyan-100 to-teal-100 border border-cyan-200/50">
+                  <Cpu className="h-5 w-5 text-cyan-600" />
+                </div>
+                <span className="bg-gradient-to-r from-slate-900 via-cyan-800 to-teal-900 bg-clip-text text-transparent">
+                  Resource Usage
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative space-y-6">
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-sm font-semibold text-slate-700">Memory Usage</span>
+                  <Badge className="bg-gradient-to-r from-cyan-100 to-teal-100 border-cyan-300/50 text-cyan-800 font-semibold shadow-sm">
+                    {metrics?.memory_usage || 0}%
+                  </Badge>
+                </div>
+                <Progress value={metrics?.memory_usage || 0} className="h-3 bg-gradient-to-r from-slate-100 to-gray-100" />
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-sm font-semibold text-slate-700">Storage Usage</span>
+                  <Badge className="bg-gradient-to-r from-cyan-100 to-teal-100 border-cyan-300/50 text-cyan-800 font-semibold shadow-sm">
+                    {metrics?.storage_usage || 0}%
+                  </Badge>
+                </div>
+                <Progress value={metrics?.storage_usage || 0} className="h-3 bg-gradient-to-r from-slate-100 to-gray-100" />
+              </div>
+
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-slate-200/50 rounded-xl p-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold text-slate-700">Database Connections</span>
+                  <span className="text-lg font-bold text-slate-900">{metrics?.database_connections || 0}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/50 border border-white/30 shadow-premium hover:shadow-lg transition-all duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] via-purple-500/[0.02] to-indigo-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <CardHeader className="relative">
+              <CardTitle className="text-xl font-bold flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 border border-indigo-200/50">
+                  <Database className="h-5 w-5 text-indigo-600" />
+                </div>
+                <span className="bg-gradient-to-r from-slate-900 via-indigo-800 to-purple-900 bg-clip-text text-transparent">
+                  System Status
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="relative space-y-4">
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-slate-200/50 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-gradient-to-br from-slate-100 to-gray-100 border border-slate-200/50">
+                      <Server className="h-4 w-4 text-slate-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700">Database</span>
+                  </div>
+                  <Badge className={metrics?.database_status === 'connected'
+                    ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-300/50 text-green-800 font-semibold shadow-sm'
+                    : 'bg-gradient-to-r from-red-100 to-pink-100 border-red-300/50 text-red-800 font-semibold shadow-sm'}>
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    {metrics?.database_status === 'connected' ? 'Online' : 'Offline'}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-slate-200/50 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-gradient-to-br from-slate-100 to-gray-100 border border-slate-200/50">
+                      <Wifi className="h-4 w-4 text-slate-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700">API Services</span>
+                  </div>
+                  <Badge className={metrics?.api_status === 'operational'
+                    ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-300/50 text-green-800 font-semibold shadow-sm'
+                    : 'bg-gradient-to-r from-red-100 to-pink-100 border-red-300/50 text-red-800 font-semibold shadow-sm'}>
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    {metrics?.api_status === 'operational' ? 'Operational' : 'Error'}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-slate-200/50 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-gradient-to-br from-slate-100 to-gray-100 border border-slate-200/50">
+                      <HardDrive className="h-4 w-4 text-slate-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700">Last Backup</span>
+                  </div>
+                  <span className="text-sm font-medium text-slate-600">
+                    {metrics?.last_backup_time
+                      ? formatTimestamp(metrics.last_backup_time)
+                      : 'No recent backup'
+                    }
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Activity Logs */}
+        <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/95 via-white/80 to-violet-50/50 border border-white/30 shadow-premium hover:shadow-lg transition-all duration-500">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.02] via-purple-500/[0.02] to-fuchsia-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <CardHeader className="relative">
+            <CardTitle className="text-xl font-bold flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 border border-violet-200/50">
+                <Activity className="h-5 w-5 text-violet-600" />
+              </div>
+              <span className="bg-gradient-to-r from-slate-900 via-violet-800 to-purple-900 bg-clip-text text-transparent">
+                Recent Activity
+              </span>
+            </CardTitle>
+            <CardDescription className="text-slate-600 font-medium ml-14">
+              System events and user activities
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="relative">
+            {logsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
+                  <span className="text-slate-600 font-medium">Loading activity logs...</span>
+                </div>
+              </div>
+            ) : logsError ? (
+              <div className="bg-gradient-to-r from-red-50 to-pink-50 border border-red-200/50 rounded-xl p-8">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-red-100 to-pink-100 border border-red-200/50">
+                    <AlertCircle className="h-6 w-6 text-red-600" />
+                  </div>
+                  <span className="text-red-900 font-bold">Failed to load activity logs</span>
+                </div>
+              </div>
+            ) : activityLogs.length === 0 ? (
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 border border-slate-200/50 rounded-xl p-8">
+                <div className="flex items-center justify-center gap-3">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-slate-100 to-gray-100 border border-slate-200/50">
+                    <Activity className="h-6 w-6 text-slate-400" />
+                  </div>
+                  <span className="text-slate-500 font-medium">No recent activity</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activityLogs.map((log: ActivityLog, index) => (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between p-4 bg-gradient-to-r from-white/60 to-white/40 border border-white/40 rounded-xl hover:bg-gradient-to-r hover:from-violet-50/30 hover:via-purple-50/20 hover:to-fuchsia-50/30 transition-all duration-300"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="shrink-0">
+                        {getSeverityBadge(log.severity)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{log.message}</p>
+                        {log.user && (
+                          <p className="text-xs text-slate-600 mt-1">
+                            User: <span className="font-medium text-slate-900">{log.user}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs bg-white/80 border-slate-300 text-slate-700 font-medium shrink-0 ml-4">
+                      {formatTimestamp(log.timestamp)}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 };

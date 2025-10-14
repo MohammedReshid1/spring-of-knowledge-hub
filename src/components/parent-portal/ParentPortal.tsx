@@ -92,7 +92,6 @@ export const ParentPortal: React.FC = () => {
         }
       } else if (message.type === MessageType.DATA_UPDATE) {
         // Handle real-time data updates (grades, attendance, etc.)
-        console.log('Real-time data update received:', message.payload);
       }
     },
     autoConnect: true,
@@ -131,13 +130,18 @@ export const ParentPortal: React.FC = () => {
     enabled: !!parentInfo?.id,
   });
 
-  const { data: notifications = [], isLoading: notificationsLoading } = useQuery({
+  const { data: notificationsResponse, isLoading: notificationsLoading } = useQuery({
     queryKey: ['parent-notifications'],
     queryFn: async () => {
-      const response = await apiClient.get('/notifications/user-notifications?limit=5');
+      const response = await apiClient.get('/api/notifications/user-notifications?limit=5');
       return response.data;
     },
   });
+
+  // Extract notifications array from response
+  const notifications = Array.isArray(notificationsResponse)
+    ? notificationsResponse
+    : (notificationsResponse?.notifications || []);
 
   if (parentLoading || statsLoading) {
     return (

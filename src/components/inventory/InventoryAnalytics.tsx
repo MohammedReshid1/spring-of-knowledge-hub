@@ -142,52 +142,66 @@ export const InventoryAnalytics: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-3xl font-bold">Inventory Analytics</h2>
-          <p className="text-muted-foreground">Comprehensive insights into asset and supply management</p>
-        </div>
-        
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Select time period" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7_days">Last 7 days</SelectItem>
-            <SelectItem value="30_days">Last 30 days</SelectItem>
-            <SelectItem value="90_days">Last 90 days</SelectItem>
-            <SelectItem value="1_year">Last year</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Premium Header */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                  <BarChart3 className="h-6 w-6 text-emerald-600" />
+                </div>
+                Inventory Analytics
+              </h2>
+              <p className="text-slate-600 font-medium mt-1">Comprehensive insights into asset and supply management</p>
+            </div>
 
-      {/* Key Performance Indicators */}
+            <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Select time period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7_days">Last 7 days</SelectItem>
+                <SelectItem value="30_days">Last 30 days</SelectItem>
+                <SelectItem value="90_days">Last 90 days</SelectItem>
+                <SelectItem value="1_year">Last year</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Premium Key Performance Indicators */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Assets</CardTitle>
-            <Monitor className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-slate-600">Total Assets</CardTitle>
+            <div className="p-2 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 border border-blue-200/50">
+              <Monitor className="h-4 w-4 text-blue-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{overview?.total_assets || 0}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-blue-600">{overview?.total_assets || 0}</div>
+            <div className="flex items-center text-xs text-slate-500">
               {getTrendIcon(overview?.total_assets || 0, 50)}
               <span className="ml-1">+12% from last month</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Assets</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium text-slate-600">Active Assets</CardTitle>
+            <div className="p-2 rounded-lg bg-gradient-to-br from-green-100 to-green-50 border border-green-200/50">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{overview?.active_assets || 0}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-green-600">{overview?.active_assets || 0}</div>
+            <div className="flex items-center text-xs text-slate-500">
               <span>
-                {overview?.total_assets ? 
-                  `${((overview.active_assets / overview.total_assets) * 100).toFixed(1)}% utilization` 
+                {overview?.total_assets ?
+                  `${((overview.active_assets / overview.total_assets) * 100).toFixed(1)}% utilization`
                   : 'No data'
                 }
               </span>
@@ -195,30 +209,34 @@ export const InventoryAnalytics: React.FC = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <CardTitle className="text-sm font-medium text-slate-600">Total Value</CardTitle>
+            <div className="p-2 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-50 border border-emerald-200/50">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(overview?.total_asset_value || 0)}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-emerald-600">{formatCurrency(overview?.total_asset_value || 0)}</div>
+            <div className="flex items-center text-xs text-slate-500">
               <TrendingUp className="h-3 w-3 text-green-600 mr-1" />
               <span>+8% from last month</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Maintenance Due</CardTitle>
-            <Wrench className="h-4 w-4 text-orange-600" />
+            <CardTitle className="text-sm font-medium text-slate-600">Maintenance Due</CardTitle>
+            <div className="p-2 rounded-lg bg-gradient-to-br from-orange-100 to-orange-50 border border-orange-200/50">
+              <Wrench className="h-4 w-4 text-orange-600" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{overview?.pending_maintenance || 0}</div>
+            <div className="text-2xl font-bold text-orange-600">{overview?.pending_maintenance || 0}</div>
             <div className="flex items-center text-xs">
               {(overview?.overdue_maintenance || 0) > 0 && (
-                <span className="text-red-600">
+                <span className="text-red-600 font-medium">
                   {overview?.overdue_maintenance} overdue
                 </span>
               )}
@@ -227,11 +245,13 @@ export const InventoryAnalytics: React.FC = () => {
         </Card>
       </div>
 
-      {/* System Health Metrics */}
-      <Card>
+      {/* Premium System Health Metrics */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <Activity className="h-5 w-5 mr-2" />
+          <CardTitle className="flex items-center text-emerald-700">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 mr-2">
+              <Activity className="h-5 w-5 text-emerald-600" />
+            </div>
             System Health Overview
           </CardTitle>
         </CardHeader>
@@ -303,13 +323,15 @@ export const InventoryAnalytics: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Detailed Analytics */}
+      {/* Premium Detailed Analytics */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Asset Category Distribution */}
-        <Card>
+        {/* Premium Asset Category Distribution */}
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <PieChart className="h-5 w-5 mr-2" />
+            <CardTitle className="flex items-center text-emerald-700">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 mr-2">
+                <PieChart className="h-5 w-5 text-emerald-600" />
+              </div>
               Asset Categories
             </CardTitle>
           </CardHeader>
@@ -349,11 +371,13 @@ export const InventoryAnalytics: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Asset Condition Analysis */}
-        <Card>
+        {/* Premium Asset Condition Analysis */}
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <CheckCircle className="h-5 w-5 mr-2" />
+            <CardTitle className="flex items-center text-emerald-700">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 mr-2">
+                <CheckCircle className="h-5 w-5 text-emerald-600" />
+              </div>
               Asset Condition Analysis
             </CardTitle>
           </CardHeader>
@@ -392,11 +416,13 @@ export const InventoryAnalytics: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Supply Stock Levels */}
-        <Card>
+        {/* Premium Supply Stock Levels */}
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Package className="h-5 w-5 mr-2" />
+            <CardTitle className="flex items-center text-emerald-700">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 mr-2">
+                <Package className="h-5 w-5 text-emerald-600" />
+              </div>
               Supply Stock Levels
             </CardTitle>
           </CardHeader>
@@ -429,11 +455,13 @@ export const InventoryAnalytics: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Key Insights */}
-        <Card>
+        {/* Premium Key Insights */}
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <BarChart3 className="h-5 w-5 mr-2" />
+            <CardTitle className="flex items-center text-emerald-700">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 mr-2">
+                <BarChart3 className="h-5 w-5 text-emerald-600" />
+              </div>
               Key Insights
             </CardTitle>
           </CardHeader>

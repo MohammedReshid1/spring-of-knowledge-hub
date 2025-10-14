@@ -51,8 +51,8 @@ export const BaseWidget: React.FC<BaseWidgetProps & { children: React.ReactNode 
         'group relative overflow-hidden bg-white/80 backdrop-blur-glass border border-white/20',
         'hover:bg-white/90 hover:border-white/30',
 
-        // Premium shadows and transitions
-        'shadow-premium hover:shadow-card-hover',
+        // Premium transitions (shadows removed)
+        '',
         'transition-all duration-normal ease-premium',
 
         // Transform on hover
@@ -85,11 +85,11 @@ export const BaseWidget: React.FC<BaseWidgetProps & { children: React.ReactNode 
         <CardTitle className="flex items-center gap-3 text-lg font-semibold text-slate-800">
           {Icon && (
             <div className={cn(
-              'p-2 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100/50',
-              'group-hover:shadow-glow-blue transition-all duration-normal',
+              'p-2 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/50',
+              'transition-all duration-normal',
               isHovered && 'animate-bounce-gentle'
             )}>
-              <Icon className="h-5 w-5 text-indigo-600" />
+              <Icon className="h-5 w-5 text-slate-600" />
             </div>
           )}
           <span className="bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
@@ -110,7 +110,7 @@ export const BaseWidget: React.FC<BaseWidgetProps & { children: React.ReactNode 
                 onClick={onRefresh}
                 disabled={isLoading}
                 className={cn(
-                  'p-1.5 rounded-md text-slate-600 hover:text-indigo-600 hover:bg-indigo-50',
+                  'p-1.5 rounded-md text-slate-600 hover:text-slate-800 hover:bg-slate-100',
                   'transition-all duration-fast disabled:opacity-50',
                   isLoading && 'animate-spin'
                 )}
@@ -122,7 +122,7 @@ export const BaseWidget: React.FC<BaseWidgetProps & { children: React.ReactNode 
 
             {config.canResize && onResize && (
               <button
-                className="p-1.5 rounded-md text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-fast"
+                className="p-1.5 rounded-md text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all duration-fast"
                 title="Resize"
                 onClick={() => setShowActions(!showActions)}
               >
@@ -144,7 +144,7 @@ export const BaseWidget: React.FC<BaseWidgetProps & { children: React.ReactNode 
           {/* Size selector dropdown */}
           {showActions && config.canResize && onResize && (
             <div className="absolute top-full right-0 mt-2 z-10 animate-scale-in">
-              <div className="bg-white/95 backdrop-blur-glass border border-white/30 rounded-lg shadow-premium p-1">
+              <div className="bg-white/95 backdrop-blur-glass border border-white/30 rounded-lg p-1">
                 {['small', 'medium', 'large'].map((size) => (
                   <button
                     key={size}
@@ -154,8 +154,8 @@ export const BaseWidget: React.FC<BaseWidgetProps & { children: React.ReactNode 
                     }}
                     className={cn(
                       'block w-full text-left px-3 py-2 text-sm rounded-md transition-all duration-fast',
-                      'hover:bg-indigo-50 hover:text-indigo-700',
-                      config.size === size ? 'bg-indigo-100 text-indigo-700 font-medium' : 'text-slate-700'
+                      'hover:bg-slate-100 hover:text-slate-800',
+                      config.size === size ? 'bg-slate-200 text-slate-800 font-medium' : 'text-slate-700'
                     )}
                   >
                     {size.charAt(0).toUpperCase() + size.slice(1)}
@@ -194,12 +194,6 @@ export const BaseWidget: React.FC<BaseWidgetProps & { children: React.ReactNode 
         )}
       </CardContent>
 
-      {/* Ambient glow effect */}
-      <div className={cn(
-        'absolute -inset-0.5 bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-blue-500/20 rounded-lg opacity-0 blur-sm pointer-events-none',
-        'transition-opacity duration-normal',
-        isHovered && 'opacity-100'
-      )}></div>
     </Card>
   );
 };

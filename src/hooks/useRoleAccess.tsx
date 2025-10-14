@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 
 // Define role hierarchy and permissions
 enum Role {
+  SUPERADMIN = "superadmin", // Top-level god access
   SUPER_ADMIN = "super_admin",
-  SUPERADMIN = "superadmin", // Backend format
-  HQ_ADMIN = "hq_admin", 
+  HQ_ADMIN = "hq_admin",
   BRANCH_ADMIN = "branch_admin",
   HQ_REGISTRAR = "hq_registrar",
   REGISTRAR = "registrar",
@@ -18,95 +18,95 @@ enum Role {
 
 enum Permission {
   // User Management
-  CREATE_USER = "create_user",
-  READ_USER = "read_user", 
-  UPDATE_USER = "update_user",
-  DELETE_USER = "delete_user",
-  MANAGE_ROLES = "manage_roles",
-  
+  CREATE_USER = "user.create",
+  READ_USER = "user.read",
+  UPDATE_USER = "user.update",
+  DELETE_USER = "user.delete",
+  MANAGE_ROLES = "role.manage",
+
   // Student Management
-  CREATE_STUDENT = "create_student",
-  READ_STUDENT = "read_student",
-  UPDATE_STUDENT = "update_student", 
-  DELETE_STUDENT = "delete_student",
-  BULK_IMPORT_STUDENTS = "bulk_import_students",
-  
+  CREATE_STUDENT = "student.create",
+  READ_STUDENT = "student.read",
+  UPDATE_STUDENT = "student.update",
+  DELETE_STUDENT = "student.delete",
+  BULK_IMPORT_STUDENTS = "student.import",
+
   // Academic Management
-  CREATE_CLASS = "create_class",
-  READ_CLASS = "read_class",
-  UPDATE_CLASS = "update_class",
-  DELETE_CLASS = "delete_class",
-  ASSIGN_STUDENTS = "assign_students",
-  
+  CREATE_CLASS = "class.create",
+  READ_CLASS = "class.read",
+  UPDATE_CLASS = "class.update",
+  DELETE_CLASS = "class.delete",
+  ASSIGN_STUDENTS = "student.assign",
+
   // Teacher Management
-  CREATE_TEACHER = "create_teacher",
-  READ_TEACHER = "read_teacher",
-  UPDATE_TEACHER = "update_teacher",
-  DELETE_TEACHER = "delete_teacher",
-  ASSIGN_SUBJECTS = "assign_subjects",
+  CREATE_TEACHER = "teacher.create",
+  READ_TEACHER = "teacher.read",
+  UPDATE_TEACHER = "teacher.update",
+  DELETE_TEACHER = "teacher.delete",
+  ASSIGN_SUBJECTS = "subject.assign",
   
   // Financial Management
-  CREATE_PAYMENT = "create_payment",
-  READ_PAYMENT = "read_payment",
-  UPDATE_PAYMENT = "update_payment",
-  DELETE_PAYMENT = "delete_payment",
-  PROCESS_REFUNDS = "process_refunds",
-  VIEW_FINANCIAL_REPORTS = "view_financial_reports",
-  
+  CREATE_PAYMENT = "payment.create",
+  READ_PAYMENT = "payment.read",
+  UPDATE_PAYMENT = "payment.update",
+  DELETE_PAYMENT = "payment.delete",
+  PROCESS_REFUNDS = "payment.refund",
+  VIEW_FINANCIAL_REPORTS = "report.financial",
+
   // Academic Records
-  CREATE_GRADE = "create_grade",
-  READ_GRADE = "read_grade",
-  UPDATE_GRADE = "update_grade",
-  DELETE_GRADE = "delete_grade",
-  VIEW_TRANSCRIPTS = "view_transcripts",
-  
+  CREATE_GRADE = "grade.create",
+  READ_GRADE = "grade.read",
+  UPDATE_GRADE = "grade.update",
+  DELETE_GRADE = "grade.delete",
+  VIEW_TRANSCRIPTS = "student.transcripts",
+
   // Attendance Management
-  CREATE_ATTENDANCE = "create_attendance",
-  READ_ATTENDANCE = "read_attendance",
-  UPDATE_ATTENDANCE = "update_attendance",
-  DELETE_ATTENDANCE = "delete_attendance",
-  
+  CREATE_ATTENDANCE = "attendance.create",
+  READ_ATTENDANCE = "attendance.read",
+  UPDATE_ATTENDANCE = "attendance.update",
+  DELETE_ATTENDANCE = "attendance.delete",
+
   // Behavior and Discipline
-  CREATE_BEHAVIOR_RECORD = "create_behavior_record",
-  READ_BEHAVIOR_RECORD = "read_behavior_record",
-  UPDATE_BEHAVIOR_RECORD = "update_behavior_record",
-  DELETE_BEHAVIOR_RECORD = "delete_behavior_record",
-  
+  CREATE_BEHAVIOR_RECORD = "discipline.create",
+  READ_BEHAVIOR_RECORD = "discipline.read",
+  UPDATE_BEHAVIOR_RECORD = "discipline.update",
+  DELETE_BEHAVIOR_RECORD = "discipline.delete",
+
   // Reports and Analytics
-  VIEW_REPORTS = "view_reports",
-  CREATE_REPORTS = "create_reports",
-  EXPORT_DATA = "export_data",
-  VIEW_ANALYTICS = "view_analytics",
-  
+  VIEW_REPORTS = "report.view",
+  CREATE_REPORTS = "report.create",
+  EXPORT_DATA = "system.export",
+  VIEW_ANALYTICS = "analytics.view",
+
   // Communication
-  SEND_MESSAGES = "send_messages",
-  READ_MESSAGES = "read_messages",
-  CREATE_ANNOUNCEMENTS = "create_announcements",
-  MANAGE_NOTIFICATIONS = "manage_notifications",
-  
+  SEND_MESSAGES = "message.send",
+  READ_MESSAGES = "message.read",
+  CREATE_ANNOUNCEMENTS = "announcement.create",
+  MANAGE_NOTIFICATIONS = "notification.manage",
+
   // System Administration
-  MANAGE_BRANCHES = "manage_branches",
-  SYSTEM_SETTINGS = "system_settings",
-  BACKUP_RESTORE = "backup_restore",
-  VIEW_LOGS = "view_logs",
-  
+  MANAGE_BRANCHES = "branch.manage",
+  SYSTEM_SETTINGS = "system.settings",
+  BACKUP_RESTORE = "backup.restore",
+  VIEW_LOGS = "system.logs",
+
   // Inventory Management
-  CREATE_INVENTORY = "create_inventory",
-  READ_INVENTORY = "read_inventory",
-  UPDATE_INVENTORY = "update_inventory",
-  DELETE_INVENTORY = "delete_inventory",
-  
+  CREATE_INVENTORY = "inventory.create",
+  READ_INVENTORY = "inventory.read",
+  UPDATE_INVENTORY = "inventory.update",
+  DELETE_INVENTORY = "inventory.delete",
+
   // Transport Management
-  CREATE_TRANSPORT = "create_transport",
-  READ_TRANSPORT = "read_transport",
-  UPDATE_TRANSPORT = "update_transport",
-  DELETE_TRANSPORT = "delete_transport"
+  CREATE_TRANSPORT = "transport.create",
+  READ_TRANSPORT = "transport.read",
+  UPDATE_TRANSPORT = "transport.update",
+  DELETE_TRANSPORT = "transport.delete"
 }
 
 // Define role permissions mapping
 const ROLE_PERMISSIONS: Record<Role, Set<Permission>> = {
+  [Role.SUPERADMIN]: new Set(Object.values(Permission)), // God-level access
   [Role.SUPER_ADMIN]: new Set(Object.values(Permission)),
-  [Role.SUPERADMIN]: new Set(Object.values(Permission)), // Backend format
   
   [Role.HQ_ADMIN]: new Set([
     Permission.CREATE_USER, Permission.READ_USER, Permission.UPDATE_USER, Permission.DELETE_USER,
@@ -233,8 +233,8 @@ const ROLE_PERMISSIONS: Record<Role, Set<Permission>> = {
 };
 
 const ROLE_HIERARCHY: Record<Role, number> = {
+  [Role.SUPERADMIN]: 110, // Highest level - god access
   [Role.SUPER_ADMIN]: 100,
-  [Role.SUPERADMIN]: 100, // Backend format
   [Role.HQ_ADMIN]: 90,
   [Role.BRANCH_ADMIN]: 80,
   [Role.HQ_REGISTRAR]: 70,
@@ -243,6 +243,43 @@ const ROLE_HIERARCHY: Record<Role, number> = {
   [Role.TEACHER]: 50,
   [Role.STUDENT]: 20,
   [Role.PARENT]: 30
+};
+
+/**
+ * Expand .manage permissions to include all related permissions for that resource
+ * For example: student.manage → student.create, student.read, student.update, student.delete, etc.
+ */
+const expandManagePermissions = (permissions: string[]): string[] => {
+  const expanded = new Set(permissions);
+
+  // Define all possible actions for each resource type
+  const commonActions = ['create', 'read', 'update', 'delete', 'export', 'import'];
+  const extendedActions = ['approve', 'reject', 'generate', 'send'];
+  const viewScopes = ['view_all', 'view_own', 'view_branch'];
+
+  for (const permission of permissions) {
+    if (permission.endsWith('.manage')) {
+      // Extract resource name (e.g., 'student' from 'student.manage')
+      const resource = permission.split('.')[0];
+
+      // Add all common CRUD operations
+      for (const action of commonActions) {
+        expanded.add(`${resource}.${action}`);
+      }
+
+      // Add extended actions
+      for (const action of extendedActions) {
+        expanded.add(`${resource}.${action}`);
+      }
+
+      // Add view scopes
+      for (const scope of viewScopes) {
+        expanded.add(`${resource}.${scope}`);
+      }
+    }
+  }
+
+  return Array.from(expanded);
 };
 
 export const useRoleAccess = () => {
@@ -259,6 +296,17 @@ export const useRoleAccess = () => {
         console.warn('Failed to fetch user permissions from backend:', error);
         return null;
       }
+
+      // Expand .manage permissions to include all related permissions
+      if (data?.permissions) {
+        const expandedPermissions = expandManagePermissions(data.permissions);
+        return {
+          ...data,
+          permissions: expandedPermissions,
+          originalPermissions: data.permissions // Keep original for reference
+        };
+      }
+
       return data;
     },
     enabled: !!user,
@@ -267,28 +315,40 @@ export const useRoleAccess = () => {
   });
 
   // Permission checking function - use backend permissions if available, fallback to local
-  const hasPermission = (permission: Permission): boolean => {
+  const hasPermission = (permission: Permission | string): boolean => {
     if (!userRole) return false;
-    
+
     // Super admin always has all permissions - check using helper function
     if (isSuperAdmin()) return true;
-    
+
+    // SuperSuperAdmin always has all permissions including RBAC permissions
+    if (isSuperSuperAdmin()) return true;
+
     // Normalize role format for consistency
     const normalizedRole = userRole === 'superadmin' ? Role.SUPER_ADMIN : userRole as Role;
-    
+
     // Use backend permissions if available
     if (userPermissions?.permissions && !permissionsLoading) {
-      return userPermissions.permissions.includes(permission);
+      return userPermissions.permissions.includes(permission as string);
     }
-    
+
     // If backend permissions are loading but we have a super admin, allow access
-    if (permissionsLoading && isSuperAdmin()) {
+    if (permissionsLoading && (isSuperAdmin() || isSuperSuperAdmin())) {
       return true;
     }
-    
-    // Fallback to local role permissions with normalized role
+
+    // For dynamic RBAC permissions (string format), super users should have access
+    if (typeof permission === 'string') {
+      // SuperSuperAdmin and SuperAdmin have access to all RBAC permissions
+      if (isSuperAdmin() || isSuperSuperAdmin()) return true;
+
+      // If no backend permissions loaded, deny access to RBAC permissions for non-super users
+      return false;
+    }
+
+    // Fallback to local role permissions with normalized role (only for Permission enum)
     const permissions = ROLE_PERMISSIONS[normalizedRole];
-    return permissions ? permissions.has(permission) : false;
+    return permissions ? permissions.has(permission as Permission) : false;
   };
 
   // Role hierarchy checking
@@ -303,8 +363,12 @@ export const useRoleAccess = () => {
     return (ROLE_HIERARCHY[userRole] || 0) > (ROLE_HIERARCHY[targetRole] || 0);
   };
 
-  // Role detection methods  
-  const isSuperAdmin = () => userRole === Role.SUPER_ADMIN || userRole === Role.SUPERADMIN;
+  // Role detection methods
+  const isSuperSuperAdmin = () => {
+    // Superadmin is the god-level role with ultimate access
+    return userRole === Role.SUPERADMIN || userRole === 'superadmin';
+  };
+  const isSuperAdmin = () => userRole === Role.SUPERADMIN || userRole === Role.SUPER_ADMIN || userRole === 'superadmin' || userRole === 'super_admin';
   const isHQAdmin = () => userRole === Role.HQ_ADMIN;
   const isBranchAdmin = () => userRole === Role.BRANCH_ADMIN;
   const isHQRegistrar = () => userRole === Role.HQ_REGISTRAR;
@@ -465,6 +529,7 @@ export const useRoleAccess = () => {
   return {
     // Role checking
     userRole,
+    isSuperSuperAdmin: isSuperSuperAdmin(),
     isSuperAdmin: isSuperAdmin(),
     isHQAdmin: isHQAdmin(),
     isBranchAdmin: isBranchAdmin(),

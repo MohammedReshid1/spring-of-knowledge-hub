@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { BranchSwitchDialog } from '@/components/common/BranchSwitchDialog';
 import { FullScreenLoading } from '@/components/common/FullScreenLoading';
@@ -22,6 +22,7 @@ interface BranchContextType {
   canManageBranches: boolean;
   canSwitchBranches: boolean;
   isHQRole: boolean;
+  isSuperAdmin: boolean;
   userBranches: Branch[];
   isSwitching: boolean;
 }
@@ -51,19 +52,14 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
-        .rpc('get_user_accessible_branches', { user_id: user.id });
+      const { data, error } = await apiClient.getBranches();
       
       if (error) {
         console.error('Error fetching user branches:', error);
         return [];
       }
       
-      return data.map((item: any) => ({
-        id: item.branch_id,
-        name: item.branch_name,
-        is_active: true // All returned branches are active
-      }));
+      return data || [];
     },
     enabled: !!user?.id
   });
@@ -72,18 +68,14 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const { data: allBranches = [] } = useQuery({
     queryKey: ['all-branches'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('branches')
-        .select('*')
-        .eq('is_active', true)
-        .order('name');
+      const { data, error } = await apiClient.getBranches();
       
       if (error) {
         console.error('Error fetching all branches:', error);
         return [];
       }
       
-      return data;
+      return data?.filter((branch: Branch) => branch.is_active) || [];
     }
   });
 
@@ -93,47 +85,59 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     queryFn: async () => {
       if (!user?.id) return null;
       
-      const { data, error } = await supabase
-        .from('users')
-        .select('role, branch_id')
-        .eq('id', user.id)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching current user:', error);
-        return null;
-      }
-      
-      return data;
+      return user; // User data is already available from auth context
     },
     enabled: !!user?.id
   });
 
-  // Updated role-based permissions
-  const canManageBranches = currentUser?.role === 'super_admin' || currentUser?.role === 'hq_admin';
-  const canSwitchBranches = currentUser?.role === 'super_admin' || currentUser?.role === 'hq_admin' || currentUser?.role === 'hq_registrar';
-  const isHQRole = currentUser?.role === 'super_admin' || currentUser?.role === 'hq_admin' || currentUser?.role === 'hq_registrar';
+  // Updated role-based permissions - use user directly from auth context
+  const userRole = user?.role || currentUser?.role;
+  const isSuperAdmin = userRole === 'superadmin' || userRole === 'super_admin' || userRole === 'superadmin';
+  const canManageBranches = isSuperAdmin;
+  const canSwitchBranches = isSuperAdmin; // Only super admin can switch branches
+  const isHQRole = isSuperAdmin; // Only super admin is HQ role
 
-  // Set default selected branch when user branches load
+  // Initialize selected branch - restore from localStorage first, then set defaults
   useEffect(() => {
-    if (!selectedBranch && userBranches.length > 0) {
-      // HQ roles with multiple branches default to "all"
-      if (isHQRole && userBranches.length > 1) {
-        setSelectedBranch('all');
-      } else {
-        // Branch-restricted roles or single branch users select their branch
-        setSelectedBranch(userBranches[0]?.id || null);
-      }
-    }
-  }, [userBranches, isHQRole, selectedBranch]);
-
-  // Restore selected branch from localStorage
-  useEffect(() => {
+    if (userBranches.length === 0) return; // Wait for branches to load
+    
     const savedBranch = localStorage.getItem('selectedBranch');
+    
+    // Priority 1: Restore valid saved branch from localStorage
+    if (savedBranch === 'all' && isSuperAdmin) {
+      setSelectedBranch(savedBranch);
+      return;
+    }
+    
     if (savedBranch && userBranches.some(branch => branch.id === savedBranch)) {
       setSelectedBranch(savedBranch);
+      return;
     }
-  }, [userBranches]);
+    
+    // Clear invalid saved branch
+    if (savedBranch) {
+      localStorage.removeItem('selectedBranch');
+    }
+    
+    // Priority 2: Set defaults only if no valid saved branch and no current selection
+    if (!selectedBranch) {
+      if (isSuperAdmin) {
+        // Super admin ALWAYS defaults to "All Branches" - this takes priority over user.branch_id
+        setSelectedBranch('all');
+      } else if (user?.branch_id && userBranches.some(branch => branch.id === user.branch_id)) {
+        // Other users default to their assigned branch (if it exists in userBranches)
+        setSelectedBranch(user.branch_id);
+      } else if (userBranches.length === 1) {
+        // If user has only one branch, select it
+        setSelectedBranch(userBranches[0].id);
+      } else if (userBranches.length > 0) {
+        // If user has multiple branches, select first one
+        setSelectedBranch(userBranches[0].id);
+      }
+    }
+  }, [userBranches, isSuperAdmin, user?.branch_id]);
+
+  // Allow super admin to choose any branch, including "all"; do not override their choice
 
   // Save selected branch to localStorage
   useEffect(() => {
@@ -143,15 +147,38 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [selectedBranch]);
 
   const handleSetSelectedBranch = (branchId: string | null) => {
-    // Prevent rapid successive switches
-    if (isDebouncing || isSwitching) return;
-    
     // Don't show dialog if it's the same branch
     if (branchId === selectedBranch) return;
     
-    // Show confirmation dialog for branch switch
-    setPendingBranchId(branchId);
-    setShowConfirmDialog(true);
+    // For super admin, allow immediate switch without confirmation dialog
+    // Only show confirmation for significant data-affecting switches
+    const isSignificantSwitch = selectedBranch && 
+      ((selectedBranch === 'all' && branchId !== 'all') || 
+       (selectedBranch !== 'all' && branchId === 'all'));
+    
+    if (isSuperAdmin && !isSignificantSwitch) {
+      // Direct switch for super admin without confirmation
+      setIsDebouncing(true);
+      setIsSwitching(true);
+      
+      // Clear cached data for clean switch
+      queryClient.invalidateQueries();
+      
+      // Set the new branch
+      setSelectedBranch(branchId);
+      
+      // Reset states after brief loading
+      setTimeout(() => {
+        setIsSwitching(false);
+        setTimeout(() => {
+          setIsDebouncing(false);
+        }, 300);
+      }, 1000);
+    } else {
+      // Show confirmation dialog for significant switches or non-super-admin users
+      setPendingBranchId(branchId);
+      setShowConfirmDialog(true);
+    }
   };
 
   const confirmBranchSwitch = () => {
@@ -190,6 +217,7 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     canManageBranches,
     canSwitchBranches,
     isHQRole,
+    isSuperAdmin,
     userBranches,
     isSwitching
   };

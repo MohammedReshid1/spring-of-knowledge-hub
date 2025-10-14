@@ -24,6 +24,7 @@ import {
   Bell
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { MultiSelect } from '@/components/ui/multi-select';
 
 export const CreateNotification: React.FC = () => {
   const [notificationForm, setNotificationForm] = useState({
@@ -31,7 +32,8 @@ export const CreateNotification: React.FC = () => {
     message: '',
     notification_type: 'announcement',
     priority: 'medium',
-    recipient_type: 'all_users',
+    recipient_type: 'ALL_USERS',
+    custom_recipients: [] as string[],
     channels: ['in_app'],
     scheduled_for: null as Date | null,
     action_url: '',
@@ -44,17 +46,18 @@ export const CreateNotification: React.FC = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: templates = [] } = useQuery({
-    queryKey: ['notification-templates'],
+  // Fetch users for custom recipient selection
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
     queryFn: async () => {
-      const response = await apiClient.get('/notifications/templates');
+      const response = await apiClient.get('/users/');
       return response.data;
     },
   });
 
   const createNotificationMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiClient.post('/notifications', data);
+      const response = await apiClient.post('/api/notifications', data);
       return response.data;
     },
     onSuccess: () => {
@@ -66,7 +69,8 @@ export const CreateNotification: React.FC = () => {
         message: '',
         notification_type: 'announcement',
         priority: 'medium',
-        recipient_type: 'all_users',
+        recipient_type: 'ALL_USERS',
+        custom_recipients: [],
         channels: ['in_app'],
         scheduled_for: null,
         action_url: '',
@@ -82,7 +86,14 @@ export const CreateNotification: React.FC = () => {
 
   const sendQuickAnnouncementMutation = useMutation({
     mutationFn: async (data: { title: string; message: string; recipient_type: string; priority: string }) => {
-      const response = await apiClient.post('/notifications/quick/announcement', data);
+      const response = await apiClient.post('/api/notifications', {
+        title: data.title,
+        message: data.message,
+        notification_type: 'announcement',
+        recipient_type: data.recipient_type.toLowerCase(),
+        priority: data.priority,
+        channels: ['in_app'],
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -96,7 +107,14 @@ export const CreateNotification: React.FC = () => {
 
   const sendEmergencyMutation = useMutation({
     mutationFn: async (data: { title: string; message: string }) => {
-      const response = await apiClient.post('/notifications/quick/emergency', data);
+      const response = await apiClient.post('/api/notifications', {
+        title: data.title,
+        message: data.message,
+        notification_type: 'emergency',
+        recipient_type: 'all_users',
+        priority: 'urgent',
+        channels: ['in_app', 'email', 'sms', 'push'],
+      });
       return response.data;
     },
     onSuccess: () => {
@@ -110,15 +128,24 @@ export const CreateNotification: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!notificationForm.title.trim() || !notificationForm.message.trim()) {
       toast.error('Title and message are required');
+      return;
+    }
+
+    if (notificationForm.recipient_type === 'CUSTOM' && notificationForm.custom_recipients.length === 0) {
+      toast.error('Please select at least one recipient');
       return;
     }
 
     const notificationData = {
       ...notificationForm,
       scheduled_for: isScheduled ? notificationForm.scheduled_for : null,
+      // Map custom_recipients to target_users for backend compatibility
+      target_users: notificationForm.recipient_type === 'CUSTOM' ? notificationForm.custom_recipients : [],
+      // Convert recipient_type to lowercase for backend compatibility
+      recipient_type: notificationForm.recipient_type.toLowerCase(),
     };
 
     createNotificationMutation.mutate(notificationData);
@@ -334,19 +361,42 @@ export const CreateNotification: React.FC = () => {
                 <Label htmlFor="recipient_type">Recipients</Label>
                 <Select
                   value={notificationForm.recipient_type}
-                  onValueChange={(value) => setNotificationForm({ ...notificationForm, recipient_type: value })}
+                  onValueChange={(value) => setNotificationForm({ ...notificationForm, recipient_type: value, custom_recipients: [] })}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all_users">All Users</SelectItem>
-                    <SelectItem value="students">Students Only</SelectItem>
-                    <SelectItem value="parents">Parents Only</SelectItem>
-                    <SelectItem value="teachers">Teachers Only</SelectItem>
-                    <SelectItem value="admins">Administrators Only</SelectItem>
-                    <SelectItem value="branch_users">Branch Users</SelectItem>
-                    <SelectItem value="class_users">Class Users</SelectItem>
+                    <SelectItem value="ALL_USERS">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        All Users
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="STUDENTS">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Students Only
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="TEACHERS">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Teachers Only
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="ADMINS">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Administrators Only
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="CUSTOM">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Custom Recipients
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -369,6 +419,27 @@ export const CreateNotification: React.FC = () => {
                 </Select>
               </div>
             </div>
+
+            {/* Custom Recipients Selection */}
+            {notificationForm.recipient_type === 'CUSTOM' && (
+              <div className="space-y-2">
+                <Label>Select Custom Recipients</Label>
+                <MultiSelect
+                  options={users.map((user: any) => ({
+                    value: user.id,
+                    label: `${user.full_name || user.email} (${user.role})`
+                  }))}
+                  selected={notificationForm.custom_recipients}
+                  onChange={(selected) => setNotificationForm({ ...notificationForm, custom_recipients: selected })}
+                  placeholder="Select users..."
+                />
+                {notificationForm.custom_recipients.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {notificationForm.custom_recipients.length} recipient(s) selected
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Delivery Channels */}
             <div className="space-y-3">
@@ -475,7 +546,8 @@ export const CreateNotification: React.FC = () => {
                     message: '',
                     notification_type: 'announcement',
                     priority: 'medium',
-                    recipient_type: 'all_users',
+                    recipient_type: 'ALL_USERS',
+                    custom_recipients: [],
                     channels: ['in_app'],
                     scheduled_for: null,
                     action_url: '',

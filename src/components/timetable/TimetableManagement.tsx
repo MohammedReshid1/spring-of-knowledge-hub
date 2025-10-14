@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { TimetableAPI } from '@/services/timetableApi';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,11 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
-import { 
+import { usePermissionCheck, useRoleAccess } from '@/contexts/RoleAccessContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
+import { useLiveData } from '@/hooks/useLiveData';
+import {
   Calendar,
   Clock,
   Users,
@@ -42,26 +47,22 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import type { 
-  TimeSlot, 
-  TimetableEntry, 
-  TimetableConflict, 
-  SchoolClass, 
-  Subject, 
-  Teacher, 
-  Room, 
-  ClassTimetableView, 
+import type {
+  TimeSlot,
+  TimetableEntry,
+  TimetableConflict,
+  ClassTimetableView,
   TeacherTimetableView,
   TimetableStats,
-  TimetableExportRequest
-} from '@/types/api';
-
-
-interface TimetableManagementProps {
-  userRole: string;
-  currentUserId: string;
-  branchId?: string;
-}
+  TimetableExportRequest,
+  Room,
+  RoomCreate,
+  Substitution,
+  DayOfWeek
+} from '@/types/timetable';
+import type { SchoolClass, Subject, Teacher } from '@/types/api';
+import TimeSlotManagement from './TimeSlotManagement';
+import RoomManagement from './RoomManagement';
 
 const DAYS_OF_WEEK = [
   { value: 'monday', label: 'Monday' },
@@ -82,11 +83,23 @@ const PERIOD_TYPES = [
   { value: 'lab', label: 'Laboratory' }
 ];
 
-export const TimetableManagement: React.FC<TimetableManagementProps> = ({
-  userRole,
-  currentUserId,
-  branchId
-}) => {
+export const TimetableManagement: React.FC = () => {
+  // Context hooks
+  const { user } = useAuth();
+  const { hasPermission } = usePermissionCheck();
+  const { loading: permissionsLoading } = useRoleAccess();
+  const academicYearQuery = useAcademicYear();
+  const currentAcademicYear = getAcademicYearString(academicYearQuery);
+
+  // Permission checks
+  const canView = hasPermission('timetable.read') || hasPermission('timetable.manage');
+  const canCreate = hasPermission('timetable.create') || hasPermission('timetable.manage');
+  const canUpdate = hasPermission('timetable.update') || hasPermission('timetable.manage');
+  const canDelete = hasPermission('timetable.delete') || hasPermission('timetable.manage');
+  const canManage = hasPermission('timetable.manage');
+
+  // Get branch from user profile
+  const branchId = user?.profile?.branch_id;
   const [activeTab, setActiveTab] = useState('schedule');
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date());
@@ -96,6 +109,11 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
   const [viewMode, setViewMode] = useState<'class' | 'teacher' | 'room'>('class');
 
   const queryClient = useQueryClient();
+
+  // Enable real-time updates for timetable data
+  useLiveData(['timetable-entries', 'timetable-view', 'timetable-conflicts', 'timetable-stats', 'classes', 'teachers', 'subjects', 'rooms', 'time-slots'], {
+    additionalQueryKeys: ['classes', 'teachers', 'subjects']
+  });
 
   // Fetch data
   const { data: classes = [], isLoading: classesLoading } = useQuery<SchoolClass[]>({
@@ -137,130 +155,140 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
 
   const { data: rooms = [] } = useQuery<Room[]>({
     queryKey: ['rooms', branchId],
-    queryFn: async () => {
-      const { data, error } = await apiClient.request('/timetable/rooms');
-      if (error) throw new Error(error);
-      return data || [];
-    }
+    queryFn: () => TimetableAPI.getRooms({ limit: 100 })
   });
 
   const { data: timeSlots = [] } = useQuery<TimeSlot[]>({
     queryKey: ['time-slots', branchId],
-    queryFn: async () => {
-      const { data, error } = await apiClient.request('/timetable/time-slots');
-      if (error) throw new Error(error);
-      return data || [];
-    }
+    queryFn: () => TimetableAPI.getTimeSlots({ limit: 100 })
   });
 
   const { data: timetableData, isLoading: timetableLoading } = useQuery<ClassTimetableView | TeacherTimetableView | null>({
     queryKey: ['timetable-view', selectedClass, viewMode],
     queryFn: async () => {
       if (!selectedClass) return null;
-      
-      let endpoint = '';
+
       if (viewMode === 'class') {
-        endpoint = `/timetable/class/${selectedClass}`;
+        return await TimetableAPI.getClassTimetable(selectedClass);
       } else if (viewMode === 'teacher') {
-        endpoint = `/timetable/teacher/${selectedClass}`;
-      } else if (viewMode === 'room') {
-        endpoint = `/timetable/room/${selectedClass}`;
+        return await TimetableAPI.getTeacherTimetable(selectedClass);
       }
-      
-      if (!endpoint) return null;
-      
-      const { data, error } = await apiClient.request(endpoint);
-      if (error) throw new Error(error);
-      return data || [];
+
+      return null;
     },
     enabled: !!selectedClass
   });
 
   const { data: timetableEntries = [] } = useQuery<TimetableEntry[]>({
-    queryKey: ['timetable-entries', selectedClass, viewMode],
+    queryKey: ['timetable-entries', selectedClass, viewMode, rooms.length],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (selectedClass && viewMode === 'class') params.append('class_id', selectedClass);
-      if (selectedClass && viewMode === 'teacher') params.append('teacher_id', selectedClass);
-      
-      const { data, error } = await apiClient.request(`/timetable/entries?${params}`);
-      if (error) throw new Error(error);
-      return data || [];
+      if (!selectedClass) return [];
+
+      const params: any = { limit: 500 };
+
+      if (viewMode === 'class') {
+        params.class_id = selectedClass;
+      } else if (viewMode === 'teacher') {
+        params.teacher_id = selectedClass;
+      } else if (viewMode === 'room') {
+        // For room view, fetch all entries and filter by room_number on client side
+        const allEntries = await TimetableAPI.getEntries(params);
+        const selectedRoom = rooms.find(r => r.id === selectedClass);
+        if (selectedRoom) {
+          return allEntries.filter(entry => entry.room_number === selectedRoom.room_number);
+        }
+        return [];
+      }
+
+      return TimetableAPI.getEntries(params);
     },
-    enabled: !!selectedClass
+    enabled: !!selectedClass && (viewMode !== 'room' || rooms.length > 0)
   });
 
   const { data: conflicts = [] } = useQuery<TimetableConflict[]>({
     queryKey: ['timetable-conflicts'],
-    queryFn: async () => {
-      const { data, error } = await apiClient.request('/timetable/conflicts?resolved=false');
-      if (error) throw new Error(error);
-      return data || [];
-    }
+    queryFn: () => TimetableAPI.getConflicts({ resolved: false })
   });
 
   const { data: stats } = useQuery<TimetableStats>({
     queryKey: ['timetable-stats', branchId],
-    queryFn: async () => {
-      const { data, error } = await apiClient.request('/timetable/stats');
-      if (error) throw new Error(error);
-      return data || {};
-    }
+    queryFn: () => TimetableAPI.getStats()
   });
 
   // Mutations
   const createEntryMutation = useMutation({
-    mutationFn: async (entry: TimetableEntry) => {
-      const response = await apiClient.request('/timetable/entries', {
-        method: 'POST',
-        body: JSON.stringify(entry),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return response.data;
-    },
+    mutationFn: (entry: any) => TimetableAPI.createEntry(entry),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timetable-entries'] });
       queryClient.invalidateQueries({ queryKey: ['timetable-conflicts'] });
+      queryClient.invalidateQueries({ queryKey: ['timetable-view'] });
       setShowCreateDialog(false);
       setEditingEntry(null);
+      toast({
+        title: "Success",
+        description: "Timetable entry created successfully",
+      });
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || error.message || "Failed to create entry";
+      if (message.includes('Critical conflicts')) {
+        toast({
+          title: "Conflict Detected",
+          description: "Entry created but has conflicts. Check conflicts tab.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: message,
+          variant: "destructive",
+        });
+      }
     }
   });
 
   const updateEntryMutation = useMutation({
-    mutationFn: async ({ id, ...entry }: TimetableEntry & { id: string }) => {
-      const response = await apiClient.request(`/timetable/entries/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(entry),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return response.data;
-    },
+    mutationFn: ({ id, ...entry }: any) => TimetableAPI.updateEntry(id, entry),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timetable-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['timetable-view'] });
       setEditingEntry(null);
+      toast({
+        title: "Success",
+        description: "Timetable entry updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to update entry",
+        variant: "destructive",
+      });
     }
   });
 
   const deleteEntryMutation = useMutation({
-    mutationFn: async (id: string) => {
-      await apiClient.request(`/timetable/entries/${id}`, { method: 'DELETE' });
-    },
+    mutationFn: (id: string) => TimetableAPI.deleteEntry(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timetable-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['timetable-view'] });
+      toast({
+        title: "Success",
+        description: "Timetable entry deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to delete entry",
+        variant: "destructive",
+      });
     }
   });
 
   const resolveConflictMutation = useMutation({
-    mutationFn: async ({ conflictId, notes }: { conflictId: string; notes: string }) => {
-      const response = await apiClient.request(`/timetable/conflicts/${conflictId}/resolve`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          resolution_notes: notes
-        }),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return response.data;
-    },
+    mutationFn: ({ conflictId, notes }: { conflictId: string; notes: string }) =>
+      TimetableAPI.resolveConflict(conflictId, notes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timetable-conflicts'] });
       toast({
@@ -278,20 +306,13 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
   });
 
   const exportTimetableMutation = useMutation({
-    mutationFn: async (exportRequest: TimetableExportRequest) => {
-      const response = await apiClient.request('/timetable/export', {
-        method: 'POST',
-        body: JSON.stringify(exportRequest),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return response.data;
-    },
+    mutationFn: (exportRequest: TimetableExportRequest) =>
+      TimetableAPI.exportTimetable(exportRequest),
     onSuccess: (data) => {
       toast({
         title: "Export Started",
         description: `Timetable export started. Download will be available shortly.`,
       });
-      // Could trigger download here
       if (data.download_url) {
         window.open(data.download_url, '_blank');
       }
@@ -306,18 +327,12 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
   });
 
   const bulkCreateMutation = useMutation({
-    mutationFn: async (entries: TimetableEntry[]) => {
-      const response = await apiClient.request('/timetable/entries/bulk', {
-        method: 'POST',
-        body: JSON.stringify({
-          entries,
-          auto_resolve_conflicts: false,
-          notify_affected_users: true
-        }),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return response.data;
-    },
+    mutationFn: (entries: any[]) =>
+      TimetableAPI.createBulkEntries({
+        entries,
+        auto_resolve_conflicts: false,
+        notify_affected_users: true
+      }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['timetable-entries'] });
       queryClient.invalidateQueries({ queryKey: ['timetable-conflicts'] });
@@ -376,7 +391,8 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
       teacher_id: '',
       room_number: '',
       notes: '',
-      resources_needed: []
+      resources_needed: [],
+      academic_year: currentAcademicYear
     });
     setShowCreateDialog(true);
   };
@@ -459,18 +475,14 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
 
   const handleSyncToCalendar = async () => {
     try {
-      const response = await apiClient.request('/timetable/sync-to-calendar', {
-        method: 'POST',
-        body: JSON.stringify({
-          academic_year: '2024-2025',
-          class_id: viewMode === 'class' ? selectedClass : undefined
-        }),
-        headers: { 'Content-Type': 'application/json' }
+      const response = await TimetableAPI.syncToCalendar({
+        academic_year: currentAcademicYear,
+        class_id: viewMode === 'class' ? selectedClass : undefined
       });
-      
+
       toast({
         title: "Calendar Sync",
-        description: response.data.message,
+        description: response.message,
       });
     } catch (error: any) {
       toast({
@@ -526,22 +538,26 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
                             </div>
                           </div>
                           <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditEntry(entry)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => entry.id && handleDeleteEntry(entry.id)}
-                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            {canUpdate && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditEntry(entry)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => entry.id && handleDeleteEntry(entry.id)}
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         {hasConflict && (
@@ -626,25 +642,29 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
                             <AlertTriangle className="h-3 w-3 text-red-500 absolute top-1 right-1" />
                           )}
                           <div className="flex space-x-1 mt-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-5 w-5 p-0"
-                              onClick={() => handleEditEntry(entry)}
-                            >
-                              <Edit3 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-5 w-5 p-0 text-red-600"
-                              onClick={() => entry.id && handleDeleteEntry(entry.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
+                            {canUpdate && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 w-5 p-0"
+                                onClick={() => handleEditEntry(entry)}
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-5 w-5 p-0 text-red-600"
+                                onClick={() => entry.id && handleDeleteEntry(entry.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         </div>
-                      ) : (
+                      ) : canCreate ? (
                         <Button
                           variant="ghost"
                           className="w-full h-full min-h-16 border-dashed border-2 border-gray-300 hover:border-blue-500"
@@ -652,6 +672,10 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
                         >
                           <Plus className="h-4 w-4 text-gray-400" />
                         </Button>
+                      ) : (
+                        <div className="w-full h-full min-h-16 flex items-center justify-center text-gray-400">
+                          -
+                        </div>
                       )}
                     </td>
                   );
@@ -664,12 +688,63 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
     );
   };
 
-  if (!['admin', 'superadmin', 'branch_admin', 'hq_admin'].includes(userRole)) {
+  // Compute filtered teachers and subjects using useMemo
+  const availableTeachers = useMemo(() => {
+    if (!editingEntry) return teachers;
+
+    const currentClass = classes.find(c => c.id === editingEntry.class_id);
+    if (!currentClass) return teachers;
+
+    return teachers.filter(teacher => {
+      // Check if teacher is the main class teacher
+      if (currentClass.teacher_id === teacher.id) return true;
+
+      // Check if teacher is in subject_teachers array
+      if (currentClass.subject_teachers) {
+        const isSubjectTeacher = currentClass.subject_teachers.some((st: any) =>
+          st.teacher_id === teacher.id
+        );
+        if (isSubjectTeacher) return true;
+      }
+
+      // Check if class is in teacher's assigned classes list
+      if (teacher.classes && teacher.classes.includes(editingEntry.class_id)) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [editingEntry, classes, teachers]);
+
+  const availableSubjects = useMemo(() => {
+    if (!editingEntry || !editingEntry.teacher_id) return subjects;
+
+    const selectedTeacher = teachers.find(t => t.id === editingEntry.teacher_id);
+    if (!selectedTeacher || !selectedTeacher.subjects || selectedTeacher.subjects.length === 0) {
+      return subjects;
+    }
+
+    return subjects.filter(subject => selectedTeacher.subjects.includes(subject.id));
+  }, [editingEntry, teachers, subjects]);
+
+  // Permission check - wait for permissions to load before showing denied message
+  if (permissionsLoading) {
+    return (
+      <Card>
+        <CardContent className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading permissions...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!canView) {
     return (
       <Card>
         <CardContent className="text-center py-8">
           <AlertTriangle className="h-12 w-12 mx-auto text-red-500 mb-4" />
-          <p className="text-red-600">You don't have permission to manage timetables.</p>
+          <p className="text-red-600">You don't have permission to view timetables.</p>
         </CardContent>
       </Card>
     );
@@ -677,10 +752,28 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Blue Banner with Circular Animation */}
+      <div className="relative bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-8 text-white overflow-hidden">
+        {/* Floating Circles Animation */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute -top-10 -left-10 w-40 h-40 bg-white/10 rounded-full animate-pulse"></div>
+          <div className="absolute top-20 -right-16 w-64 h-64 bg-white/5 rounded-full animate-bounce"></div>
+          <div className="absolute -bottom-8 left-1/3 w-32 h-32 bg-white/10 rounded-full animate-pulse"></div>
+          <div className="absolute top-1/2 left-1/4 w-20 h-20 bg-white/10 rounded-full animate-ping"></div>
+          <div className="absolute bottom-10 right-1/4 w-28 h-28 bg-white/5 rounded-full animate-bounce"></div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10">
+          <h1 className="text-3xl font-bold mb-2">Timetable Management</h1>
+          <p className="text-blue-100 text-lg">Manage class schedules and detect conflicts</p>
+        </div>
+      </div>
+
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Timetable Management</h2>
-          <p className="text-muted-foreground">Manage class schedules and detect conflicts</p>
+          <h2 className="text-2xl font-bold sr-only">Timetable Management</h2>
+          <p className="text-muted-foreground sr-only">Manage class schedules and detect conflicts</p>
         </div>
         
         <div className="flex items-center space-x-2 flex-wrap gap-2">
@@ -759,15 +852,12 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['timetable-entries'] })}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Refresh</span>
-            <span className="sm:hidden">↻</span>
-          </Button>
+          {/* Live Updates Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1 rounded-md text-xs bg-green-50 text-green-700 border border-green-200">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="hidden sm:inline">Live Updates</span>
+            <span className="sm:hidden">●</span>
+          </div>
         </div>
       </div>
 
@@ -814,24 +904,29 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
           <TabsTrigger value="schedule" className="text-xs md:text-sm">
             <span className="hidden md:inline">Schedule</span>
             <span className="md:hidden">Sched</span>
           </TabsTrigger>
-          <TabsTrigger value="time-slots" className="text-xs md:text-sm">
+          <TabsTrigger
+            value="time-slots"
+            className="text-xs md:text-sm"
+          >
             <span className="hidden md:inline">Time Slots</span>
             <span className="md:hidden">Times</span>
           </TabsTrigger>
-          <TabsTrigger value="rooms" className="text-xs md:text-sm">
+          <TabsTrigger
+            value="rooms"
+            className="text-xs md:text-sm"
+          >
             <span className="hidden sm:inline">Rooms</span>
             <span className="sm:hidden">Rooms</span>
           </TabsTrigger>
-          <TabsTrigger value="templates" className="text-xs md:text-sm">
-            <span className="hidden md:inline">Templates</span>
-            <span className="md:hidden">Temp</span>
-          </TabsTrigger>
-          <TabsTrigger value="analytics" className="text-xs md:text-sm">
+          <TabsTrigger
+            value="analytics"
+            className="text-xs md:text-sm"
+          >
             <span className="hidden md:inline">Analytics</span>
             <span className="md:hidden">Stats</span>
           </TabsTrigger>
@@ -894,15 +989,17 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
                   </Select>
                 </div>
 
-                <div className="flex items-end">
-                  <Button 
-                    className="w-full text-sm" 
-                    disabled={!selectedClass}
-                    onClick={() => queryClient.invalidateQueries({ queryKey: ['timetable-entries'] })}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Timetable
-                  </Button>
+                <div className="flex items-end gap-2">
+                  {selectedClass && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
+                      <Eye className="h-4 w-4" />
+                      <span>Viewing: {
+                        viewMode === 'class' ? classes.find(c => c.id === selectedClass)?.class_name :
+                        viewMode === 'teacher' ? teachers.find(t => t.id === selectedClass)?.first_name + ' ' + teachers.find(t => t.id === selectedClass)?.last_name :
+                        rooms.find(r => r.id === selectedClass)?.room_number
+                      }</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -927,84 +1024,11 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
         </TabsContent>
 
         <TabsContent value="time-slots">
-          <Card>
-            <CardHeader>
-              <CardTitle>Time Slot Management</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {timeSlots.map(slot => (
-                  <div key={slot.id} className="flex items-center justify-between p-3 border rounded">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="font-bold text-blue-800">{slot.period_number}</span>
-                      </div>
-                      <div>
-                        <div className="font-medium">
-                          {slot.start_time} - {slot.end_time}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {slot.period_type} {slot.is_break && '(Break)'}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm">
-                        <Edit3 className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <TimeSlotManagement />
         </TabsContent>
 
         <TabsContent value="rooms">
-          <Card>
-            <CardHeader>
-              <CardTitle>Room Management</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {rooms.map(room => (
-                  <div key={room.id} className="p-4 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="font-medium">{room.room_number}</div>
-                      <Badge variant={room.is_available ? "default" : "secondary"}>
-                        {room.is_available ? "Available" : "Unavailable"}
-                      </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground mb-2">
-                      <div>Type: {room.room_type}</div>
-                      <div>Capacity: {room.capacity}</div>
-                    </div>
-                    {room.equipment.length > 0 && (
-                      <div className="text-xs">
-                        Equipment: {room.equipment.join(', ')}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="templates">
-          <Card>
-            <CardHeader>
-              <CardTitle>Timetable Templates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Create and manage reusable timetable templates for different grade levels.
-              </p>
-            </CardContent>
-          </Card>
+          <RoomManagement />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
@@ -1136,51 +1160,73 @@ export const TimetableManagement: React.FC<TimetableManagementProps> = ({
               {editingEntry?.id ? 'Edit Timetable Entry' : 'Create Timetable Entry'}
             </DialogTitle>
           </DialogHeader>
-          
+
           {editingEntry && (
             <div className="space-y-4">
               <div>
-                <Label>Subject</Label>
-                <Select 
-                  value={editingEntry.subject_id} 
-                  onValueChange={(value) => setEditingEntry({ ...editingEntry, subject_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map(subject => (
-                      <SelectItem key={subject.id} value={subject.id}>
-                        {subject.subject_name} ({subject.subject_code})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
                 <Label>Teacher</Label>
-                <Select 
-                  value={editingEntry.teacher_id} 
+                <Select
+                  value={editingEntry.teacher_id}
                   onValueChange={(value) => setEditingEntry({ ...editingEntry, teacher_id: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select teacher" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teachers.map(teacher => (
-                      <SelectItem key={teacher.id} value={teacher.id}>
-                        {teacher.first_name} {teacher.last_name}
-                      </SelectItem>
-                    ))}
+                    {availableTeachers.length === 0 ? (
+                      <div className="p-2 text-sm text-gray-500 text-center">
+                        No teachers assigned to this class
+                      </div>
+                    ) : (
+                      availableTeachers.map(teacher => (
+                        <SelectItem key={teacher.id} value={teacher.id}>
+                          {teacher.first_name} {teacher.last_name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {availableTeachers.length === 0 && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    ⚠️ No teachers are assigned to this class. Please assign teachers first in Teacher Management.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <Label>Subject</Label>
+                <Select
+                  value={editingEntry.subject_id}
+                  onValueChange={(value) => setEditingEntry({ ...editingEntry, subject_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSubjects.length === 0 ? (
+                      <div className="p-2 text-sm text-gray-500 text-center">
+                        Selected teacher has no assigned subjects
+                      </div>
+                    ) : (
+                      availableSubjects.map(subject => (
+                        <SelectItem key={subject.id} value={subject.id}>
+                          {subject.subject_name} ({subject.subject_code})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {editingEntry.teacher_id && availableSubjects.length === 0 && (
+                  <p className="text-xs text-orange-600 mt-1">
+                    ⚠️ Selected teacher is not qualified to teach any subjects. Please assign subjects to this teacher first.
+                  </p>
+                )}
               </div>
 
               <div>
                 <Label>Room</Label>
-                <Select 
-                  value={editingEntry.room_number} 
+                <Select
+                  value={editingEntry.room_number}
                   onValueChange={(value) => setEditingEntry({ ...editingEntry, room_number: value })}
                 >
                   <SelectTrigger>

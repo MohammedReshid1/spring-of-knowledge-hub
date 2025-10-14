@@ -18,15 +18,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import { Plus, Edit, Trash2, MoreHorizontal, Tag, DollarSign, Calendar, Users, ToggleLeft } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Edit, Trash2, MoreHorizontal, Tag, DollarSign, Calendar, Users, ToggleLeft, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useBranch } from '@/contexts/BranchContext';
-import type { FeeCategory } from '@/types/api';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
+import type { FeeCategory, GradeLevelTier } from '@/types/api';
 
 const feeCategorySchema = z.object({
   name: z.string().min(1, 'Category name is required'),
   description: z.string().optional(),
   base_amount: z.number().min(0, 'Base amount must be positive'),
+  use_tiers: z.boolean().default(false),
   is_active: z.boolean().default(true),
   is_mandatory: z.boolean().default(false),
   due_period: z.enum(['monthly', 'quarterly', 'annually', 'one_time'], {
@@ -46,16 +49,26 @@ interface FeeCategoryFormProps {
   onSuccess?: () => void;
 }
 
-const GRADE_LEVELS = [
-  'Pre-K', 'Kindergarten', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4',
-  'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10',
-  'Grade 11', 'Grade 12'
-];
-
 function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategoryFormProps) {
   const { selectedBranch } = useBranch();
   const branchId = selectedBranch === 'all' ? undefined : selectedBranch || undefined;
   const queryClient = useQueryClient();
+
+  // Fetch grade levels for the selected branch
+  const { data: gradeLevelsData = [] } = useQuery({
+    queryKey: ['grade-levels', branchId],
+    queryFn: () => branchId ? apiClient.getGradeLevelsByBranch(branchId) : apiClient.getGradeLevels(),
+    enabled: open, // Only fetch when dialog is open
+    select: (resp) => {
+      const items = (resp as any).data || (resp as any) || [];
+      // Extract grade names from the response
+      return items.map((item: any) => item.grade || item.name || item).filter(Boolean);
+    },
+  });
+
+  const GRADE_LEVELS = gradeLevelsData.length > 0 ? gradeLevelsData : [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'
+  ];
 
   const form = useForm<FeeCategoryFormData>({
     resolver: zodResolver(feeCategorySchema),
@@ -63,6 +76,7 @@ function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategor
       name: category?.name || '',
       description: category?.description || '',
       base_amount: category?.base_amount || 0,
+      use_tiers: category?.grade_level_tiers && category.grade_level_tiers.length > 0,
       is_active: category?.is_active ?? true,
       is_mandatory: category?.is_mandatory ?? false,
       due_period: category?.due_period || 'monthly',
@@ -74,6 +88,12 @@ function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategor
 
   const isEditing = !!category;
 
+  // State for managing grade level tiers
+  const [tiers, setTiers] = useState<GradeLevelTier[]>(
+    category?.grade_level_tiers || []
+  );
+  const useTiers = form.watch('use_tiers');
+
   // Ensure form values reflect the selected category when opening edit
   useEffect(() => {
     if (!open) return;
@@ -81,6 +101,7 @@ function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategor
       name: category?.name || '',
       description: category?.description || '',
       base_amount: category?.base_amount || 0,
+      use_tiers: category?.grade_level_tiers && category.grade_level_tiers.length > 0,
       is_active: category?.is_active ?? true,
       is_mandatory: category?.is_mandatory ?? false,
       due_period: category?.due_period || 'monthly',
@@ -88,16 +109,57 @@ function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategor
       late_fee_days: category?.late_fee_days || 30,
       grade_levels: category?.grade_levels || [],
     });
-  }, [category, open]);
+    // Convert tier amounts from strings to numbers if needed
+    const tiersData = category?.grade_level_tiers?.map(tier => ({
+      ...tier,
+      amount: typeof tier.amount === 'string' ? Number(tier.amount) : tier.amount
+    })) || [];
+    setTiers(tiersData);
+  }, [category, open, form]);
+
+  // Helper functions for tier management
+  const addTier = () => {
+    setTiers([...tiers, { grade_levels: [], amount: 0 }]);
+  };
+
+  const removeTier = (index: number) => {
+    setTiers(tiers.filter((_, i) => i !== index));
+  };
+
+  const updateTierGrades = (index: number, grades: string[]) => {
+    const newTiers = [...tiers];
+    newTiers[index] = { ...newTiers[index], grade_levels: grades };
+    setTiers(newTiers);
+  };
+
+  const updateTierAmount = (index: number, amount: number) => {
+    const newTiers = [...tiers];
+    newTiers[index] = { ...newTiers[index], amount };
+    setTiers(newTiers);
+  };
 
   // Create/Update mutation
   const mutation = useMutation({
     mutationFn: (data: FeeCategoryFormData) => {
-      const payload = {
+      const payload: any = {
         ...data,
         branch_id: branchId,
         academic_year: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
       };
+
+      // Remove use_tiers from payload as it's not a backend field
+      delete payload.use_tiers;
+      delete payload.base_amount;
+
+      // If using tiers, include grade_level_tiers and don't send amount
+      if (data.use_tiers && tiers.length > 0) {
+        payload.grade_level_tiers = tiers;
+        // Don't include amount field at all when using tiers
+        delete payload.amount;
+      } else {
+        payload.grade_level_tiers = null;
+        payload.amount = data.base_amount;
+      }
 
       if (isEditing) {
         return apiClient.updateFeeCategory(category.id, payload);
@@ -187,6 +249,7 @@ function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategor
                         placeholder="0.00"
                         {...field}
                         onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                        disabled={useTiers}
                       />
                     </FormControl>
                     <FormMessage />
@@ -212,6 +275,133 @@ function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategor
                     </FormItem>
                   )}
                 />
+
+                {/* Toggle for using tiers */}
+                <FormField
+                  control={form.control}
+                  name="use_tiers"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between p-4 rounded-xl bg-blue-50/50 border border-blue-200/50">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base font-semibold">Use Grade Level Tiers</FormLabel>
+                        <div className="text-sm text-slate-600">
+                          Enable different amounts for different grade levels
+                        </div>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked);
+                            if (!checked) {
+                              setTiers([]);
+                            }
+                          }}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {/* Grade Level Tiers Section */}
+                {useTiers && (
+                  <div className="space-y-4 p-4 rounded-xl bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border border-blue-200/50">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-base font-semibold text-slate-700">Grade Level Tiers</h4>
+                      <Button
+                        type="button"
+                        onClick={addTier}
+                        variant="outline"
+                        size="sm"
+                        className="bg-white hover:bg-blue-50 border-blue-200"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Tier
+                      </Button>
+                    </div>
+
+                    {tiers.length === 0 ? (
+                      <div className="text-center py-8 text-slate-500">
+                        No tiers added yet. Click "Add Tier" to create your first tier.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {tiers.map((tier, index) => (
+                          <div
+                            key={index}
+                            className="p-4 rounded-lg bg-white border border-slate-200 space-y-3"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold text-slate-700">
+                                Tier {index + 1}
+                              </span>
+                              <Button
+                                type="button"
+                                onClick={() => removeTier(index)}
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Grade Levels Selection */}
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">
+                                  Grade Levels *
+                                </label>
+                                <div className="grid grid-cols-3 gap-2">
+                                  {GRADE_LEVELS.map((grade) => (
+                                    <label
+                                      key={grade}
+                                      className="flex items-center space-x-2 p-2 rounded-lg bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={tier.grade_levels.includes(grade)}
+                                        onChange={(e) => {
+                                          const currentGrades = tier.grade_levels || [];
+                                          const newGrades = e.target.checked
+                                            ? [...currentGrades, grade]
+                                            : currentGrades.filter(g => g !== grade);
+                                          updateTierGrades(index, newGrades);
+                                        }}
+                                        className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+                                      />
+                                      <span className="text-sm font-medium text-slate-700">
+                                        {grade}
+                                      </span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Amount Input */}
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700">
+                                  Amount *
+                                </label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="0.00"
+                                  value={tier.amount || ''}
+                                  onChange={(e) =>
+                                    updateTierAmount(index, Number(e.target.value) || 0)
+                                  }
+                                  className="bg-white"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -416,8 +606,12 @@ function FeeCategoryForm({ category, open, onOpenChange, onSuccess }: FeeCategor
 
 export function FeeCategoryManagement() {
   const { selectedBranch, isSuperAdmin } = useBranch();
+  const { hasPermission, isSuperSuperAdmin } = useRoleAccess();
   const branchId = selectedBranch === 'all' ? undefined : selectedBranch || undefined;
   const queryClient = useQueryClient();
+
+  // Permission check
+  const canManage = isSuperSuperAdmin || hasPermission('payment.manage');
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<FeeCategory | undefined>();
@@ -528,14 +722,64 @@ export function FeeCategoryManagement() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Premium Header */}
-      <div className="relative">
-        {/* Background card with glass morphism */}
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-indigo-500/8 to-blue-500/8 rounded-3xl pointer-events-none"></div>
+    <>
+      {/* Premium Animation Styles */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
 
-        <Card className="relative bg-transparent border-0 shadow-none">
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+          }
+        }
+
+        .animate-fadeInUp {
+          animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-slideInRight {
+          animation: slideInRight 0.6s ease-out;
+        }
+
+        .animate-pulseGlow {
+          animation: pulseGlow 2s infinite;
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+        {/* Main Content */}
+        <div className="relative z-10 space-y-8 px-6 py-16">
+          <div className="mx-auto max-w-7xl space-y-8">
+            {/* Premium Header */}
+            <div className="relative">
+              {/* Background card with glass morphism */}
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-indigo-500/8 to-blue-500/8 rounded-3xl pointer-events-none"></div>
+
+              <Card className="relative bg-transparent border-0 shadow-none">
           <CardHeader className="pb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -549,14 +793,16 @@ export function FeeCategoryManagement() {
                   <p className="text-slate-600 leading-relaxed">Configure and manage fee categories with advanced pricing settings</p>
                 </div>
               </div>
-              <Button
-                onClick={handleCreate}
-                className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
-                Add Category
-              </Button>
+              {canManage && (
+                <Button
+                  onClick={handleCreate}
+                  className="group relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
+                  Add Category
+                </Button>
+              )}
             </div>
           </CardHeader>
         </Card>
@@ -649,9 +895,22 @@ export function FeeCategoryManagement() {
                                   <DollarSign className="h-4 w-4 text-green-600" />
                                 </div>
                               </div>
-                              <span className="text-lg font-bold text-slate-700 group-hover:text-blue-700 transition-colors duration-300">
-                                ${category.base_amount.toFixed(2)}
-                              </span>
+                              <div className="flex flex-col">
+                                {category.grade_level_tiers && category.grade_level_tiers.length > 0 ? (
+                                  <>
+                                    <span className="text-sm font-semibold text-blue-600">
+                                      Tiered Pricing
+                                    </span>
+                                    <span className="text-xs text-slate-500">
+                                      {category.grade_level_tiers.length} tiers
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="text-lg font-bold text-slate-700 group-hover:text-blue-700 transition-colors duration-300">
+                                    ${category.base_amount.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </TableCell>
                           <TableCell className="py-4">
@@ -688,39 +947,46 @@ export function FeeCategoryManagement() {
                             </Badge>
                           </TableCell>
                           <TableCell className="py-4">
-                            <div className="flex flex-wrap gap-2">
-                              {category.is_mandatory && (
+                            <div className="flex flex-wrap gap-2 min-h-[28px]">
+                              {category.is_mandatory ? (
                                 <Badge variant="outline" className="bg-gradient-to-r from-red-100 to-rose-100 border-red-200 text-red-800 font-medium px-2 py-1 text-xs flex items-center gap-1">
                                   <span>🔒</span>
                                   Mandatory
                                 </Badge>
-                              )}
-                              {category.late_fee_amount && category.late_fee_amount > 0 && (
+                              ) : null}
+                              {category.late_fee_amount && category.late_fee_amount > 0 ? (
                                 <Badge variant="outline" className="bg-gradient-to-r from-yellow-100 to-amber-100 border-yellow-200 text-yellow-800 font-medium px-2 py-1 text-xs flex items-center gap-1">
                                   <span>⏰</span>
                                   Late Fee
                                 </Badge>
-                              )}
+                              ) : null}
+                              {!category.is_mandatory && (!category.late_fee_amount || category.late_fee_amount <= 0) ? (
+                                <span className="text-sm text-slate-400">—</span>
+                              ) : null}
                             </div>
                           </TableCell>
                           <TableCell className="text-right py-4">
                             <div className="flex items-center justify-end space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(category)}
-                                className="opacity-60 group-hover:opacity-100 hover:bg-blue-100 hover:text-blue-600 transition-all duration-300 h-10 w-10 rounded-lg"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(category)}
-                                className="opacity-60 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 transition-all duration-300 h-10 w-10 rounded-lg"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {canManage && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEdit(category)}
+                                    className="opacity-60 group-hover:opacity-100 hover:bg-blue-100 hover:text-blue-600 transition-all duration-300 h-10 w-10 rounded-lg"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDelete(category)}
+                                    className="opacity-60 group-hover:opacity-100 hover:bg-red-100 hover:text-red-600 transition-all duration-300 h-10 w-10 rounded-lg"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -764,6 +1030,9 @@ export function FeeCategoryManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

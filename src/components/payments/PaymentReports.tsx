@@ -9,10 +9,15 @@ import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import {
   FileBarChart,
-  Download
+  Download,
+  Calendar,
+  Filter,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useBranch } from '@/contexts/BranchContext';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const REPORT_TYPES = [
@@ -30,8 +35,12 @@ const EXPORT_FORMATS = [
 
 export function PaymentReports() {
   const { selectedBranch } = useBranch();
+  const { hasPermission, isSuperSuperAdmin } = useRoleAccess();
   const branchId = selectedBranch || 'all'; // Always provide a branch ID, use 'all' for all branches
   const enableQueries = !!selectedBranch;
+
+  // Permission checks
+  const canViewReports = isSuperSuperAdmin || hasPermission('payment.read') || hasPermission('report.view');
 
   // Report generation state
   const [reportType, setReportType] = useState('daily_collection');
@@ -40,7 +49,6 @@ export function PaymentReports() {
   const [feeCategoryId, setFeeCategoryId] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
   const [exportFormat, setExportFormat] = useState('pdf');
-
 
   // Fetch fee categories for filtering
   const { data: feeCategories = [] } = useQuery({
@@ -115,54 +123,57 @@ export function PaymentReports() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-6 animate-in fade-in duration-500">
       {/* Premium Header */}
-      <div className="relative">
-        {/* Background card with glass morphism */}
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-indigo-500/8 to-blue-500/8 rounded-3xl pointer-events-none"></div>
+      <Card className="shadow-lg hover:shadow-xl transition-all duration-300 border-0 overflow-hidden relative group">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 opacity-70 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-400/10 to-purple-400/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
-        <Card className="relative bg-transparent border-0 shadow-none">
-          <CardHeader className="pb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50">
-                  <FileBarChart className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-900 bg-clip-text text-transparent">
-                    Payment Reports
-                  </CardTitle>
-                  <p className="text-slate-600 leading-relaxed">Generate detailed payment reports with advanced analytics</p>
-                </div>
+        <CardHeader className="pb-6 relative z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <FileBarChart className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-3xl font-bold text-slate-800 mb-1">
+                  Payment Reports
+                </CardTitle>
+                <p className="text-slate-600 text-sm">Generate detailed payment reports with advanced analytics and filtering</p>
               </div>
             </div>
-          </CardHeader>
-        </Card>
-      </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* Premium Report Generation Card */}
-      <div className="relative">
-        {/* Premium glass card background */}
-        <div className="absolute inset-0 bg-white/90 backdrop-blur-premium border border-white/40 rounded-3xl shadow-premium-lg"></div>
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-indigo-500/5 rounded-3xl pointer-events-none"></div>
-
-        <Card className="relative bg-transparent border-0 shadow-none">
-          <CardHeader className="pb-6">
-            <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-900 bg-clip-text text-transparent">
-              Report Generation
-            </CardTitle>
-            <p className="text-slate-600 leading-relaxed">
-              Configure and generate detailed payment reports with advanced filtering options
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
+      <Card className="shadow-md hover:shadow-lg transition-shadow duration-300">
+        <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 border-b">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <FileText className="h-5 w-5 text-blue-700" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold text-slate-800">
+                Report Configuration
+              </CardTitle>
+              <p className="text-sm text-slate-600 mt-1">
+                Configure and generate detailed payment reports with advanced filtering options
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="report-type">Report Type</Label>
+            {/* Left Column */}
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="report-type" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <FileBarChart className="h-4 w-4 text-slate-500" />
+                  Report Type
+                </Label>
                 <Select value={reportType} onValueChange={setReportType}>
-                  <SelectTrigger id="report-type">
+                  <SelectTrigger id="report-type" className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -175,31 +186,42 @@ export function PaymentReports() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="report-date-from">From Date</Label>
-                  <Input
-                    id="report-date-from"
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="report-date-to">To Date</Label>
-                  <Input
-                    id="report-date-to"
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                  />
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-slate-500" />
+                  Date Range
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="report-date-from" className="text-xs text-slate-600">From</Label>
+                    <Input
+                      id="report-date-from"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="report-date-to" className="text-xs text-slate-600">To</Label>
+                    <Input
+                      id="report-date-to"
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      className="border-slate-300 focus:border-blue-500 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="export-format">Export Format</Label>
+              <div className="space-y-2">
+                <Label htmlFor="export-format" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Download className="h-4 w-4 text-slate-500" />
+                  Export Format
+                </Label>
                 <Select value={exportFormat} onValueChange={setExportFormat}>
-                  <SelectTrigger id="export-format">
+                  <SelectTrigger id="export-format" className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -213,11 +235,15 @@ export function PaymentReports() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="fee-category">Fee Category (Optional)</Label>
+            {/* Right Column */}
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="fee-category" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-slate-500" />
+                  Fee Category <span className="text-xs text-slate-500 font-normal">(Optional)</span>
+                </Label>
                 <Select value={feeCategoryId} onValueChange={setFeeCategoryId}>
-                  <SelectTrigger id="fee-category">
+                  <SelectTrigger id="fee-category" className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
                     <SelectValue placeholder="All categories" />
                   </SelectTrigger>
                   <SelectContent>
@@ -231,10 +257,13 @@ export function PaymentReports() {
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="grade-level">Grade Level (Optional)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="grade-level" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-slate-500" />
+                  Grade Level <span className="text-xs text-slate-500 font-normal">(Optional)</span>
+                </Label>
                 <Select value={gradeLevel} onValueChange={setGradeLevel}>
-                  <SelectTrigger id="grade-level">
+                  <SelectTrigger id="grade-level" className="border-slate-300 focus:border-blue-500 focus:ring-blue-500">
                     <SelectValue placeholder="All grades" />
                   </SelectTrigger>
                   <SelectContent>
@@ -248,59 +277,100 @@ export function PaymentReports() {
                 </Select>
               </div>
 
-              <Button
-                onClick={handleGenerateReport}
-                disabled={generateReportMutation.isPending}
-                className="w-full group relative overflow-hidden bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                {generateReportMutation.isPending ? (
-                  'Generating...'
-                ) : (
-                  <>
-                    <Download className="h-4 w-4 mr-2 group-hover:rotate-12 transition-transform duration-300" />
-                    Generate & Download Report
-                  </>
-                )}
-              </Button>
+              <div className="pt-2">
+                <Button
+                  onClick={handleGenerateReport}
+                  disabled={generateReportMutation.isPending || !canViewReports}
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg transition-all duration-300 py-6 text-base font-semibold disabled:opacity-50"
+                >
+                  {generateReportMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Generating Report...
+                    </>
+                  ) : !canViewReports ? (
+                    'No Permission'
+                  ) : (
+                    <>
+                      <Download className="h-5 w-5 mr-2" />
+                      Generate & Download Report
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
 
-          <Separator />
+          <Separator className="my-8" />
 
           {/* Report Descriptions */}
-          <div className="space-y-3">
-            <h4 className="font-medium">Report Types</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <h5 className="text-sm font-medium">Daily Collection Report</h5>
-                <p className="text-xs text-muted-foreground">
-                  Daily breakdown of payment collections with totals and payment methods.
-                </p>
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-100 rounded-lg">
+                <FileText className="h-4 w-4 text-indigo-700" />
               </div>
-              <div className="space-y-2">
-                <h5 className="text-sm font-medium">Outstanding Fees Report</h5>
-                <p className="text-xs text-muted-foreground">
-                  List of pending and overdue payments by student and fee category.
-                </p>
+              <h4 className="font-semibold text-lg text-slate-800">Available Report Types</h4>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="group p-5 rounded-xl border-2 border-slate-200 hover:border-blue-300 bg-gradient-to-br from-blue-50/50 to-transparent hover:shadow-md transition-all duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
+                    <Calendar className="h-5 w-5 text-blue-700" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h5 className="text-sm font-semibold text-slate-800">Daily Collection Report</h5>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Daily breakdown of payment collections with totals and payment methods.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h5 className="text-sm font-medium">Payment Summary Report</h5>
-                <p className="text-xs text-muted-foreground">
-                  Comprehensive summary with totals, averages, and payment trends.
-                </p>
+
+              <div className="group p-5 rounded-xl border-2 border-slate-200 hover:border-orange-300 bg-gradient-to-br from-orange-50/50 to-transparent hover:shadow-md transition-all duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-orange-100 rounded-lg group-hover:bg-orange-200 transition-colors">
+                    <FileBarChart className="h-5 w-5 text-orange-700" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h5 className="text-sm font-semibold text-slate-800">Outstanding Fees Report</h5>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      List of pending and overdue payments by student and fee category.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h5 className="text-sm font-medium">Fee Category Analysis</h5>
-                <p className="text-xs text-muted-foreground">
-                  Analysis of payment performance by fee category and grade level.
-                </p>
+
+              <div className="group p-5 rounded-xl border-2 border-slate-200 hover:border-purple-300 bg-gradient-to-br from-purple-50/50 to-transparent hover:shadow-md transition-all duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
+                    <FileText className="h-5 w-5 text-purple-700" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h5 className="text-sm font-semibold text-slate-800">Payment Summary Report</h5>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Comprehensive summary with totals, averages, and payment trends.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="group p-5 rounded-xl border-2 border-slate-200 hover:border-green-300 bg-gradient-to-br from-green-50/50 to-transparent hover:shadow-md transition-all duration-300">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                    <Filter className="h-5 w-5 text-green-700" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <h5 className="text-sm font-semibold text-slate-800">Fee Category Analysis</h5>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Analysis of payment performance by fee category and grade level.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          </CardContent>
-        </Card>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

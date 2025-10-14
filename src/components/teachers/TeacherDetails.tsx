@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { X, Mail, Phone, User, Users, BookOpen, GraduationCap } from 'lucide-react';
+import { useLiveData } from '@/hooks/useLiveData';
 
 interface TeacherDetailsProps {
   teacher: any;
@@ -10,6 +11,9 @@ interface TeacherDetailsProps {
 }
 
 export const TeacherDetails = ({ teacher, onClose }: TeacherDetailsProps) => {
+  // Enable real-time updates for teacher details
+  useLiveData(['teachers', 'classes', 'students']);
+
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
@@ -23,13 +27,13 @@ export const TeacherDetails = ({ teacher, onClose }: TeacherDetailsProps) => {
 
   const fullName = `${teacher.first_name} ${teacher.last_name}`;
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="relative max-w-4xl w-full max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] pt-20 p-4">
+      <div className="relative max-w-4xl w-full max-h-[85vh] overflow-hidden">
         {/* Background Effects */}
         <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/90 via-teal-50/80 to-cyan-50/90 rounded-2xl" />
         <div className="absolute inset-0 backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium rounded-2xl" />
 
-        <div className="relative overflow-y-auto max-h-[90vh] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
+        <div className="relative overflow-y-auto max-h-[85vh] scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
           <div className="flex justify-between items-center p-8 border-b border-white/20">
             <div className="flex items-center gap-6">
               <div className="relative">
@@ -59,7 +63,7 @@ export const TeacherDetails = ({ teacher, onClose }: TeacherDetailsProps) => {
 
           <div className="p-8 space-y-8">
             {/* Premium Basic Information */}
-            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-card-hover transition-all duration-500">
+            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-500">
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/[0.02] via-teal-500/[0.02] to-cyan-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative">
                 <CardTitle className="flex items-center gap-3 text-xl font-bold">
@@ -92,7 +96,7 @@ export const TeacherDetails = ({ teacher, onClose }: TeacherDetailsProps) => {
             </Card>
 
             {/* Premium Contact Information */}
-            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-card-hover transition-all duration-500">
+            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-500">
               <div className="absolute inset-0 bg-gradient-to-br from-teal-500/[0.02] via-cyan-500/[0.02] to-blue-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative">
                 <CardTitle className="flex items-center gap-3 text-xl font-bold">
@@ -134,7 +138,7 @@ export const TeacherDetails = ({ teacher, onClose }: TeacherDetailsProps) => {
             </Card>
 
             {/* Premium Teaching Summary */}
-            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-card-hover transition-all duration-500">
+            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-500">
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/[0.02] via-blue-500/[0.02] to-indigo-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative">
                 <CardTitle className="flex items-center gap-3 text-xl font-bold">
@@ -184,7 +188,7 @@ export const TeacherDetails = ({ teacher, onClose }: TeacherDetailsProps) => {
             </Card>
 
             {/* Premium Class Assignments */}
-            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-card-hover transition-all duration-500">
+            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-500">
               <div className="absolute inset-0 bg-gradient-to-br from-orange-500/[0.02] via-amber-500/[0.02] to-yellow-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative">
                 <CardTitle className="flex items-center gap-3 text-xl font-bold">
@@ -257,7 +261,7 @@ export const TeacherDetails = ({ teacher, onClose }: TeacherDetailsProps) => {
             </Card>
 
             {/* Premium Record Information */}
-            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-card-hover transition-all duration-500">
+            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/80 via-white/60 to-white/40 border border-white/30 shadow-premium hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-500">
               <div className="absolute inset-0 bg-gradient-to-br from-slate-500/[0.02] via-gray-500/[0.02] to-zinc-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
               <CardHeader className="relative">
                 <CardTitle className="flex items-center gap-3 text-xl font-bold">

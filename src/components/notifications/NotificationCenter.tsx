@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,12 +10,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Bell, 
-  Search, 
-  Check, 
-  CheckCheck, 
-  Clock, 
+import {
+  Bell,
+  BarChart3,
+  Search,
+  Check,
+  CheckCheck,
+  Clock,
   AlertTriangle,
   MessageCircle,
   Calendar,
@@ -34,7 +36,9 @@ import {
   WifiOff,
   Loader2,
   Settings,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -70,14 +74,36 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   maxHeight = "600px",
   enableSound = true
 }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightedId = searchParams.get('id');
+  const notificationRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
   const [searchTerm, setSearchTerm] = useState('');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [filterType, setFilterType] = useState<string>('all');
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [showSystemAlerts, setShowSystemAlerts] = useState(true);
   const [activeTab, setActiveTab] = useState('notifications');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   const queryClient = useQueryClient();
+
+  // Scroll to and highlight notification when navigating from bell
+  useEffect(() => {
+    if (highlightedId && notificationRefs.current[highlightedId]) {
+      // Scroll to the notification
+      notificationRefs.current[highlightedId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+
+      // Remove the query parameter after scrolling
+      setTimeout(() => {
+        setSearchParams({});
+      }, 2000);
+    }
+  }, [highlightedId, setSearchParams]);
 
   // Use the notification context
   const {
@@ -100,23 +126,26 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   } = useNotifications();
 
   // Fallback to API data when WebSocket is not available
-  const { data: apiNotifications = [], isLoading: isLoadingApi, refetch } = useQuery<UserNotification[]>({
+  const { data: apiResponse, isLoading: isLoadingApi, refetch } = useQuery({
     queryKey: ['user-notifications', showUnreadOnly, filterType, filterPriority],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (showUnreadOnly) params.append('unread_only', 'true');
-      
-      const response = await apiClient.get(`/notifications/user-notifications?${params}`);
+
+      const response = await apiClient.get(`/api/notifications/user-notifications?${params}`);
       return response.data;
     },
     refetchInterval: isConnected ? false : 30000, // Only refetch via API when WebSocket disconnected
     enabled: !isConnected, // Only fetch when WebSocket is not connected
   });
 
+  // Extract notifications array from API response
+  const apiNotifications = Array.isArray(apiResponse) ? apiResponse : (apiResponse?.notifications || []);
+
   // API mutations for when WebSocket is not available
   const markReadMutation = useMutation({
     mutationFn: async (notificationId: string) => {
-      const response = await apiClient.post(`/notifications/mark-read/${notificationId}`);
+      const response = await apiClient.post(`/api/notifications/mark-read/${notificationId}`);
       return response.data;
     },
     onSuccess: () => {
@@ -129,7 +158,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
 
   const markAllReadMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiClient.post('/notifications/mark-all-read');
+      const response = await apiClient.post('/api/notifications/mark-all-read');
       return response.data;
     },
     onSuccess: (data) => {
@@ -183,9 +212,9 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   }, [isConnected, notifications, apiNotifications]);
 
   // Filter notifications based on search and filters
-  const filteredNotifications = useMemo(() => {
+  const allFilteredNotifications = useMemo(() => {
     return displayNotifications.filter(notification => {
-      const matchesSearch = !searchTerm || 
+      const matchesSearch = !searchTerm ||
         notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         notification.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
         notification.sender_name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -197,6 +226,17 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
       return matchesSearch && matchesUnread && matchesType && matchesPriority;
     });
   }, [displayNotifications, searchTerm, showUnreadOnly, filterType, filterPriority]);
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(allFilteredNotifications.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const filteredNotifications = allFilteredNotifications.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, showUnreadOnly, filterType, filterPriority]);
 
   const displayUnreadCount = isConnected ? unreadCount : apiNotifications.filter(n => !n.read_at).length;
   const isLoading = isLoadingApi && !isConnected;
@@ -238,12 +278,24 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'Just now';
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`;
-    return date.toLocaleDateString();
+    if (diffInDays < 7) return `${diffInDays}d ago`;
+
+    // Show actual date for older notifications
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getConnectionStatusBadge = () => {
@@ -334,115 +386,128 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center">
-            <Bell className="h-6 w-6 mr-2" />
-            Notification Center
-            {displayUnreadCount > 0 && (
-              <Badge className="ml-2 bg-red-100 text-red-800">{displayUnreadCount} unread</Badge>
-            )}
-            <div className="ml-3">
-              {getConnectionStatusBadge()}
+      {/* Premium Header */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="text-2xl font-bold flex items-center gap-3 bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50">
+                  <Bell className="h-6 w-6 text-blue-600" />
+                </div>
+                Notification Center
+                {displayUnreadCount > 0 && (
+                  <Badge className="bg-gradient-to-r from-red-100 to-rose-100 text-red-800 border border-red-200/50">{displayUnreadCount} unread</Badge>
+                )}
+                <div className="ml-3">
+                  {getConnectionStatusBadge()}
+                </div>
+              </CardTitle>
+              <div className="flex items-center gap-4 text-slate-600 font-medium mt-2">
+                <p>Stay updated with the latest announcements and alerts</p>
+              </div>
             </div>
-          </h2>
-          <div className="flex items-center gap-4 text-muted-foreground">
-            <p>Stay updated with the latest announcements and alerts</p>
-            {connectionId && (
-              <span className="text-xs font-mono">ID: {connectionId.slice(-8)}</span>
-            )}
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSound}
+                title={soundEnabled ? 'Disable sounds' : 'Enable sounds'}
+                className="border-blue-200/50 hover:bg-blue-50 hover:border-blue-400 transition-all duration-300"
+              >
+                {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              </Button>
+
+              {!isConnected && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={reconnect}
+                  className="border-blue-200/50 hover:bg-blue-50 hover:border-blue-400 transition-all duration-300"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Reconnect
+                </Button>
+              )}
+
+  
+              {displayUnreadCount > 0 && (
+                <Button
+                  size="sm"
+                  onClick={handleMarkAllAsRead}
+                  disabled={markAllReadMutation.isPending}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  <CheckCheck className="h-4 w-4 mr-2" />
+                  Mark All Read
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={toggleSound}
-            title={soundEnabled ? 'Disable sounds' : 'Enable sounds'}
-          >
-            {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-          </Button>
-          
-          {!isConnected && (
-            <Button variant="outline" size="sm" onClick={reconnect}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reconnect
-            </Button>
-          )}
-          
-          <Button variant="outline" size="sm" onClick={() => isConnected ? reconnect() : refetch()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          
-          {displayUnreadCount > 0 && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleMarkAllAsRead}
-              disabled={markAllReadMutation.isPending}
+        </CardHeader>
+      </Card>
+
+      {/* Premium Filters and Search */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex gap-4 flex-wrap items-center">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search notifications..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 border-blue-200/50 focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-300"
+                />
+              </div>
+            </div>
+
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-40 border-blue-200/50 focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-300">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="announcement">Announcements</SelectItem>
+                <SelectItem value="academic">Academic</SelectItem>
+                <SelectItem value="payment_reminder">Payment</SelectItem>
+                <SelectItem value="event">Events</SelectItem>
+                <SelectItem value="emergency">Emergency</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={filterPriority} onValueChange={setFilterPriority}>
+              <SelectTrigger className="w-32 border-blue-200/50 focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-300">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant={showUnreadOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowUnreadOnly(!showUnreadOnly)}
+              className={showUnreadOnly
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                : "border-blue-200/50 hover:bg-blue-50 hover:border-blue-400 transition-all duration-300"
+              }
             >
-              <CheckCheck className="h-4 w-4 mr-2" />
-              Mark All Read
+              {showUnreadOnly ? 'Show All' : 'Unread Only'}
             </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="flex gap-4 flex-wrap items-center">
-        <div className="flex-1 min-w-64">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search notifications..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="announcement">Announcements</SelectItem>
-            <SelectItem value="academic">Academic</SelectItem>
-            <SelectItem value="payment_reminder">Payment</SelectItem>
-            <SelectItem value="event">Events</SelectItem>
-            <SelectItem value="emergency">Emergency</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={filterPriority} onValueChange={setFilterPriority}>
-          <SelectTrigger className="w-32">
-            <SelectValue placeholder="Priority" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="urgent">Urgent</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button
-          variant={showUnreadOnly ? "default" : "outline"}
-          size="sm"
-          onClick={() => setShowUnreadOnly(!showUnreadOnly)}
-        >
-          {showUnreadOnly ? 'Show All' : 'Unread Only'}
-        </Button>
-      </div>
-
-      {/* Notifications List */}
-      <Card>
+      {/* Premium Notifications List */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
         <CardContent className="p-0">
           <ScrollArea className={`h-[${maxHeight}]`}>
             {filteredNotifications.length > 0 ? (
@@ -450,8 +515,11 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 {filteredNotifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-gray-50 transition-colors ${
+                    ref={(el) => (notificationRefs.current[notification.id] = el)}
+                    className={`p-4 hover:bg-gray-50 transition-all duration-300 ${
                       !notification.read ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                    } ${
+                      highlightedId === notification.id ? 'ring-2 ring-yellow-400 bg-yellow-50 animate-pulse' : ''
                     }`}
                   >
                     <div className="flex items-start space-x-4">
@@ -581,11 +649,72 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
         </CardContent>
       </Card>
 
-      {/* Enhanced Summary Card with Real-time Stats */}
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-2">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}-{Math.min(endIndex, allFilteredNotifications.length)} of {allFilteredNotifications.length} notifications
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Previous
+            </Button>
+
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                // Show first page, last page, current page, and pages around current
+                if (
+                  page === 1 ||
+                  page === totalPages ||
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  return (
+                    <Button
+                      key={page}
+                      variant={page === currentPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-10"
+                    >
+                      {page}
+                    </Button>
+                  );
+                } else if (page === currentPage - 2 || page === currentPage + 2) {
+                  return <span key={page} className="px-2">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Enhanced Summary Card with Real-time Stats */}
       {(displayNotifications.length > 0 || isConnected) && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Notification Summary</CardTitle>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 border-b border-slate-100/50">
+            <CardTitle className="text-lg font-semibold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50">
+                <BarChart3 className="h-4 w-4 text-blue-600" />
+              </div>
+              Notification Summary
+            </CardTitle>
             <div className="flex items-center space-x-2">
               {isConnected ? (
                 <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
@@ -639,11 +768,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     <span className="text-muted-foreground">High Priority:</span>
                     <span className="font-medium text-orange-600">{stats.highPriority}</span>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Connection ID:</span>
-                    <span className="font-mono text-xs">{connectionId?.slice(-8)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Sound:</span>
                     <Button variant="ghost" size="sm" onClick={toggleSound} className="h-6 p-1">
                       {soundEnabled ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}

@@ -36,6 +36,8 @@ import {
 import AttendanceCalendarView from './AttendanceCalendarView';
 import QuickAttendanceMobile from './QuickAttendanceMobile';
 import { useAttendanceNotifications } from '@/hooks/useAttendanceNotifications';
+import { useLiveData } from '@/hooks/useLiveData';
+import { LiveUpdatesIndicator } from '@/components/common/LiveUpdatesIndicator';
 
 interface Student {
   id: string;
@@ -98,9 +100,9 @@ interface AttendanceManagementProps {
   currentUserId: string;
 }
 
-export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({ 
-  userRole, 
-  currentUserId 
+export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
+  userRole,
+  currentUserId
 }) => {
   const [activeTab, setActiveTab] = useState('daily');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -110,8 +112,13 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [sendNotifications, setSendNotifications] = useState(true);
   const [showAlerts, setShowAlerts] = useState(false);
-  
+
   const queryClient = useQueryClient();
+
+  // Enable real-time updates for attendance management - complements useAttendanceNotifications
+  useLiveData(['attendance', 'students', 'classes', 'attendance-alerts'], {
+    additionalQueryKeys: ['attendance-summary', 'attendance-stats', 'attendance-records']
+  });
 
   // Real-time notifications
   const {
@@ -124,10 +131,8 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
     classId: selectedClass,
     enableToastNotifications: true,
     onNotificationReceived: (notification) => {
-      console.log('New attendance notification:', notification);
     },
     onStatsUpdate: (stats) => {
-      console.log('Attendance stats updated:', stats);
     }
   });
 
@@ -321,14 +326,102 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   }
 
   return (
-    <div className="space-y-8">
-      {/* Premium Header */}
-      <div className="relative">
-        {/* Background card with glass morphism */}
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium"></div>
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-indigo-500/8 to-blue-500/8 rounded-3xl pointer-events-none"></div>
+    <>
+      {/* Premium Animation Styles */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
 
-        <Card className="relative bg-transparent border-0 shadow-none">
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+          }
+        }
+
+        .animate-fadeInUp {
+          animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-slideInRight {
+          animation: slideInRight 0.6s ease-out;
+        }
+
+        .animate-pulseGlow {
+          animation: pulseGlow 2s infinite;
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+        {/* Premium Hero Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-16">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+
+          {/* Floating Shapes */}
+          <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse" />
+          <div className="absolute top-20 right-20 w-16 h-16 bg-white/10 rounded-full animate-pulse delay-1000" />
+          <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-500" />
+
+          <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="mb-8 inline-flex items-center rounded-full bg-white/10 backdrop-blur-sm px-6 py-2 text-sm font-medium text-white/90 ring-1 ring-white/20">
+                <UserCheck className="mr-2 h-4 w-4" />
+                Student Attendance System
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
+                Attendance <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Management</span>
+              </h1>
+              <p className="mt-6 text-lg leading-8 text-blue-100">
+                Real-time student attendance tracking with comprehensive analytics, alerts, and reporting capabilities.
+                Monitor attendance patterns and ensure student engagement with professional tools.
+              </p>
+            </div>
+          </div>
+
+          {/* Bottom Wave */}
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg className="w-full h-20 fill-current text-slate-50" viewBox="0 0 1440 120" preserveAspectRatio="none">
+              <path d="M0,60 C240,120 480,0 720,60 C960,120 1200,0 1440,60 L1440,120 L0,120 Z" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="relative z-10 -mt-10 space-y-8 px-6 pb-16">
+          {/* Premium Header */}
+          <div className="mx-auto max-w-7xl">
+            <div className="relative">
+              {/* Background card with glass morphism */}
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-indigo-500/8 to-blue-500/8 rounded-3xl pointer-events-none"></div>
+
+              <Card className="relative bg-transparent border-0 shadow-none">
           <CardHeader className="pb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -340,19 +433,7 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
                     <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-900 bg-clip-text text-transparent">
                       Attendance Management
                     </CardTitle>
-                    {/* Premium Connection Status Indicator */}
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/80 border border-white/40 shadow-sm">
-                      <div className={`w-2 h-2 rounded-full ${
-                        isConnected
-                          ? 'bg-gradient-to-r from-green-500 to-emerald-500 shadow-sm shadow-green-300'
-                          : 'bg-gradient-to-r from-red-500 to-rose-500 shadow-sm shadow-red-300'
-                      }`}></div>
-                      <span className={`text-xs font-medium ${
-                        isConnected ? 'text-green-700' : 'text-red-700'
-                      }`}>
-                        {isConnected ? 'Live' : 'Offline'}
-                      </span>
-                    </div>
+                    <LiveUpdatesIndicator isConnected={isConnected} />
                   </div>
                   <p className="text-slate-600 leading-relaxed">Manage student attendance with real-time tracking and analytics</p>
                 </div>
@@ -1084,8 +1165,31 @@ const AttendanceReportsTab: React.FC<AttendanceReportsTabProps> = ({
       return response.data;
     },
     onSuccess: (data) => {
-      console.log('Report generated:', data);
-      // Handle report download or display
+
+      // Handle file download
+      if (data && data.file_url) {
+        // If server returns a file URL, open it
+        window.open(data.file_url, '_blank');
+      } else if (data && data.file_data) {
+        // If server returns file data directly, create download
+        const mimeType = data.filename?.endsWith('.json') ? 'application/json' :
+                         data.filename?.endsWith('.csv') ? 'text/csv' :
+                         reportFormat === 'pdf' ? 'application/pdf' : 'text/csv';
+
+        const blob = new Blob([data.file_data], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.filename || `attendance_report_${reportType}_${new Date().toISOString().split('T')[0]}.${reportFormat}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        // Show success message
+      } else {
+        console.error('No file data received from server', data);
+      }
     },
     onError: (error) => {
       console.error('Failed to generate report:', error);
@@ -1172,8 +1276,12 @@ const AttendanceReportsTab: React.FC<AttendanceReportsTabProps> = ({
             </Button>
           </div>
         </div>
-      </CardContent>
-    </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 

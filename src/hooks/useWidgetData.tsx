@@ -14,10 +14,8 @@ export const useWidgetData = () => {
     return useQuery({
       queryKey: ['admin-stats', selectedBranch],
       queryFn: async () => {
-        console.log('Fetching admin stats for branch:', selectedBranch);
         const { data, error } = await apiClient.getDashboardStats(selectedBranch || undefined);
         if (error) throw new Error(error);
-        console.log('Admin stats data:', data);
         return data?.data;
       },
       enabled: !!selectedBranch,
@@ -33,7 +31,6 @@ export const useWidgetData = () => {
       queryFn: async () => {
         const { data, error } = await apiClient.getDashboardStats(selectedBranch);
         if (error) throw new Error(error);
-        console.log('Payment collection data structure:', data);
         return data?.data?.financial;
       },
       enabled: !!selectedBranch,
@@ -49,7 +46,6 @@ export const useWidgetData = () => {
       queryFn: async () => {
         const { data, error } = await apiClient.getDashboardStats(selectedBranch);
         if (error) throw new Error(error);
-        console.log('Attendance overview data structure:', data);
         return data?.data?.attendance;
       },
       enabled: !!selectedBranch,
@@ -63,24 +59,53 @@ export const useWidgetData = () => {
     return useQuery({
       queryKey: ['system-status'],
       queryFn: async () => {
-        const { data, error } = await apiClient.getDashboardStats();
+        const { data, error } = await apiClient.get('/system-monitoring/status');
         if (error) throw new Error(error);
-        
-        console.log('System status data structure:', data);
-        
+
+        // Transform backend data to match widget expectations
+        const statusData = data?.data;
+        if (!statusData) {
+          throw new Error('No system status data received');
+        }
+
         return {
-          database: data?.data?.system?.database_status === 'connected' ? 'online' : 'offline',
-          realtime: 'active',
-          security: 'secure',
-          performance: 'good',
-          lastUpdate: new Date(),
-          uptime: 86400,
-          stats: {
-            totalStudents: data?.data?.overview?.total_students || 0,
-            totalTeachers: data?.data?.overview?.total_teachers || 0,
-            totalClasses: data?.data?.overview?.total_classes || 0,
-            revenue: data?.data?.financial?.total_revenue || 0
-          }
+          // Core status information from backend
+          uptime: {
+            days: statusData.uptime?.days || 0,
+            hours: statusData.uptime?.hours || 0,
+            minutes: statusData.uptime?.minutes || 0,
+            formatted: statusData.uptime?.formatted || '0d 0h 0m'
+          },
+          runningSince: {
+            date: statusData.running_since?.date || 'Unknown',
+            full: statusData.running_since?.full || null
+          },
+          databaseInfo: {
+            status: statusData.database?.status || 'Unknown',
+            performance: statusData.database?.performance || 'Unknown'
+          },
+          realtimeInfo: {
+            status: statusData.realtime?.status || 'Unknown'
+          },
+          securityInfo: {
+            status: statusData.security?.status || 'Unknown'
+          },
+          performanceInfo: {
+            status: statusData.performance?.status || 'Unknown',
+            cpuUsage: statusData.performance?.cpu_usage || 0,
+            memoryUsage: statusData.performance?.memory_usage || 0
+          },
+          lastChecked: statusData.last_checked || 'Unknown',
+          overallStatus: statusData.overall_status || 'Unknown',
+          timestamp: statusData.timestamp || new Date().toISOString(),
+
+          // Legacy fields for backward compatibility with existing widget
+          database: statusData.database?.status?.toLowerCase() === 'online' ? 'online' : 'offline',
+          realtime: statusData.realtime?.status?.toLowerCase() || 'active',
+          security: statusData.security?.status?.toLowerCase() || 'secure',
+          performance: statusData.performance?.status?.toLowerCase() || 'good',
+          lastUpdate: new Date(statusData.timestamp || Date.now()),
+          uptimeSeconds: statusData.uptime?.days * 86400 + statusData.uptime?.hours * 3600 + statusData.uptime?.minutes * 60 || 0
         };
       },
       staleTime: 30000, // 30 seconds

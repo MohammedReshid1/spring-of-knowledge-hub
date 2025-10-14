@@ -18,7 +18,7 @@ interface UserPreferences {
 }
 
 export const WidgetContainer: React.FC = () => {
-  const { userRole, isAdmin, isSuperAdmin, isTeacher, isStudent, isParent } = useRoleAccess();
+  const { userRole, isAdmin, isSuperAdmin, isTeacher, isStudent, isParent, hasPermission, isSuperSuperAdmin, isAdminRole } = useRoleAccess();
   const [preferences, setPreferences] = useState<UserPreferences>({});
   const [minimizedWidgets, setMinimizedWidgets] = useState<Set<string>>(new Set());
 
@@ -66,47 +66,200 @@ export const WidgetContainer: React.FC = () => {
     savePreferences(newPrefs);
   };
 
-  // Get role-specific widget configurations
+  // Get role-specific widget configurations with permission checks
   const getRoleWidgets = (): WidgetConfig[] => {
     const baseWidgets: WidgetConfig[] = [];
 
-    if (isAdmin || isSuperAdmin) {
-      baseWidgets.push(
-        { id: 'admin-stats', title: 'System Overview', size: 'large', allowedRoles: ['super_admin', 'superadmin', 'hq_admin', 'branch_admin', 'admin'] },
-        { id: 'payment-collection', title: 'Payment Collection', size: 'large', allowedRoles: ['super_admin', 'superadmin', 'hq_admin', 'branch_admin', 'admin'] },
-        { id: 'attendance-overview', title: 'Attendance Overview', size: 'large', allowedRoles: ['super_admin', 'superadmin', 'hq_admin', 'branch_admin', 'admin'] },
-        { id: 'system-status', title: 'System Status', size: 'large', allowedRoles: ['super_admin', 'superadmin', 'hq_admin', 'branch_admin', 'admin'] }
-      );
+    // Helper function to check if user can see widget
+    const canSeeWidget = (permission?: string): boolean => {
+      if (isSuperSuperAdmin) return true; // Super admin sees everything
+      if (!permission) return true; // No permission required
+
+      // For admin roles, check multiple permission variants
+      if (isAdminRole) {
+        // Check if user has the specific permission
+        if (hasPermission(permission)) return true;
+
+        // Check for .manage permission variants
+        if (permission && permission.includes('.')) {
+          const [resource, action] = permission.split('.');
+          const managePermission = `${resource}.manage`;
+          if (hasPermission(managePermission)) return true;
+
+          // Check for scoped permission variants (for branch admins)
+          if (action === 'read') {
+            // Branch admins should be able to see widgets with view_branch permissions
+            const scopedPermissions = [
+              `${resource}.view_branch`,
+              `${resource}.view_all`,
+              `${resource}.view_own`
+            ];
+            for (const scopedPerm of scopedPermissions) {
+              if (hasPermission(scopedPerm)) return true;
+            }
+          }
+        }
+      }
+
+      return hasPermission(permission);
+    };
+
+    if (isAdminRole) {
+      // Admin Stats - requires system view or any student read permission
+      if (canSeeWidget('system.view') || canSeeWidget('student.read') || canSeeWidget('student.view_branch') || canSeeWidget('student.view_all')) {
+        baseWidgets.push({
+          id: 'admin-stats',
+          title: 'System Overview',
+          size: 'large',
+          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+        });
+      }
+
+      // Payment Collection - requires any payment read permission
+      if (canSeeWidget('payment.read') || canSeeWidget('payment.view_branch') || canSeeWidget('payment.view_all')) {
+        baseWidgets.push({
+          id: 'payment-collection',
+          title: 'Payment Collection',
+          size: 'large',
+          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+        });
+      }
+
+      // Attendance Overview - requires any attendance read permission
+      if (canSeeWidget('attendance.read') || canSeeWidget('attendance.view_branch') || canSeeWidget('attendance.view_all')) {
+        baseWidgets.push({
+          id: 'attendance-overview',
+          title: 'Attendance Overview',
+          size: 'large',
+          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+        });
+      }
+
+      // System Status - requires system view
+      if (canSeeWidget('system.view')) {
+        baseWidgets.push({
+          id: 'system-status',
+          title: 'System Status',
+          size: 'large',
+          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+        });
+      }
     }
 
     if (isTeacher) {
-      baseWidgets.push(
-        { id: 'teacher-schedule', title: "Today's Classes", size: 'large', allowedRoles: ['teacher'] },
-        { id: 'pending-grades', title: 'Pending Grades', size: 'medium', allowedRoles: ['teacher'] },
-        { id: 'teacher-notifications', title: 'Notifications', size: 'medium', allowedRoles: ['teacher'] },
-        { id: 'student-progress', title: 'Student Progress', size: 'medium', allowedRoles: ['teacher'] }
-      );
+      // Teacher widgets - require class and attendance permissions
+      if (canSeeWidget('class.read')) {
+        baseWidgets.push({
+          id: 'teacher-schedule',
+          title: "Today's Classes",
+          size: 'large',
+          allowedRoles: ['teacher']
+        });
+      }
+
+      if (canSeeWidget('grade.read')) {
+        baseWidgets.push({
+          id: 'pending-grades',
+          title: 'Pending Grades',
+          size: 'medium',
+          allowedRoles: ['teacher']
+        });
+      }
+
+      if (canSeeWidget('message.read')) {
+        baseWidgets.push({
+          id: 'teacher-notifications',
+          title: 'Notifications',
+          size: 'medium',
+          allowedRoles: ['teacher']
+        });
+      }
+
+      if (canSeeWidget('student.read')) {
+        baseWidgets.push({
+          id: 'student-progress',
+          title: 'Student Progress',
+          size: 'medium',
+          allowedRoles: ['teacher']
+        });
+      }
     }
 
     if (isStudent) {
-      baseWidgets.push(
-        { id: 'student-grades', title: 'Recent Grades', size: 'large', allowedRoles: ['student'] },
-        { id: 'upcoming-exams', title: 'Upcoming Exams', size: 'medium', allowedRoles: ['student'] },
-        { id: 'attendance-summary', title: 'Attendance Summary', size: 'medium', allowedRoles: ['student'] },
-        { id: 'announcements', title: 'Announcements', size: 'medium', allowedRoles: ['student'] }
-      );
+      // Student widgets - require grade and attendance view own permissions
+      if (canSeeWidget('grade.view_own')) {
+        baseWidgets.push({
+          id: 'student-grades',
+          title: 'Recent Grades',
+          size: 'large',
+          allowedRoles: ['student']
+        });
+      }
+
+      if (canSeeWidget('grade.view_own')) {
+        baseWidgets.push({
+          id: 'upcoming-exams',
+          title: 'Upcoming Exams',
+          size: 'medium',
+          allowedRoles: ['student']
+        });
+      }
+
+      if (canSeeWidget('attendance.view_own')) {
+        baseWidgets.push({
+          id: 'attendance-summary',
+          title: 'Attendance Summary',
+          size: 'medium',
+          allowedRoles: ['student']
+        });
+      }
+
+      baseWidgets.push({
+        id: 'announcements',
+        title: 'Announcements',
+        size: 'medium',
+        allowedRoles: ['student']
+      }); // Announcements always visible
     }
 
     if (isParent) {
-      baseWidgets.push(
-        { id: 'parent-overview', title: 'Children Overview', size: 'large', allowedRoles: ['parent'] },
-        { id: 'fee-status', title: 'Fee Status', size: 'medium', allowedRoles: ['parent'] },
-        { id: 'upcoming-exams', title: 'Upcoming Exams', size: 'medium', allowedRoles: ['parent'] },
-        { id: 'announcements', title: 'School Announcements', size: 'medium', allowedRoles: ['parent'] }
-      );
+      // Parent widgets - require student view own permissions
+      if (canSeeWidget('student.view_own')) {
+        baseWidgets.push({
+          id: 'parent-overview',
+          title: 'Children Overview',
+          size: 'large',
+          allowedRoles: ['parent']
+        });
+      }
+
+      if (canSeeWidget('payment.view_own')) {
+        baseWidgets.push({
+          id: 'fee-status',
+          title: 'Fee Status',
+          size: 'medium',
+          allowedRoles: ['parent']
+        });
+      }
+
+      if (canSeeWidget('grade.view_own')) {
+        baseWidgets.push({
+          id: 'upcoming-exams',
+          title: 'Upcoming Exams',
+          size: 'medium',
+          allowedRoles: ['parent']
+        });
+      }
+
+      baseWidgets.push({
+        id: 'announcements',
+        title: 'School Announcements',
+        size: 'medium',
+        allowedRoles: ['parent']
+      }); // Announcements always visible
     }
 
-    return baseWidgets.filter(widget => 
+    return baseWidgets.filter(widget =>
       !widget.allowedRoles || widget.allowedRoles.includes(userRole as string)
     );
   };
@@ -122,7 +275,7 @@ export const WidgetContainer: React.FC = () => {
       {minimizedWidgets.size > 0 && (
         <div className="relative p-4 rounded-2xl bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 border border-slate-200/50 backdrop-blur-sm animate-fade-in">
           {/* Background effects */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-indigo-500/5 rounded-2xl"></div>
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-100/50 via-slate-200/50 to-slate-100/50 rounded-2xl"></div>
 
           <div className="relative flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
@@ -137,7 +290,7 @@ export const WidgetContainer: React.FC = () => {
                   <button
                     key={widgetId}
                     onClick={() => handleWidgetMinimize(widgetId)}
-                    className="group px-3 py-2 bg-white/80 backdrop-blur-sm border border-white/50 rounded-xl text-xs font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 transition-all duration-normal hover:scale-105 hover:shadow-premium"
+                    className="group px-3 py-2 bg-white/80 backdrop-blur-sm border border-white/50 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-50 hover:border-slate-300 transition-all duration-normal hover:scale-105"
                     style={{
                       animationDelay: `${index * 50}ms`,
                       animationFillMode: 'both'
@@ -168,8 +321,6 @@ export const WidgetContainer: React.FC = () => {
           >
             {/* Premium widget wrapper with enhanced effects */}
             <div className="relative h-full transition-all duration-normal ease-premium group-hover:scale-[1.02] group-hover:-translate-y-1">
-              {/* Ambient glow effect */}
-              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-normal blur-sm pointer-events-none"></div>
 
               <BaseWidget
                 config={{
@@ -180,7 +331,7 @@ export const WidgetContainer: React.FC = () => {
                 }}
                 onMinimize={() => handleWidgetMinimize(widget.id)}
                 onResize={(size) => handleWidgetResize(widget.id, size)}
-                className="relative z-10 h-full bg-white/90 backdrop-blur-glass border border-white/30 shadow-premium rounded-2xl overflow-hidden"
+                className="relative z-10 h-full bg-white/90 backdrop-blur-glass border border-white/30 rounded-2xl overflow-hidden"
               >
                 <WidgetRenderer widgetId={widget.id} />
               </BaseWidget>

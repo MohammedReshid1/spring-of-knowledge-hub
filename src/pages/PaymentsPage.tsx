@@ -1,28 +1,67 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Upload, FileText, Settings, BarChart3, CreditCard, DollarSign, TrendingUp, Receipt } from 'lucide-react';
+import { Plus, Upload, FileText, Settings, BarChart3, CreditCard, DollarSign, TrendingUp, Receipt, AlertCircle } from 'lucide-react';
 import { PaymentDashboard } from '@/components/payments/PaymentDashboard';
 import { PaymentForm } from '@/components/payments/PaymentForm';
 import { PaymentList } from '@/components/payments/PaymentList';
-import { BulkImportModal } from '@/components/payments/BulkImportModal';
 import { PaymentReports } from '@/components/payments/PaymentReports';
 import { FeeCategoryManagement } from '@/components/payments/FeeCategoryManagement';
+import { BulkPaymentImport } from '@/components/payments/BulkPaymentImport';
+import { UnpaidQuarterlyFees } from '@/components/payments/UnpaidQuarterlyFees';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
+import { useLiveDataForPage } from '@/hooks/useLiveData';
 import type { Payment } from '@/types/api';
 
 export default function PaymentsPage() {
+  // Enable real-time updates for payments and related data
+  useLiveDataForPage('payments', {
+    relatedCollections: ['students', 'fees']
+  });
+
+  const { hasPermission } = useRoleAccess();
+
+  // Permission checks
+  const canRead = hasPermission('payment.read');
+  const canCreate = hasPermission('payment.create');
+  const canUpdate = hasPermission('payment.update');
+  const canDelete = hasPermission('payment.delete');
+  const canManage = hasPermission('payment.manage');
+
   // Dialog states
   const [createPaymentOpen, setCreatePaymentOpen] = useState(false);
   const [editPaymentOpen, setEditPaymentOpen] = useState(false);
-  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [paymentDetailsOpen, setPaymentDetailsOpen] = useState(false);
 
   // Current payment for editing/viewing
   const [currentPayment, setCurrentPayment] = useState<Payment | undefined>();
 
-  // Active tab
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Dynamic tabs based on permissions
+  const availableTabs = useMemo(() => {
+    const tabs = [];
+
+    if (canRead || canManage) {
+      tabs.push(
+        { value: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+        { value: 'payments', label: 'Payments', icon: Receipt },
+        { value: 'unpaid', label: 'Unpaid Fees', icon: AlertCircle },
+        { value: 'reports', label: 'Reports', icon: TrendingUp }
+      );
+    }
+
+    if (canManage) {
+      tabs.push(
+        { value: 'bulk-import', label: 'Bulk Import', icon: Upload },
+        { value: 'categories', label: 'Categories', icon: Settings }
+      );
+    }
+
+    return tabs;
+  }, [canRead, canManage]);
+
+  // Active tab - default to first available tab
+  const [activeTab, setActiveTab] = useState(availableTabs[0]?.value || 'dashboard');
 
   const handleCreatePayment = () => {
     setCurrentPayment(undefined);
@@ -43,12 +82,6 @@ export default function PaymentsPage() {
     // Refresh data by invalidating queries - this is handled by react-query in individual components
     setCreatePaymentOpen(false);
     setEditPaymentOpen(false);
-  };
-
-  const handleBulkImportSuccess = () => {
-    setBulkImportOpen(false);
-    // Switch to payments list to see imported data
-    setActiveTab('payments');
   };
 
   const handleViewAllPayments = () => {
@@ -109,13 +142,24 @@ export default function PaymentsPage() {
 
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
         {/* Premium Hero Header */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-16">
+      <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 pb-20 pt-16">
         {/* Background Pattern */}
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
-        <div className="absolute inset-0 opacity-20"
-             style={{
-               backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-             }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-green-600/90 via-emerald-600/90 to-green-700/90" />
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }} />
+        </div>
+
+        {/* Enhanced Floating Shapes with Animation */}
+        <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse" />
+        <div className="absolute top-20 right-20 w-16 h-16 bg-white/10 rounded-full animate-pulse delay-1000" />
+        <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-500" />
+        <div className="absolute top-1/2 left-20 w-8 h-8 bg-white/8 rounded-full animate-pulse delay-300" />
+        <div className="absolute top-1/3 right-1/4 w-14 h-14 bg-white/8 rounded-full animate-pulse delay-700" />
+        <div className="absolute bottom-1/3 right-10 w-10 h-10 bg-white/8 rounded-full animate-pulse delay-900" />
+        <div className="absolute top-1/4 left-1/2 w-6 h-6 bg-white/6 rounded-full animate-pulse delay-400" />
+        <div className="absolute bottom-10 left-1/4 w-18 h-18 bg-white/8 rounded-full animate-pulse delay-800" />
 
         <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
@@ -124,9 +168,9 @@ export default function PaymentsPage() {
               Financial Management System
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Payment <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Management</span>
+              Payment <span className="bg-gradient-to-r from-green-200 to-emerald-200 bg-clip-text text-transparent">Management</span>
             </h1>
-            <p className="mt-6 text-lg leading-8 text-blue-100">
+            <p className="mt-6 text-lg leading-8 text-green-100">
               Comprehensive payment processing and financial management with advanced analytics.
               Streamline your financial operations with premium tools.
             </p>
@@ -151,21 +195,15 @@ export default function PaymentsPage() {
               <p className="text-sm text-gray-600">Manage payments efficiently with powerful tools</p>
             </div>
             <div className="flex items-center space-x-3">
-              <Button
-                variant="outline"
-                onClick={() => setBulkImportOpen(true)}
-                className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white border-0 hover:from-indigo-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Bulk Import
-              </Button>
-              <Button
-                onClick={handleCreatePayment}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Payment
-              </Button>
+              {canCreate && (
+                <Button
+                  onClick={handleCreatePayment}
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Payment
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -174,60 +212,58 @@ export default function PaymentsPage() {
         <div className="mx-auto max-w-7xl">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-2 shadow-xl">
-              <TabsList className="grid w-full grid-cols-4 gap-1 bg-transparent p-1">
-                <TabsTrigger
-                  value="dashboard"
-                  className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  <span>Dashboard</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="payments"
-                  className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-700 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
-                >
-                  <Receipt className="h-4 w-4" />
-                  <span>Payments</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="categories"
-                  className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-indigo-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Categories</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="reports"
-                  className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
-                >
-                  <TrendingUp className="h-4 w-4" />
-                  <span>Reports</span>
-                </TabsTrigger>
+              <TabsList className={`grid w-full grid-cols-${availableTabs.length} gap-1 bg-transparent p-1`}>
+                {availableTabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="flex items-center justify-center space-x-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-600 data-[state=active]:to-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-lg rounded-xl py-3 px-4 transition-all duration-300 hover:bg-gray-100 font-medium"
+                  >
+                    <tab.icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                  </TabsTrigger>
+                ))}
               </TabsList>
             </div>
 
-            <TabsContent value="dashboard" className="space-y-6">
-              <PaymentDashboard
-                onCreatePayment={handleCreatePayment}
-                onViewPayments={handleViewAllPayments}
-                onViewReports={handleViewReports}
-              />
-            </TabsContent>
+            {(canRead || canManage) && (
+              <>
+                <TabsContent value="dashboard" className="space-y-6">
+                  <PaymentDashboard
+                    onCreatePayment={handleCreatePayment}
+                    onViewPayments={handleViewAllPayments}
+                    onViewReports={handleViewReports}
+                  />
+                </TabsContent>
 
-            <TabsContent value="payments" className="space-y-6">
-              <PaymentList
-                onEditPayment={handleEditPayment}
-                onViewDetails={handleViewPaymentDetails}
-              />
-            </TabsContent>
+                <TabsContent value="payments" className="space-y-6">
+                  <PaymentList
+                    onEditPayment={handleEditPayment}
+                    onViewDetails={handleViewPaymentDetails}
+                  />
+                </TabsContent>
 
-            <TabsContent value="categories" className="space-y-6">
-              <FeeCategoryManagement />
-            </TabsContent>
+                <TabsContent value="unpaid" className="space-y-6">
+                  <UnpaidQuarterlyFees />
+                </TabsContent>
 
-            <TabsContent value="reports" className="space-y-6">
-              <PaymentReports />
-            </TabsContent>
+                <TabsContent value="reports" className="space-y-6">
+                  <PaymentReports />
+                </TabsContent>
+              </>
+            )}
+
+            {canManage && (
+              <>
+                <TabsContent value="bulk-import" className="space-y-6">
+                  <BulkPaymentImport />
+                </TabsContent>
+
+                <TabsContent value="categories" className="space-y-6">
+                  <FeeCategoryManagement />
+                </TabsContent>
+              </>
+            )}
           </Tabs>
         </div>
       </div>
@@ -236,8 +272,8 @@ export default function PaymentsPage() {
       <Dialog open={createPaymentOpen} onOpenChange={setCreatePaymentOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-glass border border-white/20 shadow-2xl">
           {/* Premium Header */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 p-6 -mx-6 -mt-6 mb-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
+          <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 p-6 -mx-6 -mt-6 mb-6">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600/90 via-emerald-600/90 to-green-700/90" />
             <div className="absolute inset-0 opacity-20"
                  style={{
                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
@@ -251,7 +287,7 @@ export default function PaymentsPage() {
                   </div>
                   Create New Payment
                 </DialogTitle>
-                <DialogDescription className="text-blue-100 text-lg">
+                <DialogDescription className="text-green-100 text-lg">
                   Create a comprehensive payment record with multiple fee categories and detailed information
                 </DialogDescription>
               </DialogHeader>
@@ -272,8 +308,8 @@ export default function PaymentsPage() {
       <Dialog open={editPaymentOpen} onOpenChange={setEditPaymentOpen}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-glass border border-white/20 shadow-2xl">
           {/* Premium Header */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 p-6 -mx-6 -mt-6 mb-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
+          <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 p-6 -mx-6 -mt-6 mb-6">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600/90 via-emerald-600/90 to-green-700/90" />
             <div className="absolute inset-0 opacity-20"
                  style={{
                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
@@ -287,7 +323,7 @@ export default function PaymentsPage() {
                   </div>
                   Edit Payment Record
                 </DialogTitle>
-                <DialogDescription className="text-blue-100 text-lg">
+                <DialogDescription className="text-green-100 text-lg">
                   Update payment details and information with comprehensive editing tools
                 </DialogDescription>
               </DialogHeader>
@@ -305,19 +341,12 @@ export default function PaymentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Bulk Import Modal */}
-      <BulkImportModal
-        open={bulkImportOpen}
-        onOpenChange={setBulkImportOpen}
-        onSuccess={handleBulkImportSuccess}
-      />
-
       {/* Payment Details Dialog */}
       <Dialog open={paymentDetailsOpen} onOpenChange={setPaymentDetailsOpen}>
         <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-glass border border-white/20 shadow-2xl">
           {/* Premium Header */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 p-6 -mx-6 -mt-6 mb-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
+          <div className="relative overflow-hidden bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 p-6 -mx-6 -mt-6 mb-6">
+            <div className="absolute inset-0 bg-gradient-to-r from-green-600/90 via-emerald-600/90 to-green-700/90" />
             <div className="absolute inset-0 opacity-20"
                  style={{
                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
@@ -331,7 +360,7 @@ export default function PaymentsPage() {
                   </div>
                   Payment Details
                 </DialogTitle>
-                <DialogDescription className="text-blue-100 text-lg">
+                <DialogDescription className="text-green-100 text-lg">
                   {currentPayment ? `Receipt #${currentPayment.receipt_number}` : 'Comprehensive payment information'}
                 </DialogDescription>
               </DialogHeader>

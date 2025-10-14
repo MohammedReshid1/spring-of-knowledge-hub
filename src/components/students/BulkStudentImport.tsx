@@ -12,7 +12,6 @@ import { useBranch } from '@/contexts/BranchContext';
 // Removed GradeLevel imported interface; using simple string alias for grade levels
 type GradeLevel = string;
 
-
 interface ImportResult {
   success: number;
   failed: number;
@@ -37,22 +36,24 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     const percentage = Math.round((current / total) * 100);
     setProgress(percentage);
     setCurrentStatus(status);
-    console.log(`Import Progress: ${percentage}% - ${status}`);
   };
 
   const normalizeGradeLevel = (gradeInput: string): GradeLevel => {
     const normalized = gradeInput.toLowerCase().trim();
     
-    // Handle various grade formats including new KG and PREP
+    // Handle various grade formats for the three early years levels
     const gradeMap: Record<string, GradeLevel> = {
+      // Pre KG (Pre-Kindergarten, age 3-4) - maps to existing pre_k students
       'pre kg': 'pre_k',
       'pre-kg': 'pre_k',
       'pre k': 'pre_k',
       'prekg': 'pre_k',
       'nursery': 'pre_k',
+      // KG (Kindergarten, age 4-5)
       'kg': 'kg',
       'kindergarten': 'kg',
       'k': 'kg',
+      // Prep (Preparatory, age 6-7)
       'prep': 'prep',
       'preparatory': 'prep',
       'class 1': 'grade_1',
@@ -169,12 +170,17 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       return detectGenderFromName(firstName);
     }
 
-    const normalized = genderInput.toString().toLowerCase().trim();
-    
+    // Clean up the input - remove newlines, extra spaces, and get first character
+    const cleaned = genderInput.toString().replace(/[\n\r\t]/g, ' ').trim();
+
+    // Extract just the gender letter if there's extra text
+    // Look for M or F specifically (case insensitive)
+    const normalized = cleaned.toLowerCase();
+
     // Handle common gender formats including M/F
-    if (['m', 'male', 'boy', '1', 'm.'].includes(normalized)) return 'Male';
-    if (['f', 'female', 'girl', '2', 'f.'].includes(normalized)) return 'Female';
-    
+    if (normalized.includes('m') || ['male', 'boy', '1', 'm.'].includes(normalized)) return 'Male';
+    if (normalized.includes('f') || ['female', 'girl', '2', 'f.'].includes(normalized)) return 'Female';
+
     // Try to detect from name if gender input is unclear
     return detectGenderFromName(firstName);
   };
@@ -215,7 +221,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     
     // Remove file extension and normalize
     const name = filename.replace(/\.(xlsx|xls|csv)$/i, '').trim();
-    console.log(`Extracting class from filename: "${name}"`);
     
     // Handle patterns like "5AA", "5BB", etc. for Grade 5
     const gradePatterns = [
@@ -239,7 +244,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         const gradeLevel = `grade_${gradeNum}` as GradeLevel;
         const className = `GRADE ${gradeNum} - ${section.toUpperCase()}`;
         
-        console.log(`Filename pattern matched: Grade ${gradeNum}, Section ${section} -> ${className}`);
         return { className, gradeLevel };
       }
     }
@@ -251,7 +255,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     if (!headerText || typeof headerText !== 'string') return null;
     
     const text = headerText.toString().trim();
-    console.log(`Checking header text: "${text}"`);
     
       // Enhanced patterns to handle Excel format like "Grade : _PRE KG - A_______________"
       const classPatterns = [
@@ -285,7 +288,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     for (const pattern of classPatterns) {
       const match = text.match(pattern);
       if (match) {
-        console.log(`Pattern matched:`, match);
         
         let gradeLevel: GradeLevel = 'pre_k';
         let section = '';
@@ -310,21 +312,21 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           const className = `GRADE ${gradeNum} - ${section.toUpperCase()}`;
           return { className, gradeLevel };
         } else {
-          // Handle text-based grades
+          // Handle text-based grades with proper distinction
           const gradeText = gradePart.toLowerCase();
-          if (gradeText.includes('pre')) {
+          if (gradeText.includes('pre') && gradeText.includes('kg')) {
+            // Pre KG (Pre-Kindergarten) - maps to existing pre_k students
             gradeLevel = 'pre_k';
-            // Create proper class name for pre-k
-            const className = `PRE-KG - ${section.toUpperCase()}`;
+            const className = `PRE KG - ${section.toUpperCase()}`;
             return { className, gradeLevel };
           } else if (gradeText.includes('kg') || gradeText.includes('kindergarten')) {
+            // KG (Kindergarten)
             gradeLevel = 'kg';
-            // Create proper class name for kg
             const className = `KG - ${section.toUpperCase()}`;
             return { className, gradeLevel };
-          } else if (gradeText.includes('prep')) {
+          } else if (gradeText === 'prep' || gradeText === 'preparatory') {
+            // Prep (Preparatory) - exact match to avoid confusion with Pre KG
             gradeLevel = 'prep';
-            // Create proper class name for prep
             const className = `PREP - ${section.toUpperCase()}`;
             return { className, gradeLevel };
           }
@@ -333,7 +335,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         // Fallback for other text-based grades
         const className = `${gradePart.toUpperCase().replace(/\s+/g, ' ')} - ${section.toUpperCase()}`;
         
-        console.log(`Extracted class: ${className}, grade: ${gradeLevel}`);
         
         return {
           className,
@@ -346,19 +347,15 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   };
 
   const createOrFindClass = async (className: string, gradeLevel: GradeLevel): Promise<string | null> => {
-    console.log('createOrFindClass called for', className, gradeLevel);
     try {
-      // First, get the grade level object via API
-      console.log('Fetching grade levels...');
-      const gradeLevelsResp = await apiClient.getGradeLevels();
-      console.log('gradeLevelsResp', gradeLevelsResp);
+      // First, get the grade level object via API (using branch-aware endpoint)
+      const gradeLevelsResp = await apiClient.getGradeLevelsByBranch(selectedBranch);
       if (gradeLevelsResp.error) {
         console.error('Error fetching grade levels:', gradeLevelsResp.error);
         return null;
       }
       // Find the grade level object via API (allow fuzzy fallback)
       let gradeLevelObj = gradeLevelsResp.data?.find(gl => gl.grade === gradeLevel);
-      console.log('Found grade level object:', gradeLevelObj);
       // Fallback: search by numeric grade if exact match not found
       if (!gradeLevelObj && gradeLevel.startsWith('grade_')) {
         const num = gradeLevel.split('_')[1];
@@ -374,16 +371,13 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       }
 
       // Try to find existing class via API
-      console.log('Fetching existing classes...');
       const classesResp = await apiClient.getClasses();
-      console.log('classesResp', classesResp);
       if (classesResp.error) {
         console.error('Error fetching classes:', classesResp.error);
         return null;
       }
       const existingClass = classesResp.data?.find(c => c.class_name === className);
       if (existingClass) {
-        console.log('Existing class found:', existingClass);
         return existingClass.id;
       }
 
@@ -396,14 +390,11 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         academic_year: new Date().getFullYear().toString(),
         branch_id: selectedBranch || undefined,
       };
-      console.log('Creating class with data:', classData);
       const newClassResp = await apiClient.createClass(classData);
-      console.log('newClassResp', newClassResp);
       if (newClassResp.error) {
         console.error('Error creating class:', newClassResp.error);
         return null;
       }
-      console.log('Class created with ID:', newClassResp.data.id);
       return newClassResp.data.id;
     } catch (error) {
       console.error('Error in createOrFindClass:', error);
@@ -440,6 +431,16 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       throw new Error('No data found in the Excel file');
     }
 
+    // Validate branch selection for non-branch users (superadmins)
+    if (!selectedBranch) {
+      toast({
+        title: "Branch Required",
+        description: "Please select a branch from the branch selector at the top before importing students",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsImporting(true);
     setProgress(0);
     setCurrentStatus('Starting import...');
@@ -451,9 +452,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       errors: []
     };
 
-    console.log('Raw Excel data:', jsonData);
-    console.log('Processing file:', filename);
-
     // First pass: Identify classes from headers and group students
     const classes: Map<string, ClassInfo> = new Map();
     let currentClass: ClassInfo | null = null;
@@ -463,7 +461,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     // Try to extract class info from filename first
     const filenameClassInfo = extractClassFromFilename(filename);
     if (filenameClassInfo) {
-      console.log(`Found class from filename: ${filenameClassInfo.className} (${filenameClassInfo.gradeLevel})`);
       currentClass = {
         name: filenameClassInfo.className,
         gradeLevel: filenameClassInfo.gradeLevel,
@@ -482,7 +479,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         if (value && typeof value === 'string') {
           const classInfo = extractClassFromHeader(value.toString());
           if (classInfo) {
-            console.log(`Found class header: ${classInfo.className} (${classInfo.gradeLevel})`);
             // Check if this is a new class, different from the current one
             if (!classes.has(classInfo.className)) {
               currentClass = {
@@ -535,10 +531,19 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
                            cleanName.toLowerCase().includes('section');
         
         if (cleanName.length > 2 && !isHeaderRow && cleanName.trim() !== '') {
-          console.log(`Adding student ${cleanName} to class ${currentClass.name}`);
           // Extract gender from various possible column names
-          const genderValue = row['__EMPTY_1'] || row['Gen.'] || row['SEX'] || row['Sex'] || row['Gender'] || row['GENDER'] || 'M';
-          
+          let genderValue = row['__EMPTY_1'] || row['Gen.'] || row['Gen'] || row['SEX'] || row['Sex'] || row['Gender'] || row['GENDER'] || 'M';
+
+          // Clean up gender value - remove newlines and extra whitespace
+          if (genderValue && typeof genderValue === 'string') {
+            genderValue = genderValue.replace(/[\n\r\t]/g, ' ').trim();
+            // If the value contains multiple lines, take the last non-empty line (which should be the actual gender)
+            const lines = genderValue.split(/\s+/).filter(line => line.length > 0);
+            if (lines.length > 0) {
+              genderValue = lines[lines.length - 1]; // Take the last value (M or F)
+            }
+          }
+
           currentClass.students.push({
             name: cleanName,
             gender: genderValue,
@@ -548,12 +553,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       }
     }
 
-    console.log('Classes found:', Array.from(classes.keys()));
-    console.log('Class details:', Array.from(classes.entries()).map(([name, info]) => ({
-      name,
-      gradeLevel: info.gradeLevel,
-      studentCount: info.students.length
-    })));
+      // Unassigned students data logged for debugging
 
     if (classes.size === 0) {
       throw new Error(`No class headers found in the Excel file "${filename}". 
@@ -578,8 +578,8 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         classIdMap.set(className, classId);
         // Update class capacity based on student count via API
         try {
-          // Fetch grade levels to get id
-          const gradesResp = await apiClient.getGradeLevels();
+          // Fetch grade levels to get id (using branch-aware endpoint)
+          const gradesResp = await apiClient.getGradeLevelsByBranch(selectedBranch);
           const gradeLevelObj = gradesResp.data?.find(gl => gl.grade === classInfo.gradeLevel) || gradesResp.data?.find(gl => gl.grade.includes(classInfo.gradeLevel.split('_')[1]));
           const updateData = {
             class_name: className,
@@ -596,32 +596,22 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       }
     }
 
-    // Update grade level capacities by summing all classes per grade
-    updateProgress(30, 100, 'Updating grade level capacities...');
-    try {
-      // Fetch all classes and grade levels
-      const allClassesResp = await apiClient.getClasses();
-      const allClasses = allClassesResp.data || [];
-      const gradeLevelsResp2 = await apiClient.getGradeLevels();
-      const existingGradeLevels = gradeLevelsResp2.data || [];
-      // For each grade level, sum class capacities and enrollments
-      for (const gl of existingGradeLevels) {
-        const classesForGrade = allClasses.filter(c => c.grade_level_id === gl.id);
-        const totalCapacity = classesForGrade.reduce((sum, c) => sum + (c.max_capacity || 0), 0);
-        const totalEnrollment = classesForGrade.reduce((sum, c) => sum + (c.current_enrollment || 0), 0);
-        const updateData = {
-          grade: gl.grade,
-          academic_year: new Date().getFullYear().toString(),
-          max_capacity: totalCapacity,
-          current_enrollment: totalEnrollment
-        };
-        await apiClient.updateGradeLevel(gl.id, updateData);
-      }
-    } catch (err) {
-      console.error('Error updating grade level capacities', err);
-    }
+    // NOTE: Removed automatic grade level capacity updates to prevent data corruption
+    // Grade level capacities should be managed separately through the Grade Levels page
+    // This bulk import should only focus on creating students and classes safely
     
     updateProgress(40, 100, 'Processing student data...');
+
+    // Fetch existing students once for duplicate checking
+    const existingStudentsResp = await apiClient.getStudents();
+    // Handle paginated response - extract items array
+    const existingStudents = existingStudentsResp.data?.items || existingStudentsResp.data || [];
+    const existingStudentNames = new Set(
+      existingStudents.map((s: any) =>
+        `${s.first_name} ${s.father_name || ''} ${s.grandfather_name || ''}`.trim().toLowerCase()
+      )
+    );
+
     // Second pass: Insert students
     let totalStudents = 0;
     for (const classInfo of classes.values()) {
@@ -655,6 +645,19 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
           }
 
           const parsedName = parseName(studentName);
+
+          // Check for duplicate student by name
+          const newFullName = `${parsedName.first_name} ${parsedName.father_name || ''} ${parsedName.grandfather_name || ''}`.trim().toLowerCase();
+
+          if (existingStudentNames.has(newFullName)) {
+            results.errors.push(`${studentName} in ${className}: Student already exists (duplicate)`);
+            results.skipped++;
+            continue;
+          }
+
+          // Add to set to prevent duplicates within the same import batch
+          existingStudentNames.add(newFullName);
+
           // Use the gender from Excel data, fallback to name detection
           const gender = normalizeGender(studentRow.gender || '', parsedName.first_name);
 
@@ -701,28 +704,12 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
             branch_id: selectedBranch || undefined,
           };
 
-          console.log(`Inserting student ${processedStudents}:`, studentData);
-
           const studentResp = await apiClient.createStudent(studentData);
           if (studentResp.error) {
             console.error(`Error inserting student ${processedStudents}:`, studentResp.error);
             results.errors.push(`${studentName} in ${className}: ${studentResp.error}`);
             results.failed++;
           } else {
-            console.log(`Successfully inserted student ${processedStudents}: ${studentName} in ${className}`);
-            // Create initial registration fee payment (mark as paid)
-            try {
-              await apiClient.createRegistrationPayment({
-                student_id: studentData.student_id,
-                branch_id: selectedBranch || undefined,
-                academic_year: new Date().getFullYear().toString(),
-                payment_status: 'Paid',
-                amount_paid: 0,
-                payment_date: new Date().toISOString().split('T')[0],
-              });
-            } catch (err) {
-              console.error(`Error creating registration payment for ${studentData.student_id}:`, err);
-            }
             results.success++;
           }
 
@@ -749,8 +736,7 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       queryClient.invalidateQueries({ queryKey: ['students'] });
       queryClient.invalidateQueries({ queryKey: ['student-stats'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      // Refresh grade levels to reflect updated capacities
-      queryClient.invalidateQueries({ queryKey: ['grade-levels'] });
+      // NOTE: Removed grade-levels invalidation since we no longer update grade levels during import
       onImportComplete();
       toast({
         title: "Import Completed",
@@ -769,8 +755,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
     const file = event.target.files?.[0];
     if (!file) return;
 
-    console.log('File selected:', file.name, file.type, file.size);
-
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -780,7 +764,6 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-        console.log('Excel file processed:', jsonData.length, 'rows found');
         await processExcelData(jsonData, file.name);
       } catch (error) {
         console.error('Error processing file:', error);

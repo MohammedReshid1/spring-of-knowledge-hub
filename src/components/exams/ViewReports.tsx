@@ -16,6 +16,7 @@ import {
   Download, FileText, Calendar, Target, CreditCard, Printer
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
 
 interface ExamReport {
   exam_id: string;
@@ -51,6 +52,7 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
 
   const queryClient = useQueryClient();
   const { selectedBranch } = useBranch();
+  const academicYearQuery = useAcademicYear();
 
   // Fetch exams for dropdown
   const { data: exams = [] } = useQuery({
@@ -158,7 +160,7 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
   const handleGenerateReportCards = () => {
     generateReportCardsMutation.mutate({
       class_id: reportCardData.classId,
-      academic_year: reportCardData.academicYear,
+      academic_year: getAcademicYearString(academicYearQuery),
       term: reportCardData.term,
       template_id: reportCardData.templateId || undefined,
       auto_publish: reportCardData.autoPublish
@@ -186,7 +188,7 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
     let csvContent = '';
     
     if (reportType === 'overview') {
-      csvContent = `Exam Report - ${examStats.exam_name}\n\n`;
+      csvContent = `Exam Report - ${examStats.exam_name || 'Unknown Exam'}\n\n`;
       csvContent += `Total Students,${examStats.total_students}\n`;
       csvContent += `Students Appeared,${examStats.students_appeared}\n`;
       csvContent += `Students Passed,${examStats.students_passed}\n`;
@@ -196,7 +198,7 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
       csvContent += `Highest Marks,${examStats.highest_marks}\n`;
       csvContent += `Lowest Marks,${examStats.lowest_marks}\n`;
     } else {
-      csvContent = `Detailed Results - ${examStats.exam_name}\n\n`;
+      csvContent = `Detailed Results - ${examStats.exam_name || 'Unknown Exam'}\n\n`;
       csvContent += `Student Name,Marks Obtained,Total Marks,Percentage,Grade,Status,Attendance\n`;
       
       detailedResults.forEach((result: any) => {
@@ -209,7 +211,7 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `exam-report-${examStats.exam_name.replace(/\s+/g, '-')}.csv`;
+    a.download = `exam-report-${(examStats.exam_name || 'unknown-exam').replace(/\s+/g, '-')}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -339,11 +341,12 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
                     <SelectContent className="bg-white/95 backdrop-blur-sm border border-blue-200/50">
                       <SelectItem value="overview" className="hover:bg-blue-50/80">Overview Statistics</SelectItem>
                       <SelectItem value="detailed" className="hover:bg-blue-50/80">Detailed Results</SelectItem>
-                      <SelectItem value="report-cards" className="hover:bg-blue-50/80">Report Cards</SelectItem>
+                      {/* <SelectItem value="report-cards" className="hover:bg-blue-50/80">Report Cards</SelectItem> */}
                     </SelectContent>
                   </Select>
                 </div>
 
+                {/* Actions - COMMENTED OUT FOR NOW
                 <div className="space-y-3">
                   <label className="text-sm font-semibold text-blue-700">Actions</label>
                   {reportType === 'report-cards' ? (
@@ -365,6 +368,7 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
                     </Button>
                   )}
                 </div>
+                */}
               </div>
             </div>
           </div>
@@ -674,13 +678,10 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3">
                 <Label htmlFor="academic-year" className="text-sm font-semibold text-purple-700">Academic Year</Label>
-                <Input
-                  id="academic-year"
-                  value={reportCardData.academicYear}
-                  onChange={(e) => setReportCardData({...reportCardData, academicYear: e.target.value})}
-                  placeholder="2024-2025"
-                  className="bg-purple-50/50 border-purple-200 focus:border-purple-400 focus:ring-purple-400/20"
-                />
+                <div className="px-3 py-2 bg-purple-100/50 border border-purple-200 rounded-md text-purple-900 font-medium">
+                  {getAcademicYearString(academicYearQuery)}
+                </div>
+                <p className="text-xs text-purple-600">Automatically set from system configuration</p>
               </div>
               <div className="space-y-3">
                 <Label htmlFor="term" className="text-sm font-semibold text-purple-700">Term</Label>
@@ -762,7 +763,7 @@ export const ViewReports = ({ onClose }: ViewReportsProps) => {
               </Button>
               <Button
                 onClick={handleGenerateReportCards}
-                disabled={!reportCardData.classId || !reportCardData.academicYear || generateReportCardsMutation.isPending}
+                disabled={!reportCardData.classId || generateReportCardsMutation.isPending}
                 className="bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-premium hover:shadow-premium-lg transition-all duration-300 disabled:opacity-50"
               >
                 {generateReportCardsMutation.isPending ? 'Generating...' : 'Generate Report Cards'}

@@ -85,7 +85,7 @@ interface WebSocketState {
 
 export const useWebSocket = (options: WebSocketOptions = {}) => {
   const {
-    url = 'ws://localhost:8001/ws',
+    url = 'ws://localhost:8000/ws',
     onOpen,
     onMessage,
     onClose,
@@ -115,6 +115,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
   const pingIntervalRef = useRef<NodeJS.Timeout>();
   const reconnectCountRef = useRef(0);
   const pendingSubscriptions = useRef<Array<{ type: SubscriptionType; resource: string; filters?: any }>>([]);
+  const socketRef = useRef<WebSocket | null>(null);
 
   const updateConnectionStatus = useCallback((status: ConnectionStatus) => {
     setState(prev => ({ ...prev, connectionStatus: status }));
@@ -122,9 +123,10 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
   }, [onConnectionStatusChange]);
 
   const sendMessage = useCallback((message: WebSocketMessage | object) => {
-    if (state.socket?.readyState === WebSocket.OPEN) {
+    const socket = socketRef.current;
+    if (socket?.readyState === WebSocket.OPEN) {
       let messageToSend: WebSocketMessage;
-      
+
       if ('type' in message) {
         messageToSend = message as WebSocketMessage;
       } else {
@@ -135,9 +137,9 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
           timestamp: new Date().toISOString()
         };
       }
-      
+
       try {
-        state.socket.send(JSON.stringify(messageToSend));
+        socket.send(JSON.stringify(messageToSend));
         return true;
       } catch (error) {
         console.error('Error sending WebSocket message:', error);
@@ -145,10 +147,12 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
       }
     }
     return false;
-  }, [state.socket]);
+  }, []);
 
   const authenticate = useCallback(async () => {
-    if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.warn('❌ Cannot authenticate - socket not open. Ready state:', socket?.readyState);
       return false;
     }
 
@@ -156,7 +160,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
 
     const token = TokenStorage.getToken();
     if (!token) {
-      console.warn('No authentication token available for WebSocket');
+      console.warn('❌ No authentication token available for WebSocket');
       updateConnectionStatus(ConnectionStatus.ERROR);
       return false;
     }
@@ -168,8 +172,9 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
       timestamp: new Date().toISOString()
     };
 
-    return sendMessage(authMessage);
-  }, [state.socket, sendMessage, updateConnectionStatus]);
+    const sent = sendMessage(authMessage);
+    return sent;
+  }, [sendMessage, updateConnectionStatus]);
 
   const subscribe = useCallback((type: SubscriptionType, resource: string, filters: any = {}) => {
     if (!state.isAuthenticated) {
@@ -237,7 +242,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
   const handleMessage = useCallback((event: MessageEvent) => {
     try {
       const message: WebSocketMessage = JSON.parse(event.data);
-      
+
       setState(prev => ({ ...prev, lastMessage: message }));
 
       // Handle system messages
@@ -264,7 +269,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
             }
           }));
           updateConnectionStatus(ConnectionStatus.AUTHENTICATED);
-          
+
           // Process pending subscriptions
           if (enableSubscriptions && pendingSubscriptions.current.length > 0) {
             pendingSubscriptions.current.forEach(({ type, resource, filters }) => {
@@ -272,19 +277,19 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
             });
             pendingSubscriptions.current = [];
           }
-          
+
           // Start ping interval
           startPingInterval();
           break;
 
         case MessageType.AUTH_FAILED:
+          console.error('❌ AUTH_FAILED received:', message.payload);
           setState(prev => ({ ...prev, isAuthenticated: false, userInfo: null }));
           updateConnectionStatus(ConnectionStatus.ERROR);
           console.error('WebSocket authentication failed:', message.payload);
           break;
 
         case MessageType.SUBSCRIPTION_SUCCESS:
-          console.log('Subscription successful:', message.payload);
           break;
 
         case MessageType.SUBSCRIPTION_ERROR:
@@ -310,11 +315,17 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
 
   const connect = useCallback(() => {
     try {
+      // Prevent duplicate connections
+      if (socketRef.current && socketRef.current.readyState !== WebSocket.CLOSED) {
+        return;
+      }
+
       updateConnectionStatus(ConnectionStatus.CONNECTING);
-      
+
       const ws = new WebSocket(url);
 
       ws.onopen = (event) => {
+        socketRef.current = ws;
         setState(prev => ({
           ...prev,
           socket: ws,
@@ -329,6 +340,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
       ws.onmessage = handleMessage;
 
       ws.onclose = (event) => {
+        socketRef.current = null;
         setState(prev => ({
           ...prev,
           socket: null,
@@ -338,7 +350,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
           connectionId: null,
           userInfo: null
         }));
-        
+
         // Clear ping interval
         if (pingIntervalRef.current) {
           clearInterval(pingIntervalRef.current);
@@ -352,7 +364,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
         if (shouldReconnect(event) && reconnectCountRef.current < maxReconnectAttempts) {
           reconnectCountRef.current += 1;
           setState(prev => ({ ...prev, reconnectCount: reconnectCountRef.current }));
-          
+
           updateConnectionStatus(ConnectionStatus.RECONNECTING);
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
@@ -361,6 +373,7 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
       };
 
       ws.onerror = (event) => {
+        console.error('❌ WebSocket error:', event);
         updateConnectionStatus(ConnectionStatus.ERROR);
         onError?.(event);
       };
@@ -406,8 +419,10 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
 
   // Connect on mount if autoConnect is enabled
   useEffect(() => {
-    if (autoConnect) {
+    if (autoConnect && !socketRef.current) {
       connect();
+    } else if (autoConnect && socketRef.current) {
+    } else {
     }
 
     // Cleanup on unmount

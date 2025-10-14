@@ -1,14 +1,30 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
+import { isTokenExpired, getTokenExpirationTime } from '@/utils/jwt';
+import { TokenStorage } from '@/utils/tokenStorage';
+import { AuthErrorHandler, AuthErrorCode } from '@/utils/authErrors';
+
+interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  phone?: string;
+  branch_id?: string;
+  created_at: string;
+  updated_at: string;
+  permissions?: string[];
+  last_login?: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, userData?: any) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshSession: () => Promise<boolean>;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,7 +39,6 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [sessionTimer, setSessionTimer] = useState<NodeJS.Timeout | null>(null);
 
@@ -32,10 +47,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(sessionTimer);
     }
     
+    const token = TokenStorage.getToken();
+    if (!token) return;
+    
+    const expirationTime = getTokenExpirationTime(token);
+    if (!expirationTime) return;
+    
+    const timeUntilExpiry = expirationTime - Date.now();
+    
+    // Set timer to expire 5 minutes before actual token expiration
+    const timerDuration = Math.max(timeUntilExpiry - 5 * 60 * 1000, 0);
+    
     const timer = setTimeout(() => {
-      console.log('Session expired, logging out');
       signOut();
-    }, 30 * 60 * 1000); // 30 minutes
+    }, timerDuration);
     
     setSessionTimer(timer);
   };
@@ -47,34 +72,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     startSessionTimer();
   };
 
+  // Listen for logout events from API client
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-        
-        if (session?.user) {
-          startSessionTimer();
-        } else if (sessionTimer) {
-          clearTimeout(sessionTimer);
-          setSessionTimer(null);
-        }
+    const handleLogoutEvent = () => {
+      if (sessionTimer) {
+        clearTimeout(sessionTimer);
+        setSessionTimer(null);
       }
-    );
+      apiClient.removeToken();
+      TokenStorage.clear();
+      setUser(null);
+    };
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    window.addEventListener('auth:logout', handleLogoutEvent);
 
     return () => {
-      subscription.unsubscribe();
+      window.removeEventListener('auth:logout', handleLogoutEvent);
+    };
+  }, [sessionTimer]);
+
+  useEffect(() => {
+    // Check for existing session on mount
+    const checkSession = async () => {
+      const token = TokenStorage.getToken();
+      if (token) {
+        // Check if token is expired before using it
+        if (isTokenExpired(token)) {
+          TokenStorage.clear();
+          setLoading(false);
+          return;
+        }
+
+        apiClient.setToken(token);
+        const { data: userData, error } = await apiClient.getCurrentUser();
+        if (error) {
+          console.error('Error fetching user:', error);
+          apiClient.removeToken();
+          setUser(null);
+        } else {
+          setUser(userData);
+          startSessionTimer();
+        }
+      }
+      setLoading(false);
+    };
+
+    checkSession();
+
+    return () => {
       if (sessionTimer) {
         clearTimeout(sessionTimer);
       }
@@ -82,64 +127,118 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    console.log('Attempting sign in for:', email);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error };
+    
+    try {
+      const { data, error } = await apiClient.signIn(email, password);
+      
+      if (error) {
+        const authError = AuthErrorHandler.parseApiError(error);
+        console.error('Sign in error:', authError);
+        return { error: authError };
+      }
+
+      if (data?.access_token) {
+        apiClient.setToken(data.access_token);
+        
+        // Fetch user data after successful login
+        const { data: userData, error: userError } = await apiClient.getCurrentUser();
+        if (userError) {
+          const authError = AuthErrorHandler.parseApiError(userError);
+          console.error('Error fetching user after login:', authError);
+          
+          // Clean up token if user fetch fails
+          apiClient.removeToken();
+          return { error: authError };
+        }
+        
+        setUser(userData);
+        startSessionTimer();
+        
+      }
+      
+      return { error: null };
+    } catch (error) {
+      const authError = AuthErrorHandler.createError(
+        AuthErrorCode.NETWORK_ERROR, 
+        'Network error during sign in',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      console.error('Unexpected sign in error:', authError);
+      return { error: authError };
+    }
   };
 
   const signUp = async (email: string, password: string, userData?: any) => {
-    console.log('Attempting sign up for:', email);
-    // Sign up without email confirmation
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userData
-      }
-    });
     
-    if (error) {
-      console.error('Sign up error:', error);
-      return { error };
-    }
-
-    // If signup was successful and we have a user, create a profile record
-    if (data.user) {
-      console.log('Creating user profile for:', data.user.email);
+    try {
+      const signUpData = {
+        email,
+        password,
+        full_name: userData?.full_name || email.split('@')[0] || 'User',
+        role: userData?.role || 'student',
+        phone: userData?.phone || '',
+        branch_id: userData?.branch_id || '',
+      };
       
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({
-          id: data.user.id,
-          email: data.user.email,
-          full_name: userData?.full_name || data.user.email?.split('@')[0] || 'User',
-          role: userData?.role || 'student',
-          phone: userData?.phone || null,
-        });
-
-      if (profileError) {
-        console.error('Error creating user profile:', profileError);
-        // Don't return the profile error as the auth signup was successful
-        // The user can still sign in, they just might need to update their profile
-      } else {
-        console.log('User profile created successfully');
+      const { data, error } = await apiClient.signUp(signUpData);
+      
+      if (error) {
+        const authError = AuthErrorHandler.parseApiError(error);
+        console.error('Sign up error:', authError);
+        return { error: authError };
       }
-    }
 
-    console.log('Sign up successful:', data.user?.email);
-    return { error: null };
+      return { error: null };
+    } catch (error) {
+      const authError = AuthErrorHandler.createError(
+        AuthErrorCode.NETWORK_ERROR, 
+        'Network error during sign up',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+      console.error('Unexpected sign up error:', authError);
+      return { error: authError };
+    }
+  };
+
+  const refreshSession = async (): Promise<boolean> => {
+    try {
+      const { data, error } = await apiClient.refreshToken();
+      if (error || !data?.access_token) {
+        await signOut();
+        return false;
+      }
+      
+      apiClient.setToken(data.access_token);
+      startSessionTimer();
+      return true;
+    } catch (error) {
+      console.error('Session refresh failed:', error);
+      await signOut();
+      return false;
+    }
   };
 
   const signOut = async () => {
-    console.log('Signing out');
     if (sessionTimer) {
       clearTimeout(sessionTimer);
       setSessionTimer(null);
     }
-    await supabase.auth.signOut();
+    
+    // Clear all authentication state
+    apiClient.removeToken();
+    TokenStorage.clear();
+    setUser(null);
+    
+    // Clear any cached data that might contain sensitive information
+    if (typeof window !== 'undefined') {
+      // Clear React Query cache if available
+      try {
+        const event = new CustomEvent('auth:logout');
+        window.dispatchEvent(event);
+      } catch (error) {
+        console.warn('Failed to dispatch logout event:', error);
+      }
+    }
   };
 
   // Reset session timer on user activity
@@ -161,11 +260,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const value = {
     user,
-    session,
     loading,
     signIn,
     signUp,
     signOut,
+    refreshSession,
+    isAuthenticated: !!user,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

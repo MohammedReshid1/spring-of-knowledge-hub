@@ -252,21 +252,32 @@ export const AssetManagement: React.FC = () => {
   if (isHQRole && !selectedBranch) {
     return (
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold">Asset Management</h2>
-            <p className="text-muted-foreground">Track and manage school equipment and property</p>
-          </div>
-        </div>
-        
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                    <Monitor className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  Asset Management
+                </h2>
+                <p className="text-slate-600 font-medium mt-1">Track and manage school equipment and property</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardContent className="text-center py-12">
-            <Monitor className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Select a Branch</h3>
-            <p className="text-muted-foreground mb-4">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 inline-block mb-4">
+              <Monitor className="h-16 w-16 text-emerald-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-700 mb-2">Select a Branch</h3>
+            <p className="text-slate-600 mb-4">
               Please select a branch using the branch selector in the top navigation to view and manage assets.
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-500">
               As a superadmin, you can switch between branches to manage their respective inventories.
             </p>
           </CardContent>
@@ -277,42 +288,51 @@ export const AssetManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Asset Management</h2>
-          <p className="text-muted-foreground">Track and manage school equipment and property</p>
-        </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Asset
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+      {/* Premium Header */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                  <Monitor className="h-5 w-5 text-emerald-600" />
+                </div>
+                Asset Management
+              </h2>
+              <p className="text-slate-600 font-medium mt-1">Track and manage school equipment and property</p>
+            </div>
+
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Asset
+                </Button>
+              </DialogTrigger>
+          <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-sm border-emerald-200/50">
             <DialogHeader>
-              <DialogTitle>Add New Asset</DialogTitle>
+              <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">Add New Asset</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Asset Name *</Label>
+                  <Label htmlFor="name" className="text-slate-700 font-medium">Asset Name *</Label>
                   <Input
                     id="name"
                     value={assetForm.name}
                     onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
                     placeholder="Enter asset name"
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category" className="text-slate-700 font-medium">Category</Label>
                   <Select
                     value={assetForm.category}
                     onValueChange={(value) => setAssetForm({ ...assetForm, category: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -332,63 +352,68 @@ export const AssetManagement: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description" className="text-slate-700 font-medium">Description</Label>
                 <Textarea
                   id="description"
                   value={assetForm.description}
                   onChange={(e) => setAssetForm({ ...assetForm, description: e.target.value })}
                   placeholder="Asset description"
                   rows={2}
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="brand">Brand</Label>
+                  <Label htmlFor="brand" className="text-slate-700 font-medium">Brand</Label>
                   <Input
                     id="brand"
                     value={assetForm.brand}
                     onChange={(e) => setAssetForm({ ...assetForm, brand: e.target.value })}
                     placeholder="Brand name"
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="model">Model</Label>
+                  <Label htmlFor="model" className="text-slate-700 font-medium">Model</Label>
                   <Input
                     id="model"
                     value={assetForm.model}
                     onChange={(e) => setAssetForm({ ...assetForm, model: e.target.value })}
                     placeholder="Model number"
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="serial_number">Serial Number</Label>
+                  <Label htmlFor="serial_number" className="text-slate-700 font-medium">Serial Number</Label>
                   <Input
                     id="serial_number"
                     value={assetForm.serial_number}
                     onChange={(e) => setAssetForm({ ...assetForm, serial_number: e.target.value })}
                     placeholder="Serial number"
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="location">Location</Label>
+                  <Label htmlFor="location" className="text-slate-700 font-medium">Location</Label>
                   <Input
                     id="location"
                     value={assetForm.location}
                     onChange={(e) => setAssetForm({ ...assetForm, location: e.target.value })}
                     placeholder="Room, building, etc."
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="purchase_price">Purchase Price</Label>
+                  <Label htmlFor="purchase_price" className="text-slate-700 font-medium">Purchase Price</Label>
                   <Input
                     id="purchase_price"
                     type="number"
@@ -396,28 +421,30 @@ export const AssetManagement: React.FC = () => {
                     value={assetForm.purchase_price}
                     onChange={(e) => setAssetForm({ ...assetForm, purchase_price: e.target.value })}
                     placeholder="0.00"
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="purchase_date">Purchase Date</Label>
+                  <Label htmlFor="purchase_date" className="text-slate-700 font-medium">Purchase Date</Label>
                   <Input
                     id="purchase_date"
                     type="date"
                     value={assetForm.purchase_date}
                     onChange={(e) => setAssetForm({ ...assetForm, purchase_date: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
+                  <Label htmlFor="status" className="text-slate-700 font-medium">Status</Label>
                   <Select
                     value={assetForm.status}
                     onValueChange={(value) => setAssetForm({ ...assetForm, status: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -432,12 +459,12 @@ export const AssetManagement: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="condition">Condition</Label>
+                  <Label htmlFor="condition" className="text-slate-700 font-medium">Condition</Label>
                   <Select
                     value={assetForm.condition}
                     onValueChange={(value) => setAssetForm({ ...assetForm, condition: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -451,12 +478,13 @@ export const AssetManagement: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="warranty_expiry">Warranty Expiry</Label>
+                  <Label htmlFor="warranty_expiry" className="text-slate-700 font-medium">Warranty Expiry</Label>
                   <Input
                     id="warranty_expiry"
                     type="date"
                     value={assetForm.warranty_expiry}
                     onChange={(e) => setAssetForm({ ...assetForm, warranty_expiry: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
@@ -466,12 +494,14 @@ export const AssetManagement: React.FC = () => {
                   type="button"
                   variant="outline"
                   onClick={() => setIsCreateDialogOpen(false)}
+                  className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={createAssetMutation.isPending}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   {createAssetMutation.isPending ? 'Creating...' : 'Create Asset'}
                 </Button>
@@ -482,25 +512,26 @@ export const AssetManagement: React.FC = () => {
 
         {/* Edit Asset Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-sm border-emerald-200/50">
             <DialogHeader>
-              <DialogTitle>Edit Asset - {selectedAsset?.name}</DialogTitle>
+              <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">Edit Asset - {selectedAsset?.name}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit_name">Asset Name *</Label>
+                  <Label htmlFor="edit_name" className="text-slate-700 font-medium">Asset Name *</Label>
                   <Input
                     id="edit_name"
                     value={assetForm.name}
                     onChange={(e) => setAssetForm({ ...assetForm, name: e.target.value })}
                     required
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_category">Category *</Label>
+                  <Label htmlFor="edit_category" className="text-slate-700 font-medium">Category *</Label>
                   <Select value={assetForm.category} onValueChange={(value) => setAssetForm({ ...assetForm, category: value })}>
-                    <SelectTrigger>
+                    <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -516,80 +547,87 @@ export const AssetManagement: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_description">Description</Label>
+                <Label htmlFor="edit_description" className="text-slate-700 font-medium">Description</Label>
                 <Textarea
                   id="edit_description"
                   value={assetForm.description}
                   onChange={(e) => setAssetForm({ ...assetForm, description: e.target.value })}
                   rows={3}
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit_brand">Brand</Label>
+                  <Label htmlFor="edit_brand" className="text-slate-700 font-medium">Brand</Label>
                   <Input
                     id="edit_brand"
                     value={assetForm.brand}
                     onChange={(e) => setAssetForm({ ...assetForm, brand: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_model">Model</Label>
+                  <Label htmlFor="edit_model" className="text-slate-700 font-medium">Model</Label>
                   <Input
                     id="edit_model"
                     value={assetForm.model}
                     onChange={(e) => setAssetForm({ ...assetForm, model: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit_serial">Serial Number</Label>
+                  <Label htmlFor="edit_serial" className="text-slate-700 font-medium">Serial Number</Label>
                   <Input
                     id="edit_serial"
                     value={assetForm.serial_number}
                     onChange={(e) => setAssetForm({ ...assetForm, serial_number: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_location">Location</Label>
+                  <Label htmlFor="edit_location" className="text-slate-700 font-medium">Location</Label>
                   <Input
                     id="edit_location"
                     value={assetForm.location}
                     onChange={(e) => setAssetForm({ ...assetForm, location: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit_price">Purchase Price</Label>
+                  <Label htmlFor="edit_price" className="text-slate-700 font-medium">Purchase Price</Label>
                   <Input
                     id="edit_price"
                     type="number"
                     step="0.01"
                     value={assetForm.purchase_price}
                     onChange={(e) => setAssetForm({ ...assetForm, purchase_price: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_purchase_date">Purchase Date</Label>
+                  <Label htmlFor="edit_purchase_date" className="text-slate-700 font-medium">Purchase Date</Label>
                   <Input
                     id="edit_purchase_date"
                     type="date"
                     value={assetForm.purchase_date}
                     onChange={(e) => setAssetForm({ ...assetForm, purchase_date: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit_status">Status</Label>
+                  <Label htmlFor="edit_status" className="text-slate-700 font-medium">Status</Label>
                   <Select value={assetForm.status} onValueChange={(value) => setAssetForm({ ...assetForm, status: value })}>
-                    <SelectTrigger>
+                    <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -602,9 +640,9 @@ export const AssetManagement: React.FC = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_condition">Condition</Label>
+                  <Label htmlFor="edit_condition" className="text-slate-700 font-medium">Condition</Label>
                   <Select value={assetForm.condition} onValueChange={(value) => setAssetForm({ ...assetForm, condition: value })}>
-                    <SelectTrigger>
+                    <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -617,12 +655,13 @@ export const AssetManagement: React.FC = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit_warranty">Warranty Expiry</Label>
+                  <Label htmlFor="edit_warranty" className="text-slate-700 font-medium">Warranty Expiry</Label>
                   <Input
                     id="edit_warranty"
                     type="date"
                     value={assetForm.warranty_expiry}
                     onChange={(e) => setAssetForm({ ...assetForm, warranty_expiry: e.target.value })}
+                    className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   />
                 </div>
               </div>
@@ -636,10 +675,11 @@ export const AssetManagement: React.FC = () => {
                     setSelectedAsset(null);
                     resetForm();
                   }}
+                  className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={updateAssetMutation.isPending}>
+                <Button type="submit" disabled={updateAssetMutation.isPending} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300">
                   {updateAssetMutation.isPending ? 'Updating...' : 'Update Asset'}
                 </Button>
               </div>
@@ -649,12 +689,12 @@ export const AssetManagement: React.FC = () => {
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md bg-white/95 backdrop-blur-sm border-red-200/50">
             <DialogHeader>
-              <DialogTitle>Delete Asset</DialogTitle>
+              <DialogTitle className="text-xl text-red-700">Delete Asset</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-slate-600">
                 Are you sure you want to delete the asset "{selectedAsset?.name}" ({selectedAsset?.asset_code})?
                 This action cannot be undone.
               </p>
@@ -666,13 +706,14 @@ export const AssetManagement: React.FC = () => {
                     setIsDeleteDialogOpen(false);
                     setSelectedAsset(null);
                   }}
+                  className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                 >
                   Cancel
                 </Button>
                 <Button
-                  variant="destructive"
                   onClick={() => selectedAsset && deleteAssetMutation.mutate(selectedAsset.id)}
                   disabled={deleteAssetMutation.isPending}
+                  className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   {deleteAssetMutation.isPending ? 'Deleting...' : 'Delete Asset'}
                 </Button>
@@ -680,26 +721,30 @@ export const AssetManagement: React.FC = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="flex-1 min-w-64">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search assets by name, code, brand, or model..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
+      {/* Premium Filters */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search assets by name, code, brand, or model..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
+                />
+              </div>
+            </div>
+
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
             <SelectItem value="electronics">Electronics</SelectItem>
@@ -715,27 +760,29 @@ export const AssetManagement: React.FC = () => {
           </SelectContent>
         </Select>
 
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-            <SelectItem value="under_maintenance">Under Maintenance</SelectItem>
-            <SelectItem value="damaged">Damaged</SelectItem>
-            <SelectItem value="lost">Lost</SelectItem>
-            <SelectItem value="disposed">Disposed</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="under_maintenance">Under Maintenance</SelectItem>
+                <SelectItem value="damaged">Damaged</SelectItem>
+                <SelectItem value="lost">Lost</SelectItem>
+                <SelectItem value="disposed">Disposed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Assets Grid */}
+      {/* Premium Assets Grid */}
       {(assets as Asset[]).length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {(assets as Asset[]).map((asset: Asset) => (
-            <Card key={asset.id} className="hover:shadow-md transition-shadow">
+            <Card key={asset.id} className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -823,20 +870,20 @@ export const AssetManagement: React.FC = () => {
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                     onClick={() => handleEdit(asset)}
                   >
                     <Edit className="h-3 w-3 mr-1" />
                     Edit
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => handleDelete(asset)}
-                    className="text-red-600 hover:text-red-700"
+                    className="text-red-600 hover:text-red-700 border-red-200/50 hover:bg-red-50 hover:border-red-400 transition-all duration-300"
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>
@@ -846,11 +893,13 @@ export const AssetManagement: React.FC = () => {
           ))}
         </div>
       ) : (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardContent className="text-center py-8">
-            <Monitor className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No assets found</p>
-            <p className="text-sm text-muted-foreground mt-2">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 inline-block mb-4">
+              <Monitor className="h-12 w-12 text-emerald-600" />
+            </div>
+            <p className="text-slate-600 font-semibold">No assets found</p>
+            <p className="text-sm text-slate-500 mt-2">
               {searchTerm || selectedCategory || selectedStatus
                 ? 'Try adjusting your filters'
                 : 'Add your first asset to get started'

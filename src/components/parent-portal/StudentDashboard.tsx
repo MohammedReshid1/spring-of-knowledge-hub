@@ -5,10 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { 
-  User, 
-  Calendar, 
-  BookOpen, 
+import { useLiveData } from '@/hooks/useLiveData';
+import { LiveUpdatesIndicator } from '@/components/common/LiveUpdatesIndicator';
+import {
+  User,
+  Calendar,
+  BookOpen,
   Award,
   Clock,
   TrendingUp,
@@ -106,6 +108,11 @@ export const StudentDashboard: React.FC<Props> = ({ children, selectedChild, onC
   const currentChild = selectedChild ? children.find(c => c.id === selectedChild) : children[0];
   const childId = currentChild?.id || '';
 
+  // Enable real-time updates for student dashboard - replaces 30s polling
+  useLiveData(['students', 'attendance', 'grades', 'exams', 'behavior', 'payments', 'assignments'], {
+    additionalQueryKeys: ['student-details']
+  });
+
   const { data: studentDetails, isLoading } = useQuery<StudentDetails>({
     queryKey: ['student-details', childId],
     queryFn: async () => {
@@ -114,7 +121,6 @@ export const StudentDashboard: React.FC<Props> = ({ children, selectedChild, onC
       return response.data;
     },
     enabled: !!childId,
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
   });
 
   if (!currentChild) {
@@ -163,11 +169,14 @@ export const StudentDashboard: React.FC<Props> = ({ children, selectedChild, onC
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Student Dashboard</h2>
-          <p className="text-muted-foreground">Detailed view of your child's progress</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Student Dashboard</h2>
+            <p className="text-muted-foreground">Detailed view of your child's progress</p>
+          </div>
+          <LiveUpdatesIndicator />
         </div>
-        
+
         {children.length > 1 && (
           <Select value={selectedChild || children[0].id} onValueChange={onChildSelect}>
             <SelectTrigger className="w-64">

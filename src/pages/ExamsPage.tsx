@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useBranchData } from '@/hooks/useBranchData';
 import { useBranch } from '@/contexts/BranchContext';
+import { useLiveDataForPage } from '@/hooks/useLiveData';
+import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +24,8 @@ import {
 import { format } from 'date-fns';
 import { GradeResults } from '@/components/exams/GradeResults';
 import { ViewReports } from '@/components/exams/ViewReports';
+import { CardLoader, ListLoader } from '@/components/ui/loading-states';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Exam {
   id: string;
@@ -43,6 +47,11 @@ interface Exam {
 }
 
 export default function ExamsPage() {
+  // Enable real-time updates for exams and related data
+  useLiveDataForPage('exams', {
+    relatedCollections: ['grades', 'students', 'classes', 'subjects']
+  });
+
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedExam, setSelectedExam] = useState<Exam | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'stats' | 'grade' | 'grading' | 'reports'>('list');
@@ -63,6 +72,7 @@ export default function ExamsPage() {
   const queryClient = useQueryClient();
   const { selectedBranch } = useBranch();
   const { getBranchFilter } = useBranchData();
+  const academicYearQuery = useAcademicYear();
 
   // Fetch exams
   const { data: exams = [], isLoading } = useQuery({
@@ -403,6 +413,15 @@ export default function ExamsPage() {
     );
   });
 
+  // Helper function to check if exam date has passed
+  const isExamPast = (examDate: string) => {
+    const exam = new Date(examDate);
+    const today = new Date();
+    const examDateStr = exam.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+    return examDateStr < todayStr;
+  };
+
   return (
     <>
       {/* Premium Animation Styles */}
@@ -446,15 +465,26 @@ export default function ExamsPage() {
         }
       `}</style>
 
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/20">
         {/* Premium Hero Header */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-16">
+        <div className="relative overflow-hidden bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-700 pb-20 pt-16">
           {/* Background Pattern */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
-          <div className="absolute inset-0 opacity-20"
-               style={{
-                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-               }} />
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-600/90 via-indigo-600/90 to-blue-700/90" />
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+
+          {/* Enhanced Floating Shapes with Animation */}
+          <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse" />
+          <div className="absolute top-20 right-20 w-16 h-16 bg-white/10 rounded-full animate-pulse delay-1000" />
+          <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-500" />
+          <div className="absolute top-1/2 left-20 w-8 h-8 bg-white/8 rounded-full animate-pulse delay-300" />
+          <div className="absolute top-1/3 right-1/4 w-14 h-14 bg-white/8 rounded-full animate-pulse delay-700" />
+          <div className="absolute bottom-1/3 right-10 w-10 h-10 bg-white/8 rounded-full animate-pulse delay-900" />
+          <div className="absolute top-1/4 left-1/2 w-6 h-6 bg-white/6 rounded-full animate-pulse delay-400" />
+          <div className="absolute bottom-10 left-1/4 w-18 h-18 bg-white/8 rounded-full animate-pulse delay-800" />
 
           <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
             <div className="mx-auto max-w-3xl text-center">
@@ -463,9 +493,9 @@ export default function ExamsPage() {
                 Examination Management System
               </div>
               <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-                Exam <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Management</span>
+                Exam <span className="bg-gradient-to-r from-purple-200 to-indigo-200 bg-clip-text text-transparent">Management</span>
               </h1>
-              <p className="mt-6 text-lg leading-8 text-blue-100">
+              <p className="mt-6 text-lg leading-8 text-purple-100">
                 Create, schedule, and manage examinations with comprehensive analytics and reporting.
                 Streamline your assessment operations with premium tools.
               </p>
@@ -724,7 +754,7 @@ export default function ExamsPage() {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Active Exams</p>
                       <p className="text-3xl font-bold text-gray-900">
-                        {exams.filter(exam => exam.is_active).length}
+                        {exams.filter(exam => exam.is_active && !isExamPast(exam.exam_date)).length}
                       </p>
                     </div>
                     <div className="p-3 bg-gradient-to-br from-purple-500/10 to-violet-500/10 rounded-2xl">
@@ -875,14 +905,7 @@ export default function ExamsPage() {
                   </div>
 
                   {isLoading ? (
-                    <Card className="bg-white/80 backdrop-blur-glass border border-white/40 rounded-3xl shadow-premium">
-                      <CardContent className="flex items-center justify-center py-12">
-                        <div className="text-center space-y-3">
-                          <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-                          <p className="text-gray-600">Loading exams...</p>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <ListLoader items={6} />
                   ) : filteredExams.length === 0 ? (
                     <Card className="bg-white/80 backdrop-blur-glass border border-white/40 rounded-3xl shadow-premium">
                       <CardContent className="flex items-center justify-center py-12">
@@ -1008,8 +1031,13 @@ export default function ExamsPage() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => handleEditExam(exam)}
-                                      title="Edit Exam"
-                                      className="bg-white/70 hover:bg-amber-50 border-amber-200/60 hover:border-amber-400 rounded-xl text-amber-700 hover:text-amber-800 transition-all duration-300 hover:scale-110 hover:shadow-lg group/btn"
+                                      disabled={isExamPast(exam.exam_date)}
+                                      title={isExamPast(exam.exam_date) ? "Cannot edit past exams" : "Edit Exam"}
+                                      className={`rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg group/btn ${
+                                        isExamPast(exam.exam_date)
+                                          ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                          : "bg-white/70 hover:bg-amber-50 border-amber-200/60 hover:border-amber-400 text-amber-700 hover:text-amber-800"
+                                      }`}
                                     >
                                       <Edit className="h-4 w-4 group-hover/btn:scale-110 transition-transform duration-200" />
                                     </Button>
@@ -1017,8 +1045,13 @@ export default function ExamsPage() {
                                       variant="outline"
                                       size="sm"
                                       onClick={() => deleteExamMutation.mutate(exam.id)}
-                                      title="Delete Exam"
-                                      className="bg-white/70 hover:bg-red-50 border-red-200/60 hover:border-red-400 rounded-xl text-red-600 hover:text-red-700 transition-all duration-300 hover:scale-110 hover:shadow-lg group/btn"
+                                      disabled={isExamPast(exam.exam_date)}
+                                      title={isExamPast(exam.exam_date) ? "Cannot delete past exams" : "Delete Exam"}
+                                      className={`rounded-xl transition-all duration-300 hover:scale-110 hover:shadow-lg group/btn ${
+                                        isExamPast(exam.exam_date)
+                                          ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                                          : "bg-white/70 hover:bg-red-50 border-red-200/60 hover:border-red-400 text-red-600 hover:text-red-700"
+                                      }`}
                                     >
                                       <Trash2 className="h-4 w-4 group-hover/btn:scale-110 transition-transform duration-200" />
                                     </Button>
@@ -1447,14 +1480,15 @@ export default function ExamsPage() {
                       Academic Year
                       <span className="text-red-500">*</span>
                     </Label>
-                    <Input
-                      id="academic_year"
+                    <div className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-medium">
+                      {getAcademicYearString(academicYearQuery)}
+                    </div>
+                    <input
+                      type="hidden"
                       name="academic_year"
-                      placeholder="2024-2025"
-                      defaultValue={currentAcademicYear?.name || ''}
-                      required
-                      className="bg-white/80 border-blue-200/60 rounded-xl focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-200 hover:bg-white/90"
+                      value={getAcademicYearString(academicYearQuery)}
                     />
+                    <p className="text-xs text-gray-500">Automatically set from system configuration</p>
                   </div>
                   <div className="space-y-3">
                     <Label htmlFor="term" className="text-sm font-medium text-gray-700 flex items-center gap-2">
@@ -1564,8 +1598,18 @@ export default function ExamsPage() {
                         <Badge className={`${getExamTypeColor(selectedExam.exam_type)} rounded-xl px-4 py-2 text-sm font-bold shadow-sm border`}>
                           {selectedExam.exam_type.toUpperCase()}
                         </Badge>
-                        <Badge variant={selectedExam.is_active ? "default" : "secondary"} className="rounded-xl px-4 py-2 text-sm font-bold shadow-sm">
-                          {selectedExam.is_active ? "🟢 Active" : "🔴 Inactive"}
+                        <Badge
+                          variant={
+                            isExamPast(selectedExam.exam_date)
+                              ? "secondary"
+                              : (selectedExam.is_active ? "default" : "secondary")
+                          }
+                          className="rounded-xl px-4 py-2 text-sm font-bold shadow-sm"
+                        >
+                          {isExamPast(selectedExam.exam_date)
+                            ? "✓ Completed"
+                            : (selectedExam.is_active ? "🟢 Active" : "🔴 Inactive")
+                          }
                         </Badge>
                       </div>
                     </div>
@@ -1687,7 +1731,13 @@ export default function ExamsPage() {
                       setIsViewDialogOpen(false);
                       handleEditExam(selectedExam);
                     }}
-                    className="bg-white/70 hover:bg-amber-50 border-amber-200/60 hover:border-amber-400 rounded-xl text-amber-700 hover:text-amber-800 transition-all duration-300 hover:scale-105 hover:shadow-lg px-6 py-3"
+                    disabled={isExamPast(selectedExam.exam_date)}
+                    title={isExamPast(selectedExam.exam_date) ? "Cannot edit past exams" : "Edit this exam"}
+                    className={`rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg px-6 py-3 ${
+                      isExamPast(selectedExam.exam_date)
+                        ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                        : "bg-white/70 hover:bg-amber-50 border-amber-200/60 hover:border-amber-400 text-amber-700 hover:text-amber-800"
+                    }`}
                   >
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Exam
@@ -1908,14 +1958,15 @@ export default function ExamsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="edit-academic_year" className="text-sm font-medium text-gray-700">Academic Year</Label>
-                    <Input
-                      id="edit-academic_year"
+                    <div className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl text-gray-700 font-medium">
+                      {selectedExam.academic_year}
+                    </div>
+                    <input
+                      type="hidden"
                       name="academic_year"
-                      placeholder="2023-2024"
-                      defaultValue={selectedExam.academic_year}
-                      required
-                      className="bg-white/80 border-blue-200/60 rounded-xl"
+                      value={selectedExam.academic_year}
                     />
+                    <p className="text-xs text-gray-500">Academic year cannot be changed</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="edit-term" className="text-sm font-medium text-gray-700">Term</Label>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,14 +19,18 @@ import { useRoleAccess } from '@/hooks/useRoleAccess';
 
 // Role options based on user's permissions
 const getUserRoleOptions = (userRole: string) => {
-  if (userRole === 'super_admin') {
-    return ['super_admin', 'hq_admin', 'branch_admin', 'hq_registrar', 'registrar'];
+  // Normalize alias used by backend
+  const normalized = userRole === 'superadmin' ? 'super_admin' : userRole;
+
+  if (normalized === 'super_admin') {
+    // Full suite (exclude teacher/parent/student; they are managed elsewhere)
+    return ['super_admin', 'hq_admin', 'branch_admin', 'hq_registrar', 'registrar', 'admin'];
   }
-  if (userRole === 'hq_admin') {
-    return ['hq_admin', 'branch_admin', 'hq_registrar', 'registrar'];
+  if (normalized === 'hq_admin') {
+    return ['hq_admin', 'branch_admin', 'hq_registrar', 'registrar', 'admin'];
   }
-  // Branch admins and below cannot create users
-  return ['registrar']; // Fallback to prevent empty array
+  // Other roles limited
+  return ['registrar'];
 };
 
 const createUserSchema = (userRole: string) => {
@@ -85,24 +89,17 @@ export const UserManagement = () => {
   const { data: users, isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .neq('role', 'teacher') // Exclude teachers from user management
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data;
+      const { data, error } = await apiClient.getUsers();
+      if (error) throw new Error(error);
+      // Show all user accounts, including teachers
+      return data || [];
     }
   });
 
   const createUserMutation = useMutation({
     mutationFn: async (userData: UserFormData) => {
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        body: userData
-      });
-      
-      if (error) throw error;
+      const { data, error } = await apiClient.signUp(userData);
+      if (error) throw new Error(error);
       return data;
     },
     onSuccess: () => {
@@ -125,14 +122,8 @@ export const UserManagement = () => {
 
   const updateUserMutation = useMutation({
     mutationFn: async ({ id, userData }: { id: string; userData: EditUserFormData }) => {
-      const { data, error } = await supabase
-        .from('users')
-        .update(userData as any)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) throw error;
+      const { data, error } = await apiClient.updateUser(id, userData);
+      if (error) throw new Error(error);
       return data;
     },
     onSuccess: () => {
@@ -156,20 +147,8 @@ export const UserManagement = () => {
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      console.log('Attempting to delete user:', userId);
-      const { data: session } = await supabase.auth.getSession();
-      console.log('Current session:', session);
-      
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
-      
-      if (error) {
-        console.error('Delete error:', error);
-        throw error;
-      }
-      console.log('User deleted successfully');
+      const { error } = await apiClient.deleteUser(userId);
+      if (error) throw new Error(error);
     },
     onSuccess: () => {
       toast({
@@ -188,6 +167,10 @@ export const UserManagement = () => {
   });
 
   const onSubmit = (data: UserFormData) => {
+    if (['branch_admin','registrar','hq_registrar'].includes(data.role) && !data.branch_id) {
+      toast({ title: 'Validation', description: 'Please select a branch for this role', variant: 'destructive' });
+      return;
+    }
     createUserMutation.mutate(data);
   };
 

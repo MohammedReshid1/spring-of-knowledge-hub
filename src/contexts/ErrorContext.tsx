@@ -235,7 +235,6 @@ export const ErrorProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
         await new Promise(resolve => setTimeout(resolve, delay));
         
-        console.log(`Retrying operation (attempt ${attempt + 1}/${maxAttempts})`);
       }
     }
     

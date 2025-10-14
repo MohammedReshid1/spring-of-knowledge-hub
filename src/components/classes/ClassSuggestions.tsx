@@ -41,20 +41,17 @@ export const ClassSuggestions = () => {
       if (gradeLevelsRes.error) throw new Error(gradeLevelsRes.error);
       
       const gradeLevels = gradeLevelsRes.data || [];
-      console.log('ClassSuggestions - Grade levels fetched:', gradeLevels.length);
       
       // Filter by branch and active status
       const allStudents = (studRes.data || []).filter(s =>
         s.status === 'Active' && (selectedBranch === 'all' || s.branch_id === selectedBranch)
       );
-      console.log('ClassSuggestions - Total active students in branch:', allStudents.length, 'Branch:', selectedBranch);
       
       // Enrich classes with grade level information
       const allClasses = (clsRes.data || [])
         .filter(c => selectedBranch === 'all' || c.branch_id === selectedBranch)
         .map(cls => {
           const gradeLevel = gradeLevels.find(gl => gl.id === cls.grade_level_id);
-          console.log(`Class ${cls.class_name}: grade_level_id=${cls.grade_level_id}, found grade=${gradeLevel?.grade}`);
           return {
             ...cls,
             grade_level: gradeLevel ? { grade: gradeLevel.grade } : null
@@ -69,18 +66,9 @@ export const ClassSuggestions = () => {
       const result: ClassSuggestion[] = [];
       for (const [gradeLevel, studentsInGrade] of Object.entries(gradeGroups)) {
         const studentsWithout = studentsInGrade.filter(s => !s.class_id);
-        
-        console.log(`ClassSuggestions - Grade ${gradeLevel}:`, {
-          totalInGrade: studentsInGrade.length,
-          withoutClass: studentsWithout.length,
-          students: studentsWithout.map(s => ({
-            name: `${s.first_name} ${s.last_name}`,
-            id: s.student_id,
-            class_id: s.class_id,
-            branch_id: s.branch_id
-          }))
-        });
-        
+
+        // Grade statistics logged for debugging
+
         if (studentsWithout.length === 0) continue;
         const gradeName = formatGradeLevel(gradeLevel);
         // existing class names for this grade
@@ -107,16 +95,13 @@ export const ClassSuggestions = () => {
         const gradeClasses = allClasses.filter(c => {
           const classGradeDb = gradeToDbFormat[c.grade_level?.grade] || c.grade_level?.grade;
           const matches = classGradeDb === gradeLevel;
-          console.log(`Class ${c.class_name}: grade="${c.grade_level?.grade}" -> db="${classGradeDb}" vs student="${gradeLevel}" = ${matches}`);
           return matches;
         });
         
-        console.log(`Found ${gradeClasses.length} classes for grade ${gradeLevel}:`, gradeClasses.map(c => c.class_name));
         
         // Check for existing classes with available space
         const existingClassesWithSpace = gradeClasses.map(cls => {
           const availableSpots = cls.max_capacity - (cls.current_enrollment || 0);
-          console.log(`Class ${cls.class_name}: ${cls.current_enrollment}/${cls.max_capacity} = ${availableSpots} available`);
           return {
             id: cls.id,
             name: cls.class_name,
@@ -127,7 +112,6 @@ export const ClassSuggestions = () => {
         const totalAvailableSpots = existingClassesWithSpace.reduce((sum, cls) => sum + cls.availableSpots, 0);
         const hasAvailableSpace = totalAvailableSpots >= studentsWithout.length;
         
-        console.log(`Grade ${gradeLevel}: ${studentsWithout.length} unassigned, ${totalAvailableSpots} available spots, hasSpace: ${hasAvailableSpace}`);
         
         const existingNames = gradeClasses.map(c => c.class_name);
         const sections = ['A', 'B', 'C', 'D', 'E'];
@@ -164,12 +148,24 @@ export const ClassSuggestions = () => {
       // Fetch grade levels to find matching ID
       const { data: gradeLevels, error: glError } = await apiClient.getGradeLevels();
       if (glError) throw new Error(glError);
+
+      // Try multiple matching strategies
       let gl = gradeLevels?.find(g => g.grade === suggestion.gradeLevel);
-      // Fallback: try matching by formatted grade name
       if (!gl) {
         gl = gradeLevels?.find(g => formatGradeLevel(g.grade) === suggestion.gradeName);
       }
-      if (!gl) throw new Error(`Grade level ${suggestion.gradeLevel} not found`);
+      if (!gl) {
+        // Try matching formatted version to formatted version
+        gl = gradeLevels?.find(g => formatGradeLevel(g.grade) === formatGradeLevel(suggestion.gradeLevel));
+      }
+      if (!gl) {
+        // Try case-insensitive match
+        gl = gradeLevels?.find(g => g.grade.toLowerCase().replace(/[_\s]/g, '') === suggestion.gradeLevel.toLowerCase().replace(/[_\s]/g, ''));
+      }
+      if (!gl) {
+        console.error('Grade level not found. Looking for:', suggestion.gradeLevel, 'or', suggestion.gradeName);
+        throw new Error(`Grade level ${suggestion.gradeLevel} not found. Available: ${gradeLevels?.map(g => g.grade).join(', ')}`);
+      }
       // Prepare class objects
       const classesToCreate = suggestion.missingClasses.map(name => ({
         class_name: name,

@@ -145,305 +145,276 @@ export const InventoryManagement: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Inventory & Asset Management</h1>
-        <p className="text-muted-foreground">Manage assets, supplies, maintenance, and procurement</p>
-      </div>
+    <>
+      {/* Premium Animation Styles */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="assets">Assets</TabsTrigger>
-          <TabsTrigger value="supplies">Supplies</TabsTrigger>
-          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-          <TabsTrigger value="requests">Requests</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
 
-        <TabsContent value="overview" className="space-y-6">
-          {/* Quick Stats */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              title="Total Assets"
-              value={overview?.total_assets || 0}
-              icon={Monitor}
-              description="Equipment and property"
-              color="blue"
-            />
-            <StatCard
-              title="Active Assets"
-              value={overview?.active_assets || 0}
-              icon={CheckCircle}
-              description="Currently in use"
-              color="green"
-            />
-            <StatCard
-              title="Total Supplies"
-              value={overview?.total_supplies || 0}
-              icon={Box}
-              description="Consumable items"
-              color="purple"
-            />
-            <StatCard
-              title="Asset Value"
-              value={formatCurrency(overview?.total_asset_value || 0)}
-              icon={DollarSign}
-              description="Total investment"
-              color="emerald"
-            />
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+          }
+        }
+
+        .animate-fadeInUp {
+          animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-slideInRight {
+          animation: slideInRight 0.6s ease-out;
+        }
+
+        .animate-pulseGlow {
+          animation: pulseGlow 2s infinite;
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+        {/* Premium Hero Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-16">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
+          <div className="absolute inset-0 opacity-20"
+               style={{
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+               }} />
+
+          {/* Enhanced Floating Shapes with Animation */}
+          <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse" />
+          <div className="absolute top-20 right-20 w-16 h-16 bg-white/10 rounded-full animate-pulse delay-1000" />
+          <div className="absolute bottom-20 left-1/3 w-12 h-12 bg-white/10 rounded-full animate-pulse delay-500" />
+          <div className="absolute top-1/2 left-20 w-8 h-8 bg-white/8 rounded-full animate-pulse delay-300" />
+          <div className="absolute top-1/3 right-1/4 w-14 h-14 bg-white/8 rounded-full animate-pulse delay-700" />
+          <div className="absolute bottom-1/3 right-10 w-10 h-10 bg-white/8 rounded-full animate-pulse delay-900" />
+          <div className="absolute top-1/4 left-1/2 w-6 h-6 bg-white/6 rounded-full animate-pulse delay-400" />
+          <div className="absolute bottom-10 left-1/4 w-18 h-18 bg-white/8 rounded-full animate-pulse delay-800" />
+
+          <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="mb-8 inline-flex items-center rounded-full bg-white/10 backdrop-blur-sm px-6 py-2 text-sm font-medium text-white/90 ring-1 ring-white/20">
+                <Package className="mr-2 h-4 w-4" />
+                Inventory Management System
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
+                Inventory <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Management</span>
+              </h1>
+              <p className="mt-6 text-lg leading-8 text-blue-100">
+                Comprehensive asset tracking, supply management, and maintenance scheduling with intelligent analytics.
+                Optimize resource utilization with advanced inventory tools.
+              </p>
+            </div>
           </div>
 
-          {/* System Health Indicators */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <BarChart3 className="h-5 w-5 mr-2" />
-                  Asset Utilization
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold mb-2 ${getHealthColor(overview?.system_health.asset_utilization || 0)}`}>
-                  {overview?.system_health.asset_utilization.toFixed(1) || 0}%
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Assets actively deployed and in use
-                </p>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${
-                      (overview?.system_health.asset_utilization || 0) >= 90 ? 'bg-green-600' :
-                      (overview?.system_health.asset_utilization || 0) >= 70 ? 'bg-yellow-600' : 'bg-red-600'
-                    }`}
-                    style={{ width: `${overview?.system_health.asset_utilization || 0}%` }}
-                  ></div>
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {overview?.active_assets || 0} of {overview?.total_assets || 0} assets active
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Wrench className="h-5 w-5 mr-2" />
-                  Maintenance Health
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold mb-2 ${getHealthColor(overview?.system_health.maintenance_compliance || 0)}`}>
-                  {overview?.system_health.maintenance_compliance.toFixed(1) || 0}%
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Maintenance schedule compliance
-                </p>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${
-                      (overview?.system_health.maintenance_compliance || 0) >= 90 ? 'bg-green-600' :
-                      (overview?.system_health.maintenance_compliance || 0) >= 70 ? 'bg-yellow-600' : 'bg-red-600'
-                    }`}
-                    style={{ width: `${overview?.system_health.maintenance_compliance || 0}%` }}
-                  ></div>
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {(overview?.pending_maintenance || 0) - (overview?.overdue_maintenance || 0)} on schedule, {overview?.overdue_maintenance || 0} overdue
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Package className="h-5 w-5 mr-2" />
-                  Stock Adequacy
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className={`text-3xl font-bold mb-2 ${getHealthColor(overview?.system_health.stock_adequacy || 0)}`}>
-                  {overview?.system_health.stock_adequacy.toFixed(1) || 0}%
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Supplies above minimum levels
-                </p>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${
-                      (overview?.system_health.stock_adequacy || 0) >= 90 ? 'bg-green-600' :
-                      (overview?.system_health.stock_adequacy || 0) >= 70 ? 'bg-yellow-600' : 'bg-red-600'
-                    }`}
-                    style={{ width: `${overview?.system_health.stock_adequacy || 0}%` }}
-                  ></div>
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {overview?.low_stock_supplies || 0} items need restocking
-                </div>
-              </CardContent>
-            </Card>
+          {/* Bottom Wave */}
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg className="w-full h-20 fill-current text-slate-50" viewBox="0 0 1440 120" preserveAspectRatio="none">
+              <path d="M0,60 C240,120 480,0 720,60 C960,120 1200,0 1440,60 L1440,120 L0,120 Z" />
+            </svg>
           </div>
+        </div>
 
-          {/* Category Distribution and Alerts */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <BarChart3 className="h-5 w-5 mr-2" />
-                  Asset Categories
-                </CardTitle>
+        {/* Main Content */}
+        <div className="relative z-10 -mt-10 space-y-8 px-6 pb-16">
+
+        {/* Navigation Tabs */}
+        <div className="mx-auto max-w-7xl">
+          <div className="relative">
+            {/* Background card with glass morphism */}
+            <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium"></div>
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/8 via-teal-500/8 to-cyan-500/8 rounded-3xl pointer-events-none"></div>
+
+            <Card className="relative bg-transparent border-0 shadow-none">
+              <CardHeader className="p-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                    <Settings className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-emerald-800 to-teal-900 bg-clip-text text-transparent">
+                    Inventory Dashboard
+                  </CardTitle>
+                </div>
+                <p className="text-slate-600 leading-relaxed">Comprehensive tools for managing assets, supplies, and maintenance operations</p>
               </CardHeader>
-              <CardContent>
-                {overview?.category_distribution ? (
-                  <div className="space-y-3">
-                    {Object.entries(overview.category_distribution)
-                      .sort(([,a], [,b]) => b - a)
-                      .map(([category, count]) => (
-                        <div key={category} className="flex justify-between items-center">
-                          <span className="text-sm capitalize">{category.replace('_', ' ')}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-blue-600 h-2 rounded-full" 
-                                style={{ width: `${(count / Math.max(...Object.values(overview.category_distribution))) * 100}%` }}
-                              ></div>
+              <CardContent className="px-8 pb-8">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                  <TabsList className="grid w-full grid-cols-6 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl p-2 h-auto">
+                    <TabsTrigger
+                      value="overview"
+                      className="data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-premium rounded-xl py-3 px-4 font-semibold transition-all duration-normal hover:bg-white/80"
+                    >
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="assets"
+                      className="data-[state=active]:bg-teal-500 data-[state=active]:text-white data-[state=active]:shadow-premium rounded-xl py-3 px-4 font-semibold transition-all duration-normal hover:bg-white/80"
+                    >
+                      Assets
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="supplies"
+                      className="data-[state=active]:bg-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-premium rounded-xl py-3 px-4 font-semibold transition-all duration-normal hover:bg-white/80"
+                    >
+                      Supplies
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="maintenance"
+                      className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-premium rounded-xl py-3 px-4 font-semibold transition-all duration-normal hover:bg-white/80"
+                    >
+                      Maintenance
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="requests"
+                      className="data-[state=active]:bg-indigo-500 data-[state=active]:text-white data-[state=active]:shadow-premium rounded-xl py-3 px-4 font-semibold transition-all duration-normal hover:bg-white/80"
+                    >
+                      Requests
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="analytics"
+                      className="data-[state=active]:bg-purple-500 data-[state=active]:text-white data-[state=active]:shadow-premium rounded-xl py-3 px-4 font-semibold transition-all duration-normal hover:bg-white/80"
+                    >
+                      Analytics
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <div className="bg-white/40 backdrop-blur-sm rounded-2xl border border-white/30 p-8">
+                    <TabsContent value="overview" className="mt-0 space-y-8">
+                      {/* Quick Stats */}
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/80 to-teal-50/80 rounded-2xl"></div>
+                        <div className="relative p-6">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                              <BarChart3 className="h-5 w-5 text-emerald-600" />
                             </div>
-                            <span className="text-sm font-bold">{count}</span>
+                            <h3 className="text-xl font-bold bg-gradient-to-r from-slate-900 via-emerald-800 to-teal-900 bg-clip-text text-transparent">
+                              Asset Overview
+                            </h3>
+                          </div>
+                          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                            <div className="group relative animate-fade-in-up">
+                              <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium group-hover:shadow-glow-subtle transition-all duration-normal"></div>
+                              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/80 to-green-50/80 border border-emerald-200/50 rounded-2xl"></div>
+                              <div className="relative p-6 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-slate-900 text-lg">Total Assets</h4>
+                                  <div className="p-2 rounded-xl bg-emerald-100 border border-emerald-200">
+                                    <Monitor className="h-5 w-5 text-emerald-600" />
+                                  </div>
+                                </div>
+                                <div className="text-3xl font-bold text-emerald-600">{overview?.total_assets || 0}</div>
+                                <p className="text-sm text-slate-600 font-medium">
+                                  Equipment and property
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="group relative animate-fade-in-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
+                              <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium group-hover:shadow-glow-subtle transition-all duration-normal"></div>
+                              <div className="absolute inset-0 bg-gradient-to-br from-green-50/80 to-lime-50/80 border border-green-200/50 rounded-2xl"></div>
+                              <div className="relative p-6 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-slate-900 text-lg">Active Assets</h4>
+                                  <div className="p-2 rounded-xl bg-green-100 border border-green-200">
+                                    <CheckCircle className="h-5 w-5 text-green-600" />
+                                  </div>
+                                </div>
+                                <div className="text-3xl font-bold text-green-600">{overview?.active_assets || 0}</div>
+                                <p className="text-sm text-slate-600 font-medium">
+                                  Currently in use
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="group relative animate-fade-in-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
+                              <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium group-hover:shadow-glow-subtle transition-all duration-normal"></div>
+                              <div className="absolute inset-0 bg-gradient-to-br from-teal-50/80 to-cyan-50/80 border border-teal-200/50 rounded-2xl"></div>
+                              <div className="relative p-6 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-slate-900 text-lg">Total Supplies</h4>
+                                  <div className="p-2 rounded-xl bg-teal-100 border border-teal-200">
+                                    <Box className="h-5 w-5 text-teal-600" />
+                                  </div>
+                                </div>
+                                <div className="text-3xl font-bold text-teal-600">{overview?.total_supplies || 0}</div>
+                                <p className="text-sm text-slate-600 font-medium">
+                                  Consumable items
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="group relative animate-fade-in-up" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
+                              <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium group-hover:shadow-glow-subtle transition-all duration-normal"></div>
+                              <div className="absolute inset-0 bg-gradient-to-br from-cyan-50/80 to-blue-50/80 border border-cyan-200/50 rounded-2xl"></div>
+                              <div className="relative p-6 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-slate-900 text-lg">Asset Value</h4>
+                                  <div className="p-2 rounded-xl bg-cyan-100 border border-cyan-200">
+                                    <DollarSign className="h-5 w-5 text-cyan-600" />
+                                  </div>
+                                </div>
+                                <div className="text-3xl font-bold text-cyan-600">{formatCurrency(overview?.total_asset_value || 0)}</div>
+                                <p className="text-sm text-slate-600 font-medium">
+                                  Total investment
+                                </p>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      ))}
+                      </div>
+
+                    </TabsContent>
+
+                    <TabsContent value="assets" className="mt-0">
+                      <AssetManagement />
+                    </TabsContent>
+
+                    <TabsContent value="supplies" className="mt-0">
+                      <SupplyManagement />
+                    </TabsContent>
+
+                    <TabsContent value="maintenance" className="mt-0">
+                      <MaintenanceManagement />
+                    </TabsContent>
+
+                    <TabsContent value="requests" className="mt-0">
+                      <InventoryRequests />
+                    </TabsContent>
+
+                    <TabsContent value="analytics" className="mt-0">
+                      <InventoryAnalytics />
+                    </TabsContent>
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No category data available</p>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <AlertTriangle className="h-5 w-5 mr-2" />
-                  System Alerts
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {(overview?.overdue_maintenance || 0) > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-red-600" />
-                        <span className="text-sm font-medium text-red-800">Overdue Maintenance</span>
-                      </div>
-                      <Badge className="bg-red-100 text-red-800">
-                        {overview?.overdue_maintenance || 0} items
-                      </Badge>
-                    </div>
-                  )}
-
-                  {(overview?.low_stock_supplies || 0) > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <Package className="h-4 w-4 text-yellow-600" />
-                        <span className="text-sm font-medium text-yellow-800">Low Stock Alert</span>
-                      </div>
-                      <Badge className="bg-yellow-100 text-yellow-800">
-                        {overview?.low_stock_supplies || 0} items
-                      </Badge>
-                    </div>
-                  )}
-
-                  {(overview?.assets_under_maintenance || 0) > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <Wrench className="h-4 w-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-800">Under Maintenance</span>
-                      </div>
-                      <Badge className="bg-blue-100 text-blue-800">
-                        {overview?.assets_under_maintenance || 0} assets
-                      </Badge>
-                    </div>
-                  )}
-
-                  {(overview?.overdue_maintenance || 0) === 0 && 
-                   (overview?.low_stock_supplies || 0) === 0 && 
-                   (overview?.assets_under_maintenance || 0) === 0 && (
-                    <div className="text-center py-4">
-                      <CheckCircle className="h-8 w-8 mx-auto text-green-600 mb-2" />
-                      <p className="text-sm text-green-700">All systems operational</p>
-                    </div>
-                  )}
-                </div>
+                </Tabs>
               </CardContent>
             </Card>
           </div>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center"
-                  onClick={() => setActiveTab('assets')}
-                >
-                  <Monitor className="h-6 w-6 mb-2" />
-                  Add Asset
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center"
-                  onClick={() => setActiveTab('supplies')}
-                >
-                  <Package className="h-6 w-6 mb-2" />
-                  Manage Supplies
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center"
-                  onClick={() => setActiveTab('maintenance')}
-                >
-                  <Wrench className="h-6 w-6 mb-2" />
-                  Schedule Maintenance
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center"
-                  onClick={() => setActiveTab('requests')}
-                >
-                  <Settings className="h-6 w-6 mb-2" />
-                  Create Request
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="assets">
-          <AssetManagement />
-        </TabsContent>
-
-        <TabsContent value="supplies">
-          <SupplyManagement />
-        </TabsContent>
-
-        <TabsContent value="maintenance">
-          <MaintenanceManagement />
-        </TabsContent>
-
-        <TabsContent value="requests">
-          <InventoryRequests />
-        </TabsContent>
-
-        <TabsContent value="analytics">
-          <InventoryAnalytics />
-        </TabsContent>
-      </Tabs>
-    </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };

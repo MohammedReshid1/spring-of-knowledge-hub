@@ -5,13 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
-import { 
-  User, 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  GraduationCap, 
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar,
+  GraduationCap,
   Briefcase,
   Users,
   BookOpen,
@@ -19,6 +19,7 @@ import {
   IdCard,
   Heart
 } from 'lucide-react';
+import { useLiveData } from '@/hooks/useLiveData';
 
 interface TeacherDetailsDialogProps {
   isOpen: boolean;
@@ -31,6 +32,11 @@ export const TeacherDetailsDialog: React.FC<TeacherDetailsDialogProps> = ({
   onClose,
   teacher
 }) => {
+  // Enable real-time updates for teacher details dialog
+  useLiveData(['teachers', 'classes', 'subjects'], {
+    enabled: isOpen // Only subscribe when dialog is open
+  });
+
   if (!teacher) return null;
 
   const formatDate = (date?: string) => {

@@ -6,6 +6,8 @@ import { Progress } from '@/components/ui/progress';
 import { WidgetProps } from '../WidgetRegistry';
 import { useWidgetData } from '@/hooks/useWidgetData';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/hooks/useSystemSettings';
+import { formatCurrency } from '@/utils/currency';
 
 export const PaymentCollectionWidget: React.FC<WidgetProps> = ({ config }) => {
   const { usePaymentCollection, useAdminStats } = useWidgetData();
@@ -13,31 +15,9 @@ export const PaymentCollectionWidget: React.FC<WidgetProps> = ({ config }) => {
   const { data: overviewData } = useAdminStats();
   const [hoveredStatus, setHoveredStatus] = useState<string | null>(null);
 
-  // Get currency from system settings
-  const getCurrency = () => {
-    const settings = localStorage.getItem('systemSettings');
-    if (settings) {
-      const parsed = JSON.parse(settings);
-      return parsed.currency || 'ETB';
-    }
-    return 'ETB';
-  };
-
-  const formatCurrency = (amount: number) => {
-    const currency = getCurrency();
-    const symbols = {
-      'ETB': 'ETB',
-      'USD': '$',
-      'EUR': '€',
-      'GBP': '£'
-    };
-    const symbol = symbols[currency as keyof typeof symbols] || currency;
-
-    if (currency === 'ETB') {
-      return `${amount.toFixed(2)} ${symbol}`;
-    }
-    return `${symbol} ${amount.toFixed(2)}`;
-  };
+  // Get currency from centralized system settings
+  const currency = useCurrency();
+  const formatAmount = (amount: number) => formatCurrency(amount, currency);
 
   if (isLoading) {
     return (
@@ -154,7 +134,7 @@ export const PaymentCollectionWidget: React.FC<WidgetProps> = ({ config }) => {
           {/* Revenue Amount */}
           <div className="space-y-2">
             <div className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">
-              {formatCurrency(overview.total_revenue)}
+              {formatAmount(overview.total_revenue)}
             </div>
             <div className="flex items-center justify-center gap-2">
               <TrendingUp className="h-4 w-4 text-emerald-600" />

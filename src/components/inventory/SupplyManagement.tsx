@@ -328,109 +328,132 @@ export const SupplyManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Supply Management</h2>
-          <p className="text-muted-foreground">Track consumable items and stock levels</p>
-        </div>
-        
-        <Dialog open={isAddSupplyOpen} onOpenChange={setIsAddSupplyOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Supply
-            </Button>
-          </DialogTrigger>
-        </Dialog>
-      </div>
+      {/* Premium Header */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                  <Package className="h-5 w-5 text-emerald-600" />
+                </div>
+                Supply Management
+              </h2>
+              <p className="text-slate-600 font-medium mt-1">Track consumable items and stock levels</p>
+            </div>
 
-      {/* Quick Stats */}
+            <Dialog open={isAddSupplyOpen} onOpenChange={setIsAddSupplyOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Supply
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Premium Quick Stats */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Supplies</p>
-                <p className="text-2xl font-bold">{(supplies as Supply[]).length}</p>
+                <p className="text-sm font-medium text-slate-600">Total Supplies</p>
+                <p className="text-2xl font-bold text-emerald-700">{(supplies as Supply[]).length}</p>
               </div>
-              <Package className="h-8 w-8 text-blue-600" />
+              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                <Package className="h-6 w-6 text-emerald-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Low Stock</p>
+                <p className="text-sm font-medium text-slate-600">Low Stock</p>
                 <p className="text-2xl font-bold text-yellow-600">{lowStockCount}</p>
               </div>
-              <TrendingDown className="h-8 w-8 text-yellow-600" />
+              <div className="p-2 rounded-xl bg-gradient-to-br from-yellow-100 to-amber-100 border border-yellow-200/50">
+                <TrendingDown className="h-6 w-6 text-yellow-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Out of Stock</p>
+                <p className="text-sm font-medium text-slate-600">Out of Stock</p>
                 <p className="text-2xl font-bold text-red-600">{outOfStockCount}</p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-red-600" />
+              <div className="p-2 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 border border-red-200/50">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Expiring Soon</p>
+                <p className="text-sm font-medium text-slate-600">Expiring Soon</p>
                 <p className="text-2xl font-bold text-orange-600">{expiringSoonCount}</p>
               </div>
-              <AlertTriangle className="h-8 w-8 text-orange-600" />
+              <div className="p-2 rounded-xl bg-gradient-to-br from-orange-100 to-amber-100 border border-orange-200/50">
+                <AlertTriangle className="h-6 w-6 text-orange-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="flex-1 min-w-64">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search supplies by name or code..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
+      {/* Premium Filters */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search supplies by name or code..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
+                />
+              </div>
+            </div>
+
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="office_supplies">Office Supplies</SelectItem>
+                <SelectItem value="cleaning_supplies">Cleaning Supplies</SelectItem>
+                <SelectItem value="teaching_materials">Teaching Materials</SelectItem>
+                <SelectItem value="laboratory">Laboratory</SelectItem>
+                <SelectItem value="kitchen_equipment">Kitchen Equipment</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant={showLowStock ? "default" : "outline"}
+              onClick={() => setShowLowStock(!showLowStock)}
+              className={showLowStock ? "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300" : "border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"}
+            >
+              {showLowStock ? 'Show All' : 'Low Stock Only'}
+            </Button>
           </div>
-        </div>
-
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            <SelectItem value="office_supplies">Office Supplies</SelectItem>
-            <SelectItem value="cleaning_supplies">Cleaning Supplies</SelectItem>
-            <SelectItem value="teaching_materials">Teaching Materials</SelectItem>
-            <SelectItem value="laboratory">Laboratory</SelectItem>
-            <SelectItem value="kitchen_equipment">Kitchen Equipment</SelectItem>
-            <SelectItem value="other">Other</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Button
-          variant={showLowStock ? "default" : "outline"}
-          onClick={() => setShowLowStock(!showLowStock)}
-        >
-          {showLowStock ? 'Show All' : 'Low Stock Only'}
-        </Button>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Supplies Grid */}
       {(supplies as Supply[]).length > 0 ? (
@@ -440,7 +463,7 @@ export const SupplyManagement: React.FC = () => {
             const stockPercentage = getStockPercentage(supply);
             
             return (
-              <Card key={supply.id} className="hover:shadow-md transition-shadow">
+              <Card key={supply.id} className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -539,7 +562,7 @@ export const SupplyManagement: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleStockUpdate(supply, 'in')}
-                        className="flex-1"
+                        className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                       >
                         <TrendingUp className="h-3 w-3 mr-1" />
                         Stock In
@@ -548,7 +571,7 @@ export const SupplyManagement: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleStockUpdate(supply, 'out')}
-                        className="flex-1"
+                        className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300 disabled:opacity-50"
                         disabled={supply.quantity_in_stock <= 0}
                       >
                         <TrendingDown className="h-3 w-3 mr-1" />
@@ -560,7 +583,7 @@ export const SupplyManagement: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleEditSupply(supply)}
-                        className="flex-1"
+                        className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                       >
                         <Edit className="h-3 w-3 mr-1" />
                         Edit
@@ -569,7 +592,7 @@ export const SupplyManagement: React.FC = () => {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDeleteSupply(supply)}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 border-red-200/50 hover:bg-red-50 hover:border-red-400 transition-all duration-300"
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -581,11 +604,13 @@ export const SupplyManagement: React.FC = () => {
           })}
         </div>
       ) : (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
           <CardContent className="text-center py-8">
-            <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No supplies found</p>
-            <p className="text-sm text-muted-foreground mt-2">
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 inline-block mb-4">
+              <Package className="h-12 w-12 text-emerald-600" />
+            </div>
+            <p className="text-slate-600 font-semibold">No supplies found</p>
+            <p className="text-sm text-slate-500 mt-2">
               {searchTerm || (selectedCategory && selectedCategory !== 'all') || showLowStock
                 ? 'Try adjusting your filters'
                 : 'Add your first supply item to get started'
@@ -597,22 +622,22 @@ export const SupplyManagement: React.FC = () => {
 
       {/* Stock Update Dialog */}
       <Dialog open={isStockUpdateOpen} onOpenChange={setIsStockUpdateOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-sm border-emerald-200/50">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
               Update Stock - {selectedSupply?.name}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleStockSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Current Stock</label>
-              <p className="text-lg font-bold">
+              <label className="text-slate-700 font-medium">Current Stock</label>
+              <p className="text-lg font-bold text-emerald-700">
                 {selectedSupply?.quantity_in_stock} {selectedSupply?.unit}
               </p>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="quantity_change" className="text-sm font-medium">
+              <label htmlFor="quantity_change" className="text-slate-700 font-medium">
                 Quantity Change
               </label>
               <Input
@@ -621,14 +646,15 @@ export const SupplyManagement: React.FC = () => {
                 value={stockUpdate.quantity_change}
                 onChange={(e) => setStockUpdate({ ...stockUpdate, quantity_change: e.target.value })}
                 placeholder="Enter positive for stock in, negative for stock out"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-500">
                 Use positive numbers for stock in, negative for stock out
               </p>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="reason" className="text-sm font-medium">
+              <label htmlFor="reason" className="text-slate-700 font-medium">
                 Reason
               </label>
               <Input
@@ -636,6 +662,7 @@ export const SupplyManagement: React.FC = () => {
                 value={stockUpdate.reason}
                 onChange={(e) => setStockUpdate({ ...stockUpdate, reason: e.target.value })}
                 placeholder="Reason for stock change"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
             </div>
 
@@ -644,12 +671,14 @@ export const SupplyManagement: React.FC = () => {
                 type="button"
                 variant="outline"
                 onClick={() => setIsStockUpdateOpen(false)}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={updateStockMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {updateStockMutation.isPending ? 'Updating...' : 'Update Stock'}
               </Button>
@@ -660,27 +689,28 @@ export const SupplyManagement: React.FC = () => {
 
       {/* Add Supply Dialog */}
       <Dialog open={isAddSupplyOpen} onOpenChange={setIsAddSupplyOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-sm border-emerald-200/50">
           <DialogHeader>
-            <DialogTitle>Add New Supply Item</DialogTitle>
+            <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">Add New Supply Item</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAddSupply} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="supply_name">Supply Name *</Label>
+                <Label htmlFor="supply_name" className="text-slate-700 font-medium">Supply Name *</Label>
                 <Input
                   id="supply_name"
                   value={newSupply.name}
                   onChange={(e) => setNewSupply({ ...newSupply, name: e.target.value })}
                   placeholder="Enter supply name"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="supply_category">Category *</Label>
+                <Label htmlFor="supply_category" className="text-slate-700 font-medium">Category *</Label>
                 <Select value={newSupply.category} onValueChange={(value) => setNewSupply({ ...newSupply, category: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -696,30 +726,32 @@ export const SupplyManagement: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="supply_description">Description</Label>
+              <Label htmlFor="supply_description" className="text-slate-700 font-medium">Description</Label>
               <Textarea
                 id="supply_description"
                 value={newSupply.description}
                 onChange={(e) => setNewSupply({ ...newSupply, description: e.target.value })}
                 placeholder="Describe the supply item"
                 rows={3}
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="supply_unit">Unit *</Label>
+                <Label htmlFor="supply_unit" className="text-slate-700 font-medium">Unit *</Label>
                 <Input
                   id="supply_unit"
                   value={newSupply.unit}
                   onChange={(e) => setNewSupply({ ...newSupply, unit: e.target.value })}
                   placeholder="e.g., pieces, packs, boxes"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="supply_current_stock">Current Stock *</Label>
+                <Label htmlFor="supply_current_stock" className="text-slate-700 font-medium">Current Stock *</Label>
                 <Input
                   id="supply_current_stock"
                   type="number"
@@ -728,11 +760,12 @@ export const SupplyManagement: React.FC = () => {
                   onChange={(e) => setNewSupply({ ...newSupply, quantity_in_stock: e.target.value })}
                   placeholder="0"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="supply_unit_cost">Unit Cost ($)</Label>
+                <Label htmlFor="supply_unit_cost" className="text-slate-700 font-medium">Unit Cost ($)</Label>
                 <Input
                   id="supply_unit_cost"
                   type="number"
@@ -741,13 +774,14 @@ export const SupplyManagement: React.FC = () => {
                   value={newSupply.unit_cost}
                   onChange={(e) => setNewSupply({ ...newSupply, unit_cost: e.target.value })}
                   placeholder="0.00"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="supply_min_stock">Minimum Stock Level *</Label>
+                <Label htmlFor="supply_min_stock" className="text-slate-700 font-medium">Minimum Stock Level *</Label>
                 <Input
                   id="supply_min_stock"
                   type="number"
@@ -756,11 +790,12 @@ export const SupplyManagement: React.FC = () => {
                   onChange={(e) => setNewSupply({ ...newSupply, minimum_stock_level: e.target.value })}
                   placeholder="5"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="supply_max_stock">Maximum Stock Level</Label>
+                <Label htmlFor="supply_max_stock" className="text-slate-700 font-medium">Maximum Stock Level</Label>
                 <Input
                   id="supply_max_stock"
                   type="number"
@@ -768,39 +803,43 @@ export const SupplyManagement: React.FC = () => {
                   value={newSupply.maximum_stock_level}
                   onChange={(e) => setNewSupply({ ...newSupply, maximum_stock_level: e.target.value })}
                   placeholder="50"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="supply_storage">Storage Location</Label>
+                <Label htmlFor="supply_storage" className="text-slate-700 font-medium">Storage Location</Label>
                 <Input
                   id="supply_storage"
                   value={newSupply.storage_location}
                   onChange={(e) => setNewSupply({ ...newSupply, storage_location: e.target.value })}
                   placeholder="e.g., Storage Room A, Shelf 3"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="supply_supplier">Supplier</Label>
+                <Label htmlFor="supply_supplier" className="text-slate-700 font-medium">Supplier</Label>
                 <Input
                   id="supply_supplier"
                   value={newSupply.supplier}
                   onChange={(e) => setNewSupply({ ...newSupply, supplier: e.target.value })}
                   placeholder="e.g., Office Depot, Amazon"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="supply_expiry">Expiry Date</Label>
+              <Label htmlFor="supply_expiry" className="text-slate-700 font-medium">Expiry Date</Label>
               <Input
                 id="supply_expiry"
                 type="date"
                 value={newSupply.expiry_date}
                 onChange={(e) => setNewSupply({ ...newSupply, expiry_date: e.target.value })}
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
             </div>
 
@@ -812,15 +851,17 @@ export const SupplyManagement: React.FC = () => {
                   setIsAddSupplyOpen(false);
                   resetSupplyForm();
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={addSupplyMutation.isPending || updateSupplyMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                {(addSupplyMutation.isPending || updateSupplyMutation.isPending) 
-                  ? (isEditSupplyOpen ? 'Updating...' : 'Adding...') 
+                {(addSupplyMutation.isPending || updateSupplyMutation.isPending)
+                  ? (isEditSupplyOpen ? 'Updating...' : 'Adding...')
                   : (isEditSupplyOpen ? 'Update Supply' : 'Add Supply')}
               </Button>
             </div>
@@ -830,27 +871,28 @@ export const SupplyManagement: React.FC = () => {
 
       {/* Edit Supply Dialog */}
       <Dialog open={isEditSupplyOpen} onOpenChange={setIsEditSupplyOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-sm border-emerald-200/50">
           <DialogHeader>
-            <DialogTitle>Edit Supply Item - {selectedSupply?.name}</DialogTitle>
+            <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">Edit Supply Item - {selectedSupply?.name}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleAddSupply} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_name">Supply Name *</Label>
+                <Label htmlFor="edit_supply_name" className="text-slate-700 font-medium">Supply Name *</Label>
                 <Input
                   id="edit_supply_name"
                   value={newSupply.name}
                   onChange={(e) => setNewSupply({ ...newSupply, name: e.target.value })}
                   placeholder="Enter supply name"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_category">Category *</Label>
+                <Label htmlFor="edit_supply_category" className="text-slate-700 font-medium">Category *</Label>
                 <Select value={newSupply.category} onValueChange={(value) => setNewSupply({ ...newSupply, category: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
@@ -866,30 +908,32 @@ export const SupplyManagement: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit_supply_description">Description</Label>
+              <Label htmlFor="edit_supply_description" className="text-slate-700 font-medium">Description</Label>
               <Textarea
                 id="edit_supply_description"
                 value={newSupply.description}
                 onChange={(e) => setNewSupply({ ...newSupply, description: e.target.value })}
                 placeholder="Describe the supply item"
                 rows={3}
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_unit">Unit *</Label>
+                <Label htmlFor="edit_supply_unit" className="text-slate-700 font-medium">Unit *</Label>
                 <Input
                   id="edit_supply_unit"
                   value={newSupply.unit}
                   onChange={(e) => setNewSupply({ ...newSupply, unit: e.target.value })}
                   placeholder="e.g., pieces, packs, boxes"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_current_stock">Current Stock *</Label>
+                <Label htmlFor="edit_supply_current_stock" className="text-slate-700 font-medium">Current Stock *</Label>
                 <Input
                   id="edit_supply_current_stock"
                   type="number"
@@ -898,11 +942,12 @@ export const SupplyManagement: React.FC = () => {
                   onChange={(e) => setNewSupply({ ...newSupply, quantity_in_stock: e.target.value })}
                   placeholder="0"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_unit_cost">Unit Cost ($)</Label>
+                <Label htmlFor="edit_supply_unit_cost" className="text-slate-700 font-medium">Unit Cost ($)</Label>
                 <Input
                   id="edit_supply_unit_cost"
                   type="number"
@@ -911,13 +956,14 @@ export const SupplyManagement: React.FC = () => {
                   value={newSupply.unit_cost}
                   onChange={(e) => setNewSupply({ ...newSupply, unit_cost: e.target.value })}
                   placeholder="0.00"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_min_stock">Minimum Stock Level *</Label>
+                <Label htmlFor="edit_supply_min_stock" className="text-slate-700 font-medium">Minimum Stock Level *</Label>
                 <Input
                   id="edit_supply_min_stock"
                   type="number"
@@ -926,11 +972,12 @@ export const SupplyManagement: React.FC = () => {
                   onChange={(e) => setNewSupply({ ...newSupply, minimum_stock_level: e.target.value })}
                   placeholder="5"
                   required
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_max_stock">Maximum Stock Level</Label>
+                <Label htmlFor="edit_supply_max_stock" className="text-slate-700 font-medium">Maximum Stock Level</Label>
                 <Input
                   id="edit_supply_max_stock"
                   type="number"
@@ -938,39 +985,43 @@ export const SupplyManagement: React.FC = () => {
                   value={newSupply.maximum_stock_level}
                   onChange={(e) => setNewSupply({ ...newSupply, maximum_stock_level: e.target.value })}
                   placeholder="50"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_storage">Storage Location</Label>
+                <Label htmlFor="edit_supply_storage" className="text-slate-700 font-medium">Storage Location</Label>
                 <Input
                   id="edit_supply_storage"
                   value={newSupply.storage_location}
                   onChange={(e) => setNewSupply({ ...newSupply, storage_location: e.target.value })}
                   placeholder="e.g., Storage Room A, Shelf 3"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_supply_supplier">Supplier</Label>
+                <Label htmlFor="edit_supply_supplier" className="text-slate-700 font-medium">Supplier</Label>
                 <Input
                   id="edit_supply_supplier"
                   value={newSupply.supplier}
                   onChange={(e) => setNewSupply({ ...newSupply, supplier: e.target.value })}
                   placeholder="e.g., Office Depot, Amazon"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit_supply_expiry">Expiry Date</Label>
+              <Label htmlFor="edit_supply_expiry" className="text-slate-700 font-medium">Expiry Date</Label>
               <Input
                 id="edit_supply_expiry"
                 type="date"
                 value={newSupply.expiry_date}
                 onChange={(e) => setNewSupply({ ...newSupply, expiry_date: e.target.value })}
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
               />
             </div>
 
@@ -983,12 +1034,14 @@ export const SupplyManagement: React.FC = () => {
                   setSelectedSupply(null);
                   resetSupplyForm();
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={updateSupplyMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {updateSupplyMutation.isPending ? 'Updating...' : 'Update Supply'}
               </Button>
@@ -999,12 +1052,12 @@ export const SupplyManagement: React.FC = () => {
 
       {/* Delete Supply Confirmation Dialog */}
       <Dialog open={isDeleteSupplyOpen} onOpenChange={setIsDeleteSupplyOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white/95 backdrop-blur-sm border-red-200/50">
           <DialogHeader>
-            <DialogTitle>Delete Supply Item</DialogTitle>
+            <DialogTitle className="text-xl text-red-700">Delete Supply Item</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-600">
               Are you sure you want to delete the supply item "{selectedSupply?.name}" ({selectedSupply?.supply_code})?
               This action cannot be undone.
             </p>
@@ -1016,13 +1069,14 @@ export const SupplyManagement: React.FC = () => {
                   setIsDeleteSupplyOpen(false);
                   setSelectedSupply(null);
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
-                variant="destructive"
                 onClick={() => selectedSupply && deleteSupplyMutation.mutate(selectedSupply.id)}
                 disabled={deleteSupplyMutation.isPending}
+                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {deleteSupplyMutation.isPending ? 'Deleting...' : 'Delete Supply'}
               </Button>

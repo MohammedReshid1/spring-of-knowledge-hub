@@ -77,11 +77,109 @@ export const ReportsManagement: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-        <p className="text-muted-foreground">Generate, schedule, and manage comprehensive school reports</p>
-      </div>
+    <>
+      {/* Premium Animation Styles */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes slideInRight {
+          from {
+            opacity: 0;
+            transform: translateX(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+          }
+        }
+
+        .animate-fadeInUp {
+          animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-slideInRight {
+          animation: slideInRight 0.6s ease-out;
+        }
+
+        .animate-pulseGlow {
+          animation: pulseGlow 2s infinite;
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+        {/* Premium Header Section */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 pb-20 pt-16">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-blue-700/90 to-indigo-800/90" />
+          <div className="absolute inset-0 opacity-20"
+               style={{
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='10'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+               }} />
+
+        <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center">
+            <div className="mb-8 inline-flex items-center rounded-full bg-white/10 backdrop-blur-sm px-6 py-2 text-sm font-medium text-white/90 ring-1 ring-white/20">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Reports & Analytics System
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
+              Reports & <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Analytics</span>
+            </h1>
+            <p className="mt-6 text-lg leading-8 text-blue-100">
+              Generate, schedule, and manage comprehensive school reports with advanced analytics.
+              Streamline your reporting processes with premium insights and tools.
+            </p>
+          </div>
+        </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Wave Bottom */}
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg className="w-full h-20 fill-current text-slate-50" viewBox="0 0 1440 120">
+              <path d="M0,60 C240,120 480,0 720,60 C960,120 1200,0 1440,60 L1440,120 L0,120 Z" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="relative z-10 -mt-10 space-y-8 px-6 pb-16">
+          {/* Action Bar */}
+          <div className="mx-auto max-w-7xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Quick Actions</h2>
+                <p className="text-sm text-gray-600">Generate and manage reports efficiently with powerful analytics</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Action buttons will be added here if needed */}
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-auto max-w-7xl">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 shadow-xl">
+              <div className="p-8">
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-9">
@@ -313,6 +411,11 @@ export const ReportsManagement: React.FC = () => {
           <ReportSchedules />
         </TabsContent>
       </Tabs>
-    </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };

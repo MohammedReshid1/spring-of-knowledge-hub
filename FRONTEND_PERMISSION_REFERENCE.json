@@ -1,0 +1,1048 @@
+{
+  "meta": {
+    "last_updated": "2025-10-09",
+    "total_permissions": 108,
+    "total_manage_permissions": 23,
+    "total_resources": 20,
+    "api_version": "1.0"
+  },
+  "permission_structure": {
+    "pattern": "{resource}.{action}",
+    "standard_actions": ["create", "read", "update", "delete", "manage"],
+    "description": "All main resources follow CRUD pattern with .manage granting all CRUD permissions"
+  },
+  "resources": [
+    {
+      "resource": "user",
+      "display_name": "User Management",
+      "permissions": [
+        {
+          "name": "user.create",
+          "action": "create",
+          "description": "Create new users",
+          "ui_label": "Create Users"
+        },
+        {
+          "name": "user.read",
+          "action": "read",
+          "description": "View users",
+          "ui_label": "View Users"
+        },
+        {
+          "name": "user.update",
+          "action": "update",
+          "description": "Update user information",
+          "ui_label": "Update Users"
+        },
+        {
+          "name": "user.delete",
+          "action": "delete",
+          "description": "Delete users",
+          "ui_label": "Delete Users"
+        },
+        {
+          "name": "user.manage",
+          "action": "manage",
+          "description": "Full user management (grants all CRUD)",
+          "ui_label": "Manage Users",
+          "grants": ["user.create", "user.read", "user.update", "user.delete"]
+        },
+        {
+          "name": "user.manage_superadmins",
+          "action": "manage_superadmins",
+          "description": "Manage superadmin users (SUPERADMIN exclusive)",
+          "ui_label": "Manage Superadmins",
+          "exclusive": true
+        }
+      ]
+    },
+    {
+      "resource": "student",
+      "display_name": "Student Management",
+      "permissions": [
+        {
+          "name": "student.create",
+          "action": "create",
+          "description": "Create new students",
+          "ui_label": "Create Students"
+        },
+        {
+          "name": "student.read",
+          "action": "read",
+          "description": "View students",
+          "ui_label": "View Students"
+        },
+        {
+          "name": "student.update",
+          "action": "update",
+          "description": "Update student information",
+          "ui_label": "Update Students"
+        },
+        {
+          "name": "student.delete",
+          "action": "delete",
+          "description": "Delete students",
+          "ui_label": "Delete Students"
+        },
+        {
+          "name": "student.manage",
+          "action": "manage",
+          "description": "Full student management (grants all CRUD)",
+          "ui_label": "Manage Students",
+          "grants": ["student.create", "student.read", "student.update", "student.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "class",
+      "display_name": "Class Management",
+      "permissions": [
+        {
+          "name": "class.create",
+          "action": "create",
+          "description": "Create new classes",
+          "ui_label": "Create Classes"
+        },
+        {
+          "name": "class.read",
+          "action": "read",
+          "description": "View classes",
+          "ui_label": "View Classes"
+        },
+        {
+          "name": "class.update",
+          "action": "update",
+          "description": "Update class information",
+          "ui_label": "Update Classes"
+        },
+        {
+          "name": "class.delete",
+          "action": "delete",
+          "description": "Delete classes",
+          "ui_label": "Delete Classes"
+        },
+        {
+          "name": "class.manage",
+          "action": "manage",
+          "description": "Full class management (grants all CRUD)",
+          "ui_label": "Manage Classes",
+          "grants": ["class.create", "class.read", "class.update", "class.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "teacher",
+      "display_name": "Teacher Management",
+      "permissions": [
+        {
+          "name": "teacher.create",
+          "action": "create",
+          "description": "Create new teachers",
+          "ui_label": "Create Teachers"
+        },
+        {
+          "name": "teacher.read",
+          "action": "read",
+          "description": "View teachers",
+          "ui_label": "View Teachers"
+        },
+        {
+          "name": "teacher.update",
+          "action": "update",
+          "description": "Update teacher information",
+          "ui_label": "Update Teachers"
+        },
+        {
+          "name": "teacher.delete",
+          "action": "delete",
+          "description": "Delete teachers",
+          "ui_label": "Delete Teachers"
+        },
+        {
+          "name": "teacher.manage",
+          "action": "manage",
+          "description": "Full teacher management (grants all CRUD)",
+          "ui_label": "Manage Teachers",
+          "grants": ["teacher.create", "teacher.read", "teacher.update", "teacher.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "attendance",
+      "display_name": "Attendance Management",
+      "permissions": [
+        {
+          "name": "attendance.create",
+          "action": "create",
+          "description": "Record attendance",
+          "ui_label": "Record Attendance"
+        },
+        {
+          "name": "attendance.read",
+          "action": "read",
+          "description": "View attendance records",
+          "ui_label": "View Attendance"
+        },
+        {
+          "name": "attendance.update",
+          "action": "update",
+          "description": "Update attendance records",
+          "ui_label": "Update Attendance"
+        },
+        {
+          "name": "attendance.delete",
+          "action": "delete",
+          "description": "Delete attendance records",
+          "ui_label": "Delete Attendance"
+        },
+        {
+          "name": "attendance.manage",
+          "action": "manage",
+          "description": "Full attendance management (grants all CRUD)",
+          "ui_label": "Manage Attendance",
+          "grants": ["attendance.create", "attendance.read", "attendance.update", "attendance.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "payment",
+      "display_name": "Payment Management",
+      "permissions": [
+        {
+          "name": "payment.create",
+          "action": "create",
+          "description": "Create payment records",
+          "ui_label": "Create Payments"
+        },
+        {
+          "name": "payment.read",
+          "action": "read",
+          "description": "View payment records",
+          "ui_label": "View Payments"
+        },
+        {
+          "name": "payment.update",
+          "action": "update",
+          "description": "Update payment records",
+          "ui_label": "Update Payments"
+        },
+        {
+          "name": "payment.delete",
+          "action": "delete",
+          "description": "Delete payment records",
+          "ui_label": "Delete Payments"
+        },
+        {
+          "name": "payment.manage",
+          "action": "manage",
+          "description": "Full payment management (grants all CRUD)",
+          "ui_label": "Manage Payments",
+          "grants": ["payment.create", "payment.read", "payment.update", "payment.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "grade",
+      "display_name": "Grade Management",
+      "permissions": [
+        {
+          "name": "grade.create",
+          "action": "create",
+          "description": "Create grade records",
+          "ui_label": "Create Grades"
+        },
+        {
+          "name": "grade.read",
+          "action": "read",
+          "description": "View grades",
+          "ui_label": "View Grades"
+        },
+        {
+          "name": "grade.update",
+          "action": "update",
+          "description": "Update grades",
+          "ui_label": "Update Grades"
+        },
+        {
+          "name": "grade.delete",
+          "action": "delete",
+          "description": "Delete grades",
+          "ui_label": "Delete Grades"
+        },
+        {
+          "name": "grade.manage",
+          "action": "manage",
+          "description": "Full grade management (grants all CRUD)",
+          "ui_label": "Manage Grades",
+          "grants": ["grade.create", "grade.read", "grade.update", "grade.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "exam",
+      "display_name": "Exam Management",
+      "permissions": [
+        {
+          "name": "exam.create",
+          "action": "create",
+          "description": "Create exams",
+          "ui_label": "Create Exams"
+        },
+        {
+          "name": "exam.read",
+          "action": "read",
+          "description": "View exams",
+          "ui_label": "View Exams"
+        },
+        {
+          "name": "exam.update",
+          "action": "update",
+          "description": "Update exams",
+          "ui_label": "Update Exams"
+        },
+        {
+          "name": "exam.delete",
+          "action": "delete",
+          "description": "Delete exams",
+          "ui_label": "Delete Exams"
+        },
+        {
+          "name": "exam.manage",
+          "action": "manage",
+          "description": "Full exam management (grants all CRUD)",
+          "ui_label": "Manage Exams",
+          "grants": ["exam.create", "exam.read", "exam.update", "exam.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "calendar",
+      "display_name": "Calendar Management",
+      "permissions": [
+        {
+          "name": "calendar.create",
+          "action": "create",
+          "description": "Create calendar events",
+          "ui_label": "Create Calendar Events"
+        },
+        {
+          "name": "calendar.read",
+          "action": "read",
+          "description": "View calendar",
+          "ui_label": "View Calendar"
+        },
+        {
+          "name": "calendar.update",
+          "action": "update",
+          "description": "Update calendar events",
+          "ui_label": "Update Calendar"
+        },
+        {
+          "name": "calendar.delete",
+          "action": "delete",
+          "description": "Delete calendar events",
+          "ui_label": "Delete Calendar Events"
+        },
+        {
+          "name": "calendar.manage",
+          "action": "manage",
+          "description": "Full calendar management (grants all CRUD)",
+          "ui_label": "Manage Calendar",
+          "grants": ["calendar.create", "calendar.read", "calendar.update", "calendar.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "timetable",
+      "display_name": "Timetable Management",
+      "permissions": [
+        {
+          "name": "timetable.create",
+          "action": "create",
+          "description": "Create timetables",
+          "ui_label": "Create Timetables"
+        },
+        {
+          "name": "timetable.read",
+          "action": "read",
+          "description": "View timetables",
+          "ui_label": "View Timetables"
+        },
+        {
+          "name": "timetable.update",
+          "action": "update",
+          "description": "Update timetables",
+          "ui_label": "Update Timetables"
+        },
+        {
+          "name": "timetable.delete",
+          "action": "delete",
+          "description": "Delete timetables",
+          "ui_label": "Delete Timetables"
+        },
+        {
+          "name": "timetable.manage",
+          "action": "manage",
+          "description": "Full timetable management (grants all CRUD)",
+          "ui_label": "Manage Timetables",
+          "grants": ["timetable.create", "timetable.read", "timetable.update", "timetable.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "subject",
+      "display_name": "Subject Management",
+      "permissions": [
+        {
+          "name": "subject.create",
+          "action": "create",
+          "description": "Create subjects",
+          "ui_label": "Create Subjects"
+        },
+        {
+          "name": "subject.read",
+          "action": "read",
+          "description": "View subjects",
+          "ui_label": "View Subjects"
+        },
+        {
+          "name": "subject.update",
+          "action": "update",
+          "description": "Update subjects",
+          "ui_label": "Update Subjects"
+        },
+        {
+          "name": "subject.delete",
+          "action": "delete",
+          "description": "Delete subjects",
+          "ui_label": "Delete Subjects"
+        },
+        {
+          "name": "subject.manage",
+          "action": "manage",
+          "description": "Full subject management (grants all CRUD)",
+          "ui_label": "Manage Subjects",
+          "grants": ["subject.create", "subject.read", "subject.update", "subject.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "communication",
+      "display_name": "Communication Management",
+      "permissions": [
+        {
+          "name": "communication.create",
+          "action": "create",
+          "description": "Create communications",
+          "ui_label": "Create Communications"
+        },
+        {
+          "name": "communication.read",
+          "action": "read",
+          "description": "View communications",
+          "ui_label": "View Communications"
+        },
+        {
+          "name": "communication.update",
+          "action": "update",
+          "description": "Update communications",
+          "ui_label": "Update Communications"
+        },
+        {
+          "name": "communication.delete",
+          "action": "delete",
+          "description": "Delete communications",
+          "ui_label": "Delete Communications"
+        },
+        {
+          "name": "communication.manage",
+          "action": "manage",
+          "description": "Full communication management (grants all CRUD)",
+          "ui_label": "Manage Communications",
+          "grants": ["communication.create", "communication.read", "communication.update", "communication.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "discipline",
+      "display_name": "Discipline Management",
+      "permissions": [
+        {
+          "name": "discipline.create",
+          "action": "create",
+          "description": "Create discipline records",
+          "ui_label": "Create Discipline Records"
+        },
+        {
+          "name": "discipline.read",
+          "action": "read",
+          "description": "View discipline records",
+          "ui_label": "View Discipline Records"
+        },
+        {
+          "name": "discipline.update",
+          "action": "update",
+          "description": "Update discipline records",
+          "ui_label": "Update Discipline Records"
+        },
+        {
+          "name": "discipline.delete",
+          "action": "delete",
+          "description": "Delete discipline records",
+          "ui_label": "Delete Discipline Records"
+        },
+        {
+          "name": "discipline.manage",
+          "action": "manage",
+          "description": "Full discipline management (grants all CRUD)",
+          "ui_label": "Manage Discipline",
+          "grants": ["discipline.create", "discipline.read", "discipline.update", "discipline.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "inventory",
+      "display_name": "Inventory Management",
+      "permissions": [
+        {
+          "name": "inventory.create",
+          "action": "create",
+          "description": "Create inventory items",
+          "ui_label": "Create Inventory Items"
+        },
+        {
+          "name": "inventory.read",
+          "action": "read",
+          "description": "View inventory",
+          "ui_label": "View Inventory"
+        },
+        {
+          "name": "inventory.update",
+          "action": "update",
+          "description": "Update inventory items",
+          "ui_label": "Update Inventory"
+        },
+        {
+          "name": "inventory.delete",
+          "action": "delete",
+          "description": "Delete inventory items",
+          "ui_label": "Delete Inventory Items"
+        },
+        {
+          "name": "inventory.manage",
+          "action": "manage",
+          "description": "Full inventory management (grants all CRUD)",
+          "ui_label": "Manage Inventory",
+          "grants": ["inventory.create", "inventory.read", "inventory.update", "inventory.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "fee",
+      "display_name": "Fee Management",
+      "permissions": [
+        {
+          "name": "fee.create",
+          "action": "create",
+          "description": "Create fee structures",
+          "ui_label": "Create Fees"
+        },
+        {
+          "name": "fee.read",
+          "action": "read",
+          "description": "View fee structures",
+          "ui_label": "View Fees"
+        },
+        {
+          "name": "fee.update",
+          "action": "update",
+          "description": "Update fee structures",
+          "ui_label": "Update Fees"
+        },
+        {
+          "name": "fee.delete",
+          "action": "delete",
+          "description": "Delete fee structures",
+          "ui_label": "Delete Fees"
+        },
+        {
+          "name": "fee.manage",
+          "action": "manage",
+          "description": "Full fee management (grants all CRUD)",
+          "ui_label": "Manage Fees",
+          "grants": ["fee.create", "fee.read", "fee.update", "fee.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "report",
+      "display_name": "Report Management",
+      "permissions": [
+        {
+          "name": "report.create",
+          "action": "create",
+          "description": "Create reports",
+          "ui_label": "Create Reports"
+        },
+        {
+          "name": "report.read",
+          "action": "read",
+          "description": "View reports",
+          "ui_label": "View Reports"
+        },
+        {
+          "name": "report.update",
+          "action": "update",
+          "description": "Update reports",
+          "ui_label": "Update Reports"
+        },
+        {
+          "name": "report.delete",
+          "action": "delete",
+          "description": "Delete reports",
+          "ui_label": "Delete Reports"
+        },
+        {
+          "name": "report.manage",
+          "action": "manage",
+          "description": "Full report management (grants all CRUD)",
+          "ui_label": "Manage Reports",
+          "grants": ["report.create", "report.read", "report.update", "report.delete"]
+        },
+        {
+          "name": "report.export",
+          "action": "export",
+          "description": "Export reports",
+          "ui_label": "Export Reports"
+        },
+        {
+          "name": "report.financial",
+          "action": "financial",
+          "description": "View financial reports",
+          "ui_label": "View Financial Reports"
+        },
+        {
+          "name": "report.view",
+          "action": "view",
+          "description": "View reports (legacy)",
+          "ui_label": "View Reports (Legacy)"
+        }
+      ]
+    },
+    {
+      "resource": "branch",
+      "display_name": "Branch Management",
+      "permissions": [
+        {
+          "name": "branch.create",
+          "action": "create",
+          "description": "Create branches",
+          "ui_label": "Create Branches"
+        },
+        {
+          "name": "branch.read",
+          "action": "read",
+          "description": "View branches",
+          "ui_label": "View Branches"
+        },
+        {
+          "name": "branch.update",
+          "action": "update",
+          "description": "Update branches",
+          "ui_label": "Update Branches"
+        },
+        {
+          "name": "branch.delete",
+          "action": "delete",
+          "description": "Delete branches",
+          "ui_label": "Delete Branches"
+        },
+        {
+          "name": "branch.manage",
+          "action": "manage",
+          "description": "Full branch management (grants all CRUD)",
+          "ui_label": "Manage Branches",
+          "grants": ["branch.create", "branch.read", "branch.update", "branch.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "notification",
+      "display_name": "Notification Management",
+      "permissions": [
+        {
+          "name": "notification.create",
+          "action": "create",
+          "description": "Create notifications",
+          "ui_label": "Create Notifications"
+        },
+        {
+          "name": "notification.read",
+          "action": "read",
+          "description": "View notifications",
+          "ui_label": "View Notifications"
+        },
+        {
+          "name": "notification.update",
+          "action": "update",
+          "description": "Update notifications",
+          "ui_label": "Update Notifications"
+        },
+        {
+          "name": "notification.delete",
+          "action": "delete",
+          "description": "Delete notifications",
+          "ui_label": "Delete Notifications"
+        },
+        {
+          "name": "notification.manage",
+          "action": "manage",
+          "description": "Full notification management (grants all CRUD)",
+          "ui_label": "Manage Notifications",
+          "grants": ["notification.create", "notification.read", "notification.update", "notification.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "announcement",
+      "display_name": "Announcement Management",
+      "permissions": [
+        {
+          "name": "announcement.create",
+          "action": "create",
+          "description": "Create announcements",
+          "ui_label": "Create Announcements"
+        },
+        {
+          "name": "announcement.read",
+          "action": "read",
+          "description": "View announcements",
+          "ui_label": "View Announcements"
+        },
+        {
+          "name": "announcement.update",
+          "action": "update",
+          "description": "Update announcements",
+          "ui_label": "Update Announcements"
+        },
+        {
+          "name": "announcement.delete",
+          "action": "delete",
+          "description": "Delete announcements",
+          "ui_label": "Delete Announcements"
+        },
+        {
+          "name": "announcement.manage",
+          "action": "manage",
+          "description": "Full announcement management (grants all CRUD)",
+          "ui_label": "Manage Announcements",
+          "grants": ["announcement.create", "announcement.read", "announcement.update", "announcement.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "backup",
+      "display_name": "Backup Management",
+      "permissions": [
+        {
+          "name": "backup.create",
+          "action": "create",
+          "description": "Create backups",
+          "ui_label": "Create Backups"
+        },
+        {
+          "name": "backup.read",
+          "action": "read",
+          "description": "View backups",
+          "ui_label": "View Backups"
+        },
+        {
+          "name": "backup.update",
+          "action": "update",
+          "description": "Update backup settings",
+          "ui_label": "Update Backup Settings"
+        },
+        {
+          "name": "backup.delete",
+          "action": "delete",
+          "description": "Delete backups",
+          "ui_label": "Delete Backups"
+        },
+        {
+          "name": "backup.manage",
+          "action": "manage",
+          "description": "Full backup management (grants all CRUD)",
+          "ui_label": "Manage Backups",
+          "grants": ["backup.create", "backup.read", "backup.update", "backup.delete"]
+        }
+      ]
+    },
+    {
+      "resource": "system",
+      "display_name": "System Administration",
+      "permissions": [
+        {
+          "name": "system.settings",
+          "action": "settings",
+          "description": "Manage system settings",
+          "ui_label": "Manage System Settings"
+        },
+        {
+          "name": "system.manage_permissions",
+          "action": "manage_permissions",
+          "description": "Manage permissions",
+          "ui_label": "Manage Permissions"
+        },
+        {
+          "name": "system.manage_roles",
+          "action": "manage_roles",
+          "description": "Manage roles",
+          "ui_label": "Manage Roles"
+        },
+        {
+          "name": "system.cleanup",
+          "action": "cleanup",
+          "description": "Perform database cleanup (SUPERADMIN exclusive)",
+          "ui_label": "Database Cleanup",
+          "exclusive": true
+        }
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "name": "superadmin",
+      "display_name": "Super Administrator",
+      "level": 110,
+      "description": "Ultimate god-level system access - ALL permissions",
+      "total_permissions": 108,
+      "manage_permissions": 23,
+      "scope": "global",
+      "key_features": [
+        "Full access to all system resources",
+        "Can manage other superadmins",
+        "Can perform database cleanup",
+        "Has ALL 108 permissions"
+      ]
+    },
+    {
+      "name": "super_admin",
+      "display_name": "Super Admin",
+      "level": 100,
+      "description": "Full system access except superadmin exclusives",
+      "total_permissions": 106,
+      "manage_permissions": 22,
+      "scope": "global",
+      "excludes": ["user.manage_superadmins", "system.cleanup"],
+      "key_features": [
+        "Full access to all system resources",
+        "Cannot manage superadmins",
+        "Cannot perform database cleanup",
+        "Has 106 of 108 permissions"
+      ]
+    },
+    {
+      "name": "hq_admin",
+      "display_name": "HQ Administrator",
+      "level": 90,
+      "description": "Full administration access across all branches",
+      "total_permissions": 43,
+      "manage_permissions": 20,
+      "scope": "all_branches",
+      "key_features": [
+        "Full .manage access to all resources",
+        "Can access all branches",
+        "Can create branches",
+        "Can manage system permissions and roles"
+      ]
+    },
+    {
+      "name": "branch_admin",
+      "display_name": "Branch Administrator",
+      "level": 80,
+      "description": "Full administration within their branch only",
+      "total_permissions": 36,
+      "manage_permissions": 15,
+      "scope": "single_branch",
+      "key_features": [
+        "Full .manage access within branch",
+        "Cannot create branches",
+        "Cannot access other branches",
+        "Can manage branch users"
+      ]
+    },
+    {
+      "name": "hq_registrar",
+      "display_name": "HQ Registrar",
+      "level": 70,
+      "description": "HQ-level registrar permissions",
+      "total_permissions": 22,
+      "manage_permissions": 0,
+      "scope": "all_branches",
+      "key_features": [
+        "Read access to all resources",
+        "Can create/update students and grades",
+        "Can access all branches",
+        "Cannot delete most resources"
+      ]
+    },
+    {
+      "name": "registrar",
+      "display_name": "Registrar",
+      "level": 60,
+      "description": "Branch-level registrar permissions",
+      "total_permissions": 20,
+      "manage_permissions": 0,
+      "scope": "single_branch",
+      "key_features": [
+        "Read access to branch resources",
+        "Can create/update students and grades",
+        "Limited to their branch",
+        "Cannot delete most resources"
+      ]
+    },
+    {
+      "name": "admin",
+      "display_name": "Admin (Legacy)",
+      "level": 70,
+      "description": "Legacy admin role - similar to branch admin",
+      "total_permissions": 32,
+      "manage_permissions": 13,
+      "scope": "single_branch",
+      "key_features": [
+        "Legacy support role",
+        "Similar to branch admin",
+        "Comprehensive .manage permissions"
+      ]
+    },
+    {
+      "name": "teacher",
+      "display_name": "Teacher",
+      "level": 50,
+      "description": "Teacher permissions for academic tasks",
+      "total_permissions": 16,
+      "manage_permissions": 0,
+      "scope": "single_branch",
+      "key_features": [
+        "Read access to teaching resources",
+        "Can create/update grades",
+        "Can update student information",
+        "Cannot delete anything"
+      ]
+    },
+    {
+      "name": "student",
+      "display_name": "Student",
+      "level": 20,
+      "description": "Student read-only access",
+      "total_permissions": 9,
+      "manage_permissions": 0,
+      "scope": "own_data",
+      "key_features": [
+        "Read-only access to own data",
+        "Can view calendar and timetable",
+        "Can view grades and attendance",
+        "Cannot modify anything"
+      ]
+    },
+    {
+      "name": "parent",
+      "display_name": "Parent",
+      "level": 30,
+      "description": "Parent portal access",
+      "total_permissions": 11,
+      "manage_permissions": 0,
+      "scope": "children_data",
+      "key_features": [
+        "Read-only access to children's data",
+        "Can view fees and payments",
+        "Can view calendar and communications",
+        "Cannot modify anything"
+      ]
+    }
+  ],
+  "permission_checking": {
+    "description": "How permissions are checked in the backend",
+    "logic": {
+      "manage_permission": "If user has {resource}.manage, they automatically get all CRUD permissions for that resource",
+      "specific_permission": "User can have specific CRUD permissions without .manage",
+      "superadmin": "SUPERADMIN has ALL 108 permissions automatically",
+      "super_admin": "SUPER_ADMIN has 106 permissions (all except user.manage_superadmins and system.cleanup)"
+    },
+    "examples": [
+      {
+        "scenario": "User has student.manage",
+        "result": "User can create, read, update, and delete students"
+      },
+      {
+        "scenario": "User has only student.read and student.update",
+        "result": "User can read and update students, but cannot create or delete"
+      },
+      {
+        "scenario": "User is SUPERADMIN",
+        "result": "User has ALL permissions including exclusive ones"
+      }
+    ]
+  },
+  "ui_implementation_guide": {
+    "permission_check_endpoint": "GET /api/auth/me - Returns user info with permissions array",
+    "permission_format": "Array of permission strings like ['student.read', 'student.manage', 'class.read']",
+    "checking_permissions": {
+      "exact_match": "Check if permissions array includes exact permission string",
+      "manage_shortcut": "If user has '{resource}.manage', grant all CRUD for that resource",
+      "example_code": {
+        "javascript": "function hasPermission(userPermissions, requiredPermission) {\n  // Check exact permission\n  if (userPermissions.includes(requiredPermission)) return true;\n  \n  // Check if user has .manage for this resource\n  const [resource, action] = requiredPermission.split('.');\n  if (userPermissions.includes(`${resource}.manage`)) return true;\n  \n  return false;\n}"
+      }
+    },
+    "ui_element_visibility": {
+      "create_button": "Show if user has {resource}.create OR {resource}.manage",
+      "edit_button": "Show if user has {resource}.update OR {resource}.manage",
+      "delete_button": "Show if user has {resource}.delete OR {resource}.manage",
+      "view_list": "Show if user has {resource}.read OR {resource}.manage"
+    },
+    "role_based_routing": {
+      "check_on_mount": "Check user permissions when component mounts",
+      "redirect_if_no_access": "Redirect to 403 page if user lacks required permission",
+      "example": "Student Management page requires student.read OR student.manage"
+    }
+  },
+  "api_endpoints": {
+    "get_current_user": {
+      "method": "GET",
+      "endpoint": "/api/auth/me",
+      "description": "Get current user info with permissions",
+      "response": {
+        "user_id": "string",
+        "email": "string",
+        "role": "string",
+        "branch_id": "string (optional)",
+        "permissions": ["array", "of", "permission", "strings"]
+      }
+    },
+    "permission_enforcement": {
+      "description": "All API endpoints enforce permissions on the backend",
+      "note": "Frontend permission checks are for UX only. Backend always validates."
+    }
+  },
+  "recent_changes": {
+    "date": "2025-10-09",
+    "changes": [
+      "Added 25 new CRUD permissions",
+      "All 20 main resources now have complete CRUD (create, read, update, delete, manage)",
+      "Added attendance.manage and exam.manage",
+      "Added missing create/delete for class, announcement, backup, notification, report",
+      "Total permissions increased from 83 to 108",
+      ".manage permissions increased from 21 to 23"
+    ],
+    "new_permissions": [
+      "announcement.create", "announcement.read", "announcement.update", "announcement.delete",
+      "attendance.create", "attendance.update", "attendance.delete", "attendance.manage",
+      "backup.create", "backup.read", "backup.update", "backup.delete",
+      "class.create", "class.delete",
+      "exam.create", "exam.update", "exam.delete", "exam.manage",
+      "grade.delete",
+      "notification.create", "notification.read", "notification.update", "notification.delete",
+      "report.update", "report.delete"
+    ]
+  }
+}

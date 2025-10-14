@@ -286,119 +286,141 @@ export const InventoryRequests: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Inventory Requests</h2>
-          <p className="text-muted-foreground">Manage asset and supply requests from staff</p>
-        </div>
-        
-        <Dialog open={isCreateRequestOpen} onOpenChange={setIsCreateRequestOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Request
-            </Button>
-          </DialogTrigger>
-        </Dialog>
-      </div>
+      {/* Premium Header */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                  <ClipboardList className="h-5 w-5 text-emerald-600" />
+                </div>
+                Inventory Requests
+              </h2>
+              <p className="text-slate-600 font-medium mt-1">Manage asset and supply requests from staff</p>
+            </div>
 
-      {/* Quick Stats */}
+            <Dialog open={isCreateRequestOpen} onOpenChange={setIsCreateRequestOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Request
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Premium Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Pending</p>
+                <p className="text-sm font-medium text-slate-600">Pending</p>
                 <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
               </div>
-              <Clock className="h-8 w-8 text-yellow-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-yellow-100 to-yellow-50 border border-yellow-200/50">
+                <Clock className="h-6 w-6 text-yellow-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Approved</p>
+                <p className="text-sm font-medium text-slate-600">Approved</p>
                 <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-green-100 to-green-50 border border-green-200/50">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Rejected</p>
+                <p className="text-sm font-medium text-slate-600">Rejected</p>
                 <p className="text-2xl font-bold text-red-600">{rejectedCount}</p>
               </div>
-              <XCircle className="h-8 w-8 text-red-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-red-100 to-red-50 border border-red-200/50">
+                <XCircle className="h-6 w-6 text-red-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Fulfilled</p>
+                <p className="text-sm font-medium text-slate-600">Fulfilled</p>
                 <p className="text-2xl font-bold text-blue-600">{fulfilledCount}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-blue-600" />
+              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 border border-blue-200/50">
+                <CheckCircle className="h-6 w-6 text-blue-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="flex-1 min-w-64">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by title, code, or requester..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
+      {/* Premium Filters Card */}
+      <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+        <CardContent className="p-4">
+          <div className="flex gap-4 flex-wrap">
+            <div className="flex-1 min-w-64">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Search by title, code, or requester..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
+                />
+              </div>
+            </div>
+
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="fulfilled">Fulfilled</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className="w-48 border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="asset_request">Asset Request</SelectItem>
+                <SelectItem value="supply_request">Supply Request</SelectItem>
+                <SelectItem value="maintenance_request">Maintenance Request</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-            <SelectItem value="fulfilled">Fulfilled</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={selectedType} onValueChange={setSelectedType}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="asset_request">Asset Request</SelectItem>
-            <SelectItem value="supply_request">Supply Request</SelectItem>
-            <SelectItem value="maintenance_request">Maintenance Request</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Requests Grid */}
+      {/* Premium Requests Grid */}
       {filteredRequests.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredRequests.map((request: InventoryRequest) => (
-            <Card key={request.id} className="hover:shadow-md transition-shadow">
+            <Card key={request.id} className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -512,20 +534,20 @@ export const InventoryRequests: React.FC = () => {
                 <div className="space-y-2 pt-2">
                   {request.status === 'pending' && (
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1 text-green-600 hover:text-green-700"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                         onClick={() => approveRequestMutation.mutate(request.id)}
                         disabled={approveRequestMutation.isPending}
                       >
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Approve
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1 text-red-600 hover:text-red-700"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-red-600 hover:text-red-700 border-red-200/50 hover:bg-red-50 hover:border-red-400 transition-all duration-300"
                         onClick={() => rejectRequestMutation.mutate({ id: request.id, reason: 'Rejected by admin' })}
                         disabled={rejectRequestMutation.isPending}
                       >
@@ -534,13 +556,13 @@ export const InventoryRequests: React.FC = () => {
                       </Button>
                     </div>
                   )}
-                  
+
                   {request.status === 'approved' && (
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1 text-blue-600 hover:text-blue-700"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                         onClick={() => fulfillRequestMutation.mutate(request.id)}
                         disabled={fulfillRequestMutation.isPending}
                       >
@@ -550,21 +572,21 @@ export const InventoryRequests: React.FC = () => {
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
                       onClick={() => handleEditRequest(request)}
                       disabled={request.status === 'fulfilled'}
                     >
                       <Edit className="h-3 w-3 mr-1" />
                       Edit
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => handleDeleteRequest(request)}
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 border-red-200/50 hover:bg-red-50 hover:border-red-400 transition-all duration-300"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -575,11 +597,13 @@ export const InventoryRequests: React.FC = () => {
           ))}
         </div>
       ) : (
-        <Card>
-          <CardContent className="text-center py-8">
-            <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No inventory requests found</p>
-            <p className="text-sm text-muted-foreground mt-2">
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-lg">
+          <CardContent className="text-center py-12">
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50 w-fit mx-auto mb-4">
+              <ClipboardList className="h-12 w-12 text-emerald-600" />
+            </div>
+            <p className="text-slate-600 font-medium text-lg">No inventory requests found</p>
+            <p className="text-sm text-slate-500 mt-2">
               {searchTerm || (selectedStatus && selectedStatus !== 'all') || (selectedType && selectedType !== 'all')
                 ? 'Try adjusting your filters'
                 : 'Create your first inventory request to get started'
@@ -589,29 +613,32 @@ export const InventoryRequests: React.FC = () => {
         </Card>
       )}
 
-      {/* Create Request Dialog */}
+      {/* Premium Create Request Dialog */}
       <Dialog open={isCreateRequestOpen} onOpenChange={setIsCreateRequestOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-sm border-emerald-200/50">
           <DialogHeader>
-            <DialogTitle>Create New Inventory Request</DialogTitle>
+            <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
+              Create New Inventory Request
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateRequest} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Request Title *</Label>
+                <Label htmlFor="title" className="text-slate-700 font-medium">Request Title *</Label>
                 <Input
                   id="title"
                   value={newRequest.title}
                   onChange={(e) => setNewRequest({ ...newRequest, title: e.target.value })}
                   placeholder="Enter request title"
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="request_type">Request Type *</Label>
+                <Label htmlFor="request_type" className="text-slate-700 font-medium">Request Type *</Label>
                 <Select value={newRequest.request_type} onValueChange={(value) => setNewRequest({ ...newRequest, request_type: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                     <SelectValue placeholder="Select request type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -625,9 +652,9 @@ export const InventoryRequests: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority *</Label>
+                <Label htmlFor="priority" className="text-slate-700 font-medium">Priority *</Label>
                 <Select value={newRequest.priority} onValueChange={(value) => setNewRequest({ ...newRequest, priority: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300">
                     <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
                   <SelectContent>
@@ -640,34 +667,37 @@ export const InventoryRequests: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="required_by_date">Required By Date</Label>
+                <Label htmlFor="required_by_date" className="text-slate-700 font-medium">Required By Date</Label>
                 <Input
                   id="required_by_date"
                   type="date"
                   value={newRequest.required_by_date}
                   onChange={(e) => setNewRequest({ ...newRequest, required_by_date: e.target.value })}
+                  className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description" className="text-slate-700 font-medium">Description</Label>
               <Textarea
                 id="description"
                 value={newRequest.description}
                 onChange={(e) => setNewRequest({ ...newRequest, description: e.target.value })}
                 placeholder="Provide details about what you're requesting"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 rows={3}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="justification">Justification</Label>
+              <Label htmlFor="justification" className="text-slate-700 font-medium">Justification</Label>
               <Textarea
                 id="justification"
                 value={newRequest.justification}
                 onChange={(e) => setNewRequest({ ...newRequest, justification: e.target.value })}
                 placeholder="Explain why this request is needed"
+                className="border-emerald-200/50 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all duration-300"
                 rows={3}
               />
             </div>
@@ -690,12 +720,14 @@ export const InventoryRequests: React.FC = () => {
                   setIsCreateRequestOpen(false);
                   resetRequestForm();
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={createRequestMutation.isPending || updateRequestMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {(createRequestMutation.isPending || updateRequestMutation.isPending) ? 'Saving...' : 'Create Request'}
               </Button>
@@ -704,11 +736,13 @@ export const InventoryRequests: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Request Dialog */}
+      {/* Premium Edit Request Dialog */}
       <Dialog open={isEditRequestOpen} onOpenChange={setIsEditRequestOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-white/95 backdrop-blur-sm border-emerald-200/50">
           <DialogHeader>
-            <DialogTitle>Edit Request - {selectedRequest?.title}</DialogTitle>
+            <DialogTitle className="text-xl bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
+              Edit Request - {selectedRequest?.title}
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreateRequest} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -806,12 +840,14 @@ export const InventoryRequests: React.FC = () => {
                   setSelectedRequest(null);
                   resetRequestForm();
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={updateRequestMutation.isPending}
+                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {updateRequestMutation.isPending ? 'Updating...' : 'Update Request'}
               </Button>
@@ -820,14 +856,14 @@ export const InventoryRequests: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Request Confirmation Dialog */}
+      {/* Premium Delete Request Confirmation Dialog */}
       <Dialog open={isDeleteRequestOpen} onOpenChange={setIsDeleteRequestOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white/95 backdrop-blur-sm border-red-200/50">
           <DialogHeader>
-            <DialogTitle>Delete Request</DialogTitle>
+            <DialogTitle className="text-xl text-red-700">Delete Request</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-600">
               Are you sure you want to delete the request "{selectedRequest?.title}" ({selectedRequest?.request_code})?
               This action cannot be undone.
             </p>
@@ -839,13 +875,14 @@ export const InventoryRequests: React.FC = () => {
                   setIsDeleteRequestOpen(false);
                   setSelectedRequest(null);
                 }}
+                className="border-emerald-200/50 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 transition-all duration-300"
               >
                 Cancel
               </Button>
               <Button
-                variant="destructive"
                 onClick={() => selectedRequest && deleteRequestMutation.mutate(selectedRequest.id)}
                 disabled={deleteRequestMutation.isPending}
+                className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {deleteRequestMutation.isPending ? 'Deleting...' : 'Delete Request'}
               </Button>

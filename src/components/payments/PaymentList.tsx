@@ -1,926 +1,749 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { Plus, Search, Eye, Edit, Trash2, DollarSign, Users, CreditCard, Filter, Calendar, Receipt, Download, FileSpreadsheet, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
-import { useBranchData } from '@/hooks/useBranchData';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Search, Filter, MoreHorizontal, Eye, Edit, Receipt, Ban, RotateCcw, Download } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { EnhancedPaymentForm } from './EnhancedPaymentForm';
-import { BulkPaymentImport } from './BulkPaymentImport';
-import { Link } from 'react-router-dom';
-import { getHighlightedText } from '@/utils/searchHighlight';
-import * as XLSX from 'xlsx';
+import { useBranch } from '@/contexts/BranchContext';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
+import { format, parseISO } from 'date-fns';
+import type { Payment } from '@/types/api';
+import { useCurrency } from '@/hooks/useSystemSettings';
+import { formatCurrency } from '@/utils/currency';
 
-export const PaymentList = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPayment, setSelectedPayment] = useState(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingPayment, setEditingPayment] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [cycleFilter, setCycleFilter] = useState('all');
-  const [gradeFilter, setGradeFilter] = useState('all');
-  const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+interface PaymentListProps {
+  onEditPayment?: (payment: Payment) => void;
+  onViewDetails?: (payment: Payment) => void;
+}
+
+const PAYMENT_STATUSES = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'refunded', label: 'Refunded' },
+  { value: 'partial', label: 'Partial' },
+];
+
+const PAYMENT_METHODS = [
+  { value: 'all', label: 'All Methods' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'card', label: 'Card' },
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'online', label: 'Online' },
+];
+
+export function PaymentList({ onEditPayment, onViewDetails }: PaymentListProps) {
+  const { selectedBranch } = useBranch();
+  const { hasPermission, isSuperSuperAdmin } = useRoleAccess();
+  const currency = useCurrency();
+  const branchId = selectedBranch === 'all' ? undefined : selectedBranch || undefined;
+  // Only enable queries when a specific branch is selected; backend requires branch_id
+  const enableQueries = !!selectedBranch && selectedBranch !== 'all';
   const queryClient = useQueryClient();
-  const { isRegistrar, canDelete } = useRoleAccess();
-  const { usePayments, getBranchFilter } = useBranchData();
 
-  // Get currency from system settings
-  const getCurrency = () => {
-    const settings = localStorage.getItem('systemSettings');
-    if (settings) {
-      const parsed = JSON.parse(settings);
-      return parsed.currency || 'ETB';
+  // Permission checks
+  const canUpdate = isSuperSuperAdmin || hasPermission('payment.update');
+  const canDelete = isSuperSuperAdmin || hasPermission('payment.delete');
+  const canApprove = isSuperSuperAdmin || hasPermission('payment.approve');
+
+  // Filters and search
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [methodFilter, setMethodFilter] = useState('all');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Dialog states
+  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; payment?: Payment }>({ open: false });
+  const [refundDialog, setRefundDialog] = useState<{ open: boolean; payment?: Payment; amount?: number; reason?: string }>({ open: false });
+
+  // Build query parameters
+  const queryParams = useMemo(() => {
+    const params: any = {
+      skip: (currentPage - 1) * pageSize,
+      limit: pageSize,
+    };
+
+    if (branchId) params.branch_id = branchId;
+    if (statusFilter !== 'all') params.status = statusFilter;
+    if (methodFilter !== 'all') params.payment_method = methodFilter;
+    if (dateFromFilter) params.date_from = dateFromFilter;
+    if (dateToFilter) params.date_to = dateToFilter;
+    if (searchTerm.trim()) {
+      // Search in student names, receipt numbers, reference numbers
+      params.search = searchTerm.trim();
     }
-    return 'ETB';
-  };
 
-  const formatCurrency = (amount: number) => {
-    const currency = getCurrency();
-    const symbols = {
-      'ETB': 'ETB',
-      'USD': '$',
-      'EUR': '€',
-      'GBP': '£'
-    };
-    const symbol = symbols[currency as keyof typeof symbols] || currency;
-    
-    // For ETB, show the symbol after the amount
-    if (currency === 'ETB') {
-      return `${amount.toFixed(2)} ${symbol}`;
-    }
-    
-    return `${symbol} ${amount.toFixed(2)}`;
-  };
+    return params;
+  }, [branchId, statusFilter, methodFilter, dateFromFilter, dateToFilter, searchTerm, currentPage, pageSize]);
 
-  const formatGradeLevel = (grade: string) => {
-    const gradeMap: Record<string, string> = {
-      'pre_k': 'Pre KG',
-      'kg': 'KG', 
-      'prep': 'PREP',
-      'kindergarten': 'KG',
-      'grade_1': 'Grade 1',
-      'grade_2': 'Grade 2',
-      'grade_3': 'Grade 3',
-      'grade_4': 'Grade 4',
-      'grade_5': 'Grade 5',
-      'grade_6': 'Grade 6',
-      'grade_7': 'Grade 7',
-      'grade_8': 'Grade 8',
-      'grade_9': 'Grade 9',
-      'grade_10': 'Grade 10',
-      'grade_11': 'Grade 11',
-      'grade_12': 'Grade 12',
-    };
-
-    return gradeMap[grade] || grade.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
-
-  // Real-time subscription for payments
-  useEffect(() => {
-    const channel = supabase
-      .channel('payments-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'registration_payments'
-        },
-        () => {
-          console.log('Payments table changed, refetching...');
-          queryClient.invalidateQueries({ queryKey: ['payments'] });
-          queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
-  // Use the branch-filtered payments query - now with FIXED server-side search
-  const { data: allPayments, isLoading, error } = usePayments(searchTerm, statusFilter, cycleFilter, gradeFilter);
-
-  // Calculate total count directly from the loaded payments data 
-  // This avoids complex database queries and type issues while providing accurate counts
-  const totalCount = useMemo(() => {
-    return allPayments?.length || 0;
-  }, [allPayments]);
-
-  // Get pending payments count from the existing data - simplified to avoid URL length issues
-  const { data: pendingCount } = useQuery({
-    queryKey: ['payments-pending-count', getBranchFilter(), searchTerm, statusFilter, cycleFilter, gradeFilter],
-    queryFn: async () => {
-      // Calculate pending count from the existing filtered payments data
-      if (!allPayments) return 0;
-      return allPayments.filter(p => p.payment_status === 'Unpaid' || p.payment_status === 'Partially Paid').length;
-    },
-    enabled: !!allPayments,
-    staleTime: 30000
+  // Fetch payments
+  const { data: paymentsResponse, isLoading, error, refetch } = useQuery({
+    queryKey: ['payments', { ...queryParams, branch_id: branchId ?? 'all' }],
+    queryFn: () => apiClient.getPayments({ ...queryParams, branch_id: branchId }),
+    enabled: enableQueries,
   });
 
-  // All filtering and search is now handled server-side, so we use the results directly
-  const payments = useMemo(() => {
-    return allPayments || [];
-  }, [allPayments]);
+  const paymentsPayload: any = paymentsResponse?.data;
+  const payments: Payment[] = Array.isArray(paymentsPayload)
+    ? paymentsPayload
+    : (paymentsPayload?.payments || paymentsPayload?.data || paymentsPayload?.items || paymentsPayload?.results || []);
+  const totalCount: number = Array.isArray(paymentsPayload)
+    ? paymentsPayload.length
+    : (paymentsPayload?.total ?? paymentsPayload?.count ?? payments.length);
+  const totalPages = Math.ceil(totalCount / pageSize);
 
-  // Stats calculated directly from the COMPLETE server-side filtered data
-  const stats = useMemo(() => {
-    console.log('Calculating stats from payments data:', allPayments?.length || 0, 'records');
-    
-    // Return zeros when no payments data (handles branch switching properly)
-    if (!allPayments || allPayments.length === 0) {
-      return {
-        totalPayments: 0,
-        totalRevenue: 0,
-        paidPayments: 0,
-        pendingPayments: 0
-      };
-    }
-    
-    const totalPayments = allPayments.length;
-    const totalRevenue = allPayments.reduce((sum, payment) => sum + (payment.amount_paid || 0), 0);
-    const paidPayments = allPayments.filter(p => p.payment_status === 'Paid').length;
-    const unpaidPayments = allPayments.filter(p => p.payment_status === 'Unpaid').length;
-    const partialPayments = allPayments.filter(p => p.payment_status === 'Partially Paid').length;
-    const pendingPayments = unpaidPayments + partialPayments;
-    
-    console.log('Stats calculated:', {
-      totalPayments,
-      totalRevenue,
-      paidPayments,
-      pendingPayments
-    });
-    
-    return {
-      totalPayments,
-      totalRevenue,
-      paidPayments,
-      pendingPayments
-    };
-  }, [allPayments]);
+  // Normalize payments to ensure an id exists
+  const normalizedPayments = useMemo(() => {
+    return (payments as any[]).map((p) => ({
+      ...p,
+      id: p.id ?? p._id ?? p.receipt_number ?? Math.random().toString(36).slice(2),
+    }));
+  }, [payments]);
 
-  const deletePaymentMutation = useMutation({
-    mutationFn: async (paymentId: string) => {
-      const { error } = await supabase
-        .from('registration_payments')
-        .delete()
-        .eq('id', paymentId);
-      
-      if (error) throw error;
-    },
+  // Cancel payment mutation
+  const cancelPaymentMutation = useMutation({
+    mutationFn: ({ paymentId, reason }: { paymentId: string; reason: string }) =>
+      apiClient.cancelPayment(paymentId, reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
       toast({
-        title: "Success",
-        description: "Payment deleted successfully",
+        title: 'Success',
+        description: 'Payment cancelled successfully',
       });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      setCancelDialog({ open: false });
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: "Failed to delete payment: " + error.message,
-        variant: "destructive",
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to cancel payment',
+        variant: 'destructive',
       });
-    }
+    },
   });
 
-  // Since filtering is now done at database level, just use the payments directly
-  const filteredPayments = payments || [];
-
-  // Pagination - now with REAL counts
-  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedPayments = filteredPayments.slice(startIndex, startIndex + itemsPerPage);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter, cycleFilter, gradeFilter]);
-
-  // Get all unique grade levels for filter
-  const { data: allGradeLevels } = useQuery({
-    queryKey: ['all-grade-levels'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('grade_levels')
-        .select('grade')
-        .order('grade');
-      
-      if (error) throw error;
-      return data?.map(g => g.grade) || [];
-    }
-  });
-
-  const gradeOptions = allGradeLevels || [];
-
-  const getStatusColor = (status: string) => {
-    const colors = {
-      'Paid': 'bg-green-100 text-green-800 border-green-200',
-      'Unpaid': 'bg-red-100 text-red-800 border-red-200',
-      'Partially Paid': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      'Waived': 'bg-blue-100 text-blue-800 border-blue-200',
-      'Refunded': 'bg-purple-100 text-purple-800 border-purple-200'
-    };
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800 border-gray-200';
-  };
-
-  const getCycleColor = (cycle: string) => {
-    const colors = {
-      'registration_fee': 'bg-indigo-100 text-indigo-800',
-      '1st_quarter': 'bg-green-100 text-green-800',
-      '2nd_quarter': 'bg-blue-100 text-blue-800',
-      '3rd_quarter': 'bg-orange-100 text-orange-800',
-      '4th_quarter': 'bg-red-100 text-red-800',
-      '1st_semester': 'bg-teal-100 text-teal-800',
-      '2nd_semester': 'bg-pink-100 text-pink-800',
-      'annual': 'bg-gray-100 text-gray-800'
-    };
-    return colors[cycle as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
-
-  const formatCycle = (cycle: string) => {
-    const cycleLabels = {
-      'registration_fee': 'Registration Fee',
-      '1st_quarter': '1st Quarter',
-      '2nd_quarter': '2nd Quarter',
-      '3rd_quarter': '3rd Quarter',
-      '4th_quarter': '4th Quarter',
-      '1st_semester': '1st Semester',
-      '2nd_semester': '2nd Semester',
-      'annual': 'Annual'
-    };
-    return cycleLabels[cycle as keyof typeof cycleLabels] || cycle;
-  };
-
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
-  };
-
-  const formatPaymentDetails = (paymentDetails: any) => {
-    if (!paymentDetails || typeof paymentDetails !== 'object') {
-      return { bank_name: 'N/A', transaction_number: 'N/A' };
-    }
-    
-    const details = typeof paymentDetails === 'string' ? JSON.parse(paymentDetails) : paymentDetails;
-    
-    return {
-      bank_name: details?.bank_name || 'N/A',
-      transaction_number: details?.transaction_number || 'N/A'
-    };
-  };
-
-  const handleDelete = (paymentId: string) => {
-    if (!canDelete) {
+  // Refund payment mutation
+  const refundPaymentMutation = useMutation({
+    mutationFn: ({ paymentId, amount, reason }: { paymentId: string; amount: number; reason: string }) =>
+      apiClient.refundPayment(paymentId, { amount, reason }),
+    onSuccess: () => {
       toast({
-        title: "Access Denied",
-        description: "You don't have permission to delete payments.",
-        variant: "destructive",
+        title: 'Success',
+        description: 'Payment refunded successfully',
       });
-      return;
-    }
-    if (confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
-      deletePaymentMutation.mutate(paymentId);
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      setRefundDialog({ open: false });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to refund payment',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Download receipt mutation
+  const downloadReceiptMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      try {
+        return await apiClient.generatePaymentReceipt(paymentId, 'pdf');
+      } catch (e) {
+        // Fallback to HTML if PDF generation not available
+        return await apiClient.generatePaymentReceipt(paymentId, 'html');
+      }
+    },
+    onSuccess: (response) => {
+      if (response.data instanceof Blob) {
+        const url = window.URL.createObjectURL(response.data);
+        const link = document.createElement('a');
+        link.href = url;
+        const isHtml = response.data.type?.includes('html');
+        link.download = `payment-receipt.${isHtml ? 'html' : 'pdf'}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to download receipt',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig: Record<string, { bg: string; text: string; icon: string }> = {
+      completed: { bg: 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-200', text: 'text-green-800', icon: '✓' },
+      pending: { bg: 'bg-gradient-to-r from-yellow-100 to-amber-100 border-yellow-200', text: 'text-yellow-800', icon: '⏳' },
+      cancelled: { bg: 'bg-gradient-to-r from-red-100 to-rose-100 border-red-200', text: 'text-red-800', icon: '✕' },
+      refunded: { bg: 'bg-gradient-to-r from-purple-100 to-violet-100 border-purple-200', text: 'text-purple-800', icon: '↺' },
+      partial: { bg: 'bg-gradient-to-r from-blue-100 to-indigo-100 border-blue-200', text: 'text-blue-800', icon: '◐' },
+    };
+
+    const config = statusConfig[status] || statusConfig.pending;
+
+    return (
+      <Badge
+        variant="outline"
+        className={`${config.bg} ${config.text} border font-semibold px-3 py-1 text-xs flex items-center gap-1.5 w-fit`}
+      >
+        <span className="text-xs">{config.icon}</span>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
+
+  const getPaymentMethodBadge = (method: string) => {
+    const methodConfig: Record<string, { bg: string; text: string; icon: string }> = {
+      cash: { bg: 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-200', text: 'text-green-800', icon: '💵' },
+      card: { bg: 'bg-gradient-to-r from-blue-100 to-cyan-100 border-blue-200', text: 'text-blue-800', icon: '💳' },
+      bank_transfer: { bg: 'bg-gradient-to-r from-purple-100 to-indigo-100 border-purple-200', text: 'text-purple-800', icon: '🏦' },
+      cheque: { bg: 'bg-gradient-to-r from-orange-100 to-amber-100 border-orange-200', text: 'text-orange-800', icon: '📋' },
+      online: { bg: 'bg-gradient-to-r from-indigo-100 to-blue-100 border-indigo-200', text: 'text-indigo-800', icon: '🌐' },
+    };
+
+    const config = methodConfig[method] || methodConfig.online;
+
+    return (
+      <Badge
+        variant="outline"
+        className={`${config.bg} ${config.text} border font-medium px-3 py-1 text-xs flex items-center gap-1.5 w-fit`}
+      >
+        <span className="text-xs">{config.icon}</span>
+        {method.replace('_', ' ').toUpperCase()}
+      </Badge>
+    );
+  };
+
+  const getStudentName = (payment: any) => {
+    const s = payment?.student;
+    if (!s) return 'Unknown';
+    const parts = [s.first_name, s.last_name || s.father_name, s.grandfather_name].filter(Boolean);
+    return parts.length ? parts.join(' ') : (s.student_id || 'Unknown');
+  };
+
+  const getFeeCategoryName = (payment: any) => {
+    return payment?.fee_category?.name || payment?.category || 'Unknown';
+  };
+
+  const handleCancelPayment = (reason: string) => {
+    if (cancelDialog.payment) {
+      cancelPaymentMutation.mutate({
+        paymentId: cancelDialog.payment.id,
+        reason,
+      });
     }
   };
 
-  const handleSelectPayment = (paymentId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedPayments(prev => [...prev, paymentId]);
-    } else {
-      setSelectedPayments(prev => prev.filter(id => id !== paymentId));
-    }
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedPayments(paginatedPayments.map(p => p.id));
-    } else {
-      setSelectedPayments([]);
-    }
-  };
-
-  const exportData = (format: 'excel' | 'csv') => {
-    // Export from COMPLETE dataset, not limited to 1000
-    const dataToExport = selectedPayments.length > 0 
-      ? filteredPayments.filter(p => selectedPayments.includes(p.id))
-      : filteredPayments;
-
-    const exportData = dataToExport.map(payment => ({
-      'Student Name': `${payment.students?.first_name || ''} ${payment.students?.last_name || ''}`.trim(),
-      'Student ID': payment.students?.student_id || '',
-      'Mother Name': payment.students?.mother_name || '',
-      'Grade Level': payment.students?.grade_level ? formatGradeLevel(payment.students.grade_level) : '',
-      'Payment Cycle': formatCycle(payment.payment_cycle),
-      'Amount Paid': payment.amount_paid || 0,
-      'Payment Status': payment.payment_status || '',
-      'Payment Method': (payment as any).payment_method || 'Cash',
-      'Payment Date': payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : '',
-      'Academic Year': payment.academic_year || '',
-      'Notes': payment.notes || ''
-    }));
-
-    if (format === 'excel') {
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Payments');
-      
-      const fileName = selectedPayments.length > 0 
-        ? `payments_selected_${new Date().toISOString().split('T')[0]}.xlsx`
-        : `payments_all_${new Date().toISOString().split('T')[0]}.xlsx`;
-      
-      XLSX.writeFile(wb, fileName);
-    } else {
-      // Convert to CSV format manually
-      const headers = Object.keys(exportData[0] || {});
-      const csvContent = [
-        headers.join(','),
-        ...exportData.map(row => 
-          headers.map(header => {
-            const value = row[header as keyof typeof row];
-            return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
-          }).join(',')
-        )
-      ].join('\n');
-      
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      
-      const fileName = selectedPayments.length > 0 
-        ? `payments_selected_${new Date().toISOString().split('T')[0]}.csv`
-        : `payments_all_${new Date().toISOString().split('T')[0]}.csv`;
-      
-      link.href = URL.createObjectURL(blob);
-      link.download = fileName;
-      link.click();
-    }
-
-    toast({
-      title: "Export Successful",
-      description: `${dataToExport.length} payment records exported as ${format.toUpperCase()}`,
-    });
-
-    setIsExportDialogOpen(false);
-  };
-
-  const handleExport = (format: 'excel' | 'csv') => {
-    if (selectedPayments.length === 0) {
-      setIsExportDialogOpen(true);
-    } else {
-      exportData(format);
+  const handleRefundPayment = () => {
+    if (refundDialog.payment && refundDialog.amount && refundDialog.reason) {
+      refundPaymentMutation.mutate({
+        paymentId: refundDialog.payment.id,
+        amount: refundDialog.amount,
+        reason: refundDialog.reason,
+      });
     }
   };
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="text-center text-red-600">
-              <p className="font-medium">Error loading payments</p>
-              <p className="text-sm mt-1">{error.message}</p>
-              <Button 
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['payments'] })}
-                className="mt-4"
-                variant="outline"
-              >
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="text-center space-y-2">
+            <p className="text-muted-foreground">Failed to load payments</p>
+            <Button onClick={() => refetch()} variant="outline">
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Payment Management</h1>
-          <p className="text-gray-600 mt-1">Track and manage student payment records</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <BulkPaymentImport />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Export ({selectedPayments.length > 0 ? selectedPayments.length : filteredPayments.length})
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-background border shadow-md">
-              <DropdownMenuItem onClick={() => handleExport('excel')} className="cursor-pointer">
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export as Excel
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
-                <FileText className="h-4 w-4 mr-2" />
-                Export as CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <SheetTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 shadow-sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Record Payment
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle className="text-xl">
-                  {editingPayment ? 'Edit Payment' : 'Record New Payment'}
-                </SheetTitle>
-              </SheetHeader>
-              <div className="mt-6">
-                <EnhancedPaymentForm
-                  payment={editingPayment}
-                  onSuccess={() => {
-                    setIsFormOpen(false);
-                    setEditingPayment(null);
-                    queryClient.invalidateQueries({ queryKey: ['payments'] });
-                    queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
-                  }}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
+    <div className="space-y-8">
+      {/* Premium Header and Filters */}
+      <div className="relative">
+        {/* Background card with glass morphism */}
+        <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/8 via-indigo-500/8 to-blue-500/8 rounded-3xl pointer-events-none"></div>
 
-      {/* Stats Cards - Now showing REAL counts from complete server-side data */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-green-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {formatCurrency(stats?.totalRevenue || 0)}
-                </p>
+        <Card className="relative bg-transparent border-0 shadow-none">
+          <CardHeader className="pb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50">
+                <Search className="h-5 w-5 text-blue-600" />
               </div>
-              <DollarSign className="h-8 w-8 text-green-500" />
+              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-900 bg-clip-text text-transparent">
+                Payment Management
+              </CardTitle>
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-600">Total Payments</p>
-                <p className="text-2xl font-bold text-blue-900">{stats?.totalPayments || 0}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-purple-600">Paid</p>
-                <p className="text-2xl font-bold text-purple-900">{stats?.paidPayments || 0}</p>
-              </div>
-              <CreditCard className="h-8 w-8 text-purple-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-orange-600">Pending</p>
-                <p className="text-2xl font-bold text-orange-900">{stats?.pendingPayments || 0}</p>
-              </div>
-              <Calendar className="h-8 w-8 text-orange-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filters */}
-      <Card className="shadow-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Search & Filter Payments
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <p className="text-slate-600 leading-relaxed">Advanced payment tracking with comprehensive filtering and analytics</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Premium Search */}
+            <div className="flex items-center space-x-3">
+              <div className="relative flex-1">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-xl opacity-0 group-hover/search:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-blue-500/60 group-hover/search:text-blue-600 transition-colors duration-300" />
                 <Input
-                  placeholder="Search by student name, ID, or mother's name..."
+                  placeholder="Search by student name, receipt number, or reference..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="group/search relative pl-12 h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-blue-300/50 focus:border-blue-500/60 focus:ring-blue-500/20 focus:ring-4 transition-all duration-300 text-slate-700 placeholder:text-slate-400"
                 />
               </div>
+              {/* Real-time updates via WebSocket */}
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Paid">Paid</SelectItem>
-                <SelectItem value="Unpaid">Unpaid</SelectItem>
-                <SelectItem value="Partially Paid">Partially Paid</SelectItem>
-                <SelectItem value="Waived">Waived</SelectItem>
-                <SelectItem value="Refunded">Refunded</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={cycleFilter} onValueChange={setCycleFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by cycle" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Cycles</SelectItem>
-                <SelectItem value="registration_fee">Registration Fee</SelectItem>
-                <SelectItem value="1st_quarter">1st Quarter</SelectItem>
-                <SelectItem value="2nd_quarter">2nd Quarter</SelectItem>
-                <SelectItem value="3rd_quarter">3rd Quarter</SelectItem>
-                <SelectItem value="4th_quarter">4th Quarter</SelectItem>
-                <SelectItem value="1st_semester">1st Semester</SelectItem>
-                <SelectItem value="2nd_semester">2nd Semester</SelectItem>
-                <SelectItem value="annual">Annual</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={gradeFilter} onValueChange={setGradeFilter}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by grade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Grades</SelectItem>
-                {gradeOptions.map((grade) => (
-                  <SelectItem key={grade} value={grade}>
-                    {formatGradeLevel(grade)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {/* Premium Filters */}
+            <div className="flex flex-wrap gap-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-blue-500/5 rounded-xl opacity-0 group-hover/filter:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                <Filter className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-blue-500/60" />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="group/filter w-[160px] h-12 pl-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-blue-300/50 focus:border-blue-500/60 focus:ring-blue-500/20 focus:ring-4 transition-all duration-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYMENT_STATUSES.map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Select value={methodFilter} onValueChange={setMethodFilter}>
+                <SelectTrigger className="w-[160px] h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-blue-300/50 focus:border-blue-500/60 focus:ring-blue-500/20 focus:ring-4 transition-all duration-300">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((method) => (
+                    <SelectItem key={method.value} value={method.value}>
+                      {method.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Input
+                type="date"
+                placeholder="From date"
+                value={dateFromFilter}
+                onChange={(e) => setDateFromFilter(e.target.value)}
+                className="w-[160px] h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-blue-300/50 focus:border-blue-500/60 focus:ring-blue-500/20 focus:ring-4 transition-all duration-300"
+              />
+
+              <Input
+                type="date"
+                placeholder="To date"
+                value={dateToFilter}
+                onChange={(e) => setDateToFilter(e.target.value)}
+                className="w-[160px] h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-blue-300/50 focus:border-blue-500/60 focus:ring-blue-500/20 focus:ring-4 transition-all duration-300"
+              />
+
+            {(statusFilter !== 'all' || methodFilter !== 'all' || dateFromFilter || dateToFilter || searchTerm) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter('all');
+                  setMethodFilter('all');
+                  setDateFromFilter('');
+                  setDateToFilter('');
+                  setSearchTerm('');
+                  setCurrentPage(1);
+                }}
+                className="h-12 px-4 bg-white/80 backdrop-blur-sm border-white/40 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all duration-300"
+              >
+                Clear Filters
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
+    </div>
 
-      {/* Payments Table */}
-      <Card className="shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">
-            Payments ({stats?.totalPayments || 0})
-          </CardTitle>
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {currentPage} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
+      {/* Premium Payments Table */}
+      <div className="relative">
+        {/* Premium glass card background */}
+        <div className="absolute inset-0 bg-white/90 backdrop-blur-premium border border-white/40 rounded-3xl shadow-premium-lg pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-indigo-500/5 rounded-3xl pointer-events-none"></div>
+
+        <Card className="relative bg-transparent border-0 shadow-none">
+          <CardContent className="p-8">
+          {!selectedBranch ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-gray-600 mt-4">Loading payments...</p>
+              <p className="text-muted-foreground">Please select a branch to view payments</p>
             </div>
-          ) : paginatedPayments.length === 0 ? (
+          ) : selectedBranch === 'all' ? (
             <div className="text-center py-12">
-              <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 font-medium">No payments found</p>
-              <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
+              <p className="text-muted-foreground">Select a specific branch to view the payments list</p>
+              <p className="text-xs text-muted-foreground mt-1">The backend requires a branch filter for payments</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="overflow-x-auto">
+            <>
+              <div className="rounded-2xl border border-white/30 bg-white/50 backdrop-blur-sm overflow-hidden">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="font-semibold w-12">
-                        <Checkbox
-                          checked={selectedPayments.length === paginatedPayments.length && paginatedPayments.length > 0}
-                          onCheckedChange={handleSelectAll}
-                          className="border-gray-400"
-                        />
-                      </TableHead>
-                      <TableHead className="font-semibold">Student</TableHead>
-                      <TableHead className="font-semibold">Grade</TableHead>
-                      <TableHead className="font-semibold">Payment Cycle</TableHead>
-                      <TableHead className="font-semibold">Amount</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="font-semibold">Payment Method</TableHead>
-                      <TableHead className="font-semibold">Date</TableHead>
-                      <TableHead className="font-semibold">Actions</TableHead>
+                  <TableHeader className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm">
+                    <TableRow className="border-white/40 hover:bg-blue-50/30 transition-colors duration-300">
+                      <TableHead className="font-semibold text-slate-700 py-4">Receipt #</TableHead>
+                      <TableHead className="font-semibold text-slate-700 py-4">Student</TableHead>
+                      <TableHead className="font-semibold text-slate-700 py-4">Fee Category</TableHead>
+                      <TableHead className="font-semibold text-slate-700 py-4">Amount</TableHead>
+                      <TableHead className="font-semibold text-slate-700 py-4">Method</TableHead>
+                      <TableHead className="font-semibold text-slate-700 py-4">Date</TableHead>
+                      <TableHead className="font-semibold text-slate-700 py-4">Status</TableHead>
+                      <TableHead className="font-semibold text-slate-700 py-4 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {paginatedPayments.map((payment) => {
-                      const paymentDetails = formatPaymentDetails((payment as any).payment_details || (payment as any).transaction_data);
-                      return (
-                        <TableRow key={payment.id} className="hover:bg-gray-50 transition-colors">
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedPayments.includes(payment.id)}
-                              onCheckedChange={(checked) => handleSelectPayment(payment.id, checked as boolean)}
-                              className="border-gray-400"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="h-10 w-10">
-                                <AvatarImage 
-                                  src={payment.students?.photo_url} 
-                                  alt={`${payment.students?.first_name} ${payment.students?.last_name}`}
-                                  className="object-cover"
-                                />
-                                <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                                  {getInitials(payment.students?.first_name || '', payment.students?.last_name || '')}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="font-medium text-gray-900">
-                                  {getHighlightedText(`${payment.students?.first_name} ${payment.students?.last_name}`, searchTerm)}
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  ID: {getHighlightedText(payment.students?.student_id || '', searchTerm)}
-                                </div>
-                                 {payment.students?.mother_name && (
-                                   <div className="text-xs text-gray-400">
-                                     Mother: {getHighlightedText(payment.students.mother_name, searchTerm)}
-                                   </div>
-                                 )}
-                                 {payment.students?.father_name && (
-                                   <div className="text-xs text-gray-400">
-                                     Father: {getHighlightedText(payment.students.father_name, searchTerm)}
-                                   </div>
-                                 )}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {payment.students?.grade_level && (
-                              <Badge variant="outline" className="font-medium">
-                                {formatGradeLevel(payment.students.grade_level)}
-                              </Badge>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: pageSize }).map((_, index) => (
+                    <TableRow key={index} className="border-white/30 hover:bg-blue-50/20 transition-all duration-300">
+                      <TableCell className="py-4"><Skeleton className="h-4 w-20 bg-blue-100/50" /></TableCell>
+                      <TableCell className="py-4"><Skeleton className="h-4 w-32 bg-blue-100/50" /></TableCell>
+                      <TableCell className="py-4"><Skeleton className="h-4 w-24 bg-blue-100/50" /></TableCell>
+                      <TableCell className="py-4"><Skeleton className="h-4 w-16 bg-blue-100/50" /></TableCell>
+                      <TableCell className="py-4"><Skeleton className="h-4 w-20 bg-blue-100/50" /></TableCell>
+                      <TableCell className="py-4"><Skeleton className="h-4 w-24 bg-blue-100/50" /></TableCell>
+                      <TableCell className="py-4"><Skeleton className="h-4 w-20 bg-blue-100/50" /></TableCell>
+                      <TableCell className="py-4"><Skeleton className="h-4 w-8 bg-blue-100/50" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : payments.length === 0 ? (
+                  <TableRow className="border-white/30">
+                    <TableCell colSpan={8} className="text-center py-12 text-slate-500">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
+                          <Search className="h-8 w-8 text-blue-400" />
+                        </div>
+                        <p className="font-medium">No payments found matching your criteria</p>
+                        <p className="text-sm text-slate-400">Try adjusting your filters or search terms</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  (normalizedPayments as Payment[]).map((payment: Payment) => (
+                    <TableRow key={payment.id} className="border-white/30 hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-indigo-50/30 transition-all duration-300 group">
+                      <TableCell className="font-mono text-sm text-slate-700 py-4 group-hover:text-blue-700 transition-colors duration-300">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-blue-400 opacity-60 group-hover:opacity-100 transition-opacity duration-300"></div>
+                          <span className="font-semibold">{payment.receipt_number}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-slate-700 group-hover:text-blue-700 transition-colors duration-300">{getStudentName(payment)}</span>
+                          {payment.student && (
+                            <span className="text-sm text-slate-500 font-medium">
+                              ID: {payment.student.student_id}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800 border border-blue-200/50">
+                          {getFeeCategoryName(payment)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-lg font-bold text-slate-700 group-hover:text-blue-700 transition-colors duration-300">
+                            {formatCurrency(Number((payment as any).amount ?? 0), currency)}
+                          </span>
+                          {(() => {
+                            const disc = Number((payment as any).discount_amount ?? 0);
+                            return disc > 0 ? (
+                              <span className="text-sm text-green-600 font-medium">
+                                -{formatCurrency(disc, currency)} discount
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        {getPaymentMethodBadge(payment.payment_method)}
+                      </TableCell>
+                      <TableCell className="py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-slate-700 group-hover:text-blue-700 transition-colors duration-300">
+                            {format(parseISO(payment.payment_date), 'MMM dd, yyyy')}
+                          </span>
+                          <span className="text-sm text-slate-500">
+                            {format(parseISO(payment.payment_date), 'h:mm a')}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-4">
+                        {getStatusBadge(payment.status)}
+                      </TableCell>
+                      <TableCell className="text-right py-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-60 group-hover:opacity-100 hover:bg-blue-100 hover:text-blue-600 transition-all duration-300"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {onViewDetails && (
+                              <DropdownMenuItem onClick={() => onViewDetails(payment)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getCycleColor(payment.payment_cycle)} variant="outline">
-                              {formatCycle(payment.payment_cycle)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium text-green-600">
-                              {formatCurrency(payment.amount_paid || 0)}
-                            </div>
-                            {(payment as any).total_amount && (payment as any).total_amount !== payment.amount_paid && (
-                              <div className="text-xs text-gray-500">
-                                of {formatCurrency((payment as any).total_amount)}
-                              </div>
+                            {onEditPayment && canUpdate && (
+                              <DropdownMenuItem
+                                onClick={() => onEditPayment(payment)}
+                                disabled={payment.status === 'cancelled' || payment.status === 'refunded'}
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(payment.payment_status)} variant="outline">
-                              {payment.payment_status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div className="font-medium">{(payment as any).payment_method || 'Cash'}</div>
-                              {(payment as any).payment_method === 'Bank Transfer' && (
-                                <div className="text-xs text-gray-500">
-                                  <div>Bank: {paymentDetails.bank_name}</div>
-                                  <div>Ref: {paymentDetails.transaction_number}</div>
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              {payment.payment_date 
-                                ? new Date(payment.payment_date).toLocaleDateString()
-                                : 'Not recorded'
-                              }
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="hover:bg-blue-50 hover:text-blue-600"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-2xl">
-                                  <DialogHeader>
-                                    <DialogTitle>Payment Details</DialogTitle>
-                                  </DialogHeader>
-                                  <div className="space-y-6">
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                        <h3 className="font-semibold text-gray-900">Student Information</h3>
-                                        <div className="mt-2 space-y-1">
-                                          <p><span className="font-medium">Name:</span> {payment.students?.first_name} {payment.students?.last_name}</p>
-                                          <p><span className="font-medium">Student ID:</span> {payment.students?.student_id}</p>
-                                          <p><span className="font-medium">Grade:</span> {payment.students?.grade_level ? formatGradeLevel(payment.students.grade_level) : 'N/A'}</p>
-                                          {payment.students?.mother_name && (
-                                            <p><span className="font-medium">Mother:</span> {payment.students.mother_name}</p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <h3 className="font-semibold text-gray-900">Payment Information</h3>
-                                        <div className="mt-2 space-y-1">
-                                          <p><span className="font-medium">Cycle:</span> {formatCycle(payment.payment_cycle)}</p>
-                                          <p><span className="font-medium">Amount:</span> {formatCurrency(payment.amount_paid || 0)}</p>
-                                          <p><span className="font-medium">Status:</span> {payment.payment_status}</p>
-                                          <p><span className="font-medium">Method:</span> {(payment as any).payment_method || 'Cash'}</p>
-                                          <p><span className="font-medium">Date:</span> {payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'Not recorded'}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {(payment as any).payment_method === 'Bank Transfer' && (
-                                      <div>
-                                        <h3 className="font-semibold text-gray-900">Bank Transfer Details</h3>
-                                        <div className="mt-2 space-y-1">
-                                          <p><span className="font-medium">Bank:</span> {paymentDetails.bank_name}</p>
-                                          <p><span className="font-medium">Transaction:</span> {paymentDetails.transaction_number}</p>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {payment.notes && (
-                                      <div>
-                                        <h3 className="font-semibold text-gray-900">Notes</h3>
-                                        <p className="mt-2 text-gray-600">{payment.notes}</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingPayment(payment);
-                                  setIsFormOpen(true);
-                                }}
-                                className="hover:bg-green-50 hover:text-green-600"
+                            <DropdownMenuItem
+                              onClick={() => downloadReceiptMutation.mutate(payment.id)}
+                              disabled={downloadReceiptMutation.isPending}
+                            >
+                              <Receipt className="h-4 w-4 mr-2" />
+                              Download Receipt
+                            </DropdownMenuItem>
+                            {(canDelete || canApprove) && <DropdownMenuSeparator />}
+                            {payment.status === 'pending' && canDelete && (
+                              <DropdownMenuItem
+                                onClick={() => setCancelDialog({ open: true, payment })}
+                                className="text-destructive"
                               >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(payment.id)}
-                                className={`hover:bg-red-50 hover:text-red-600 ${!canDelete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                disabled={!canDelete}
+                                <Ban className="h-4 w-4 mr-2" />
+                                Cancel Payment
+                              </DropdownMenuItem>
+                            )}
+                            {payment.status === 'completed' && canApprove && (
+                              <DropdownMenuItem
+                                onClick={() => setRefundDialog({
+                                  open: true,
+                                  payment,
+                                  amount: payment.amount,
+                                  reason: ''
+                                })}
+                                className="text-destructive"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                                <RotateCcw className="h-4 w-4 mr-2" />
+                                Refund Payment
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Advanced Pagination */}
+          <div className="border-t border-white/30 bg-gradient-to-r from-white/50 to-blue-50/30 backdrop-blur-sm">
+            <div className="flex items-center justify-between px-6 py-4">
+              {/* Results Info and Page Size Selector */}
+              <div className="flex items-center gap-6">
+                <div className="text-sm text-slate-600 font-medium">
+                  Showing <span className="font-bold text-blue-600">{((currentPage - 1) * pageSize) + 1}</span> to{' '}
+                  <span className="font-bold text-blue-600">{Math.min(currentPage * pageSize, totalCount)}</span> of{' '}
+                  <span className="font-bold text-slate-800">{totalCount}</span> payments
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600 font-medium">Rows per page:</span>
+                  <Select
+                    value={pageSize.toString()}
+                    onValueChange={(value) => {
+                      setPageSize(Number(value));
+                      setCurrentPage(1); // Reset to first page when changing page size
+                    }}
+                  >
+                    <SelectTrigger className="w-20 h-8 bg-white/80 backdrop-blur-sm border-white/40 hover:border-blue-300/50 focus:border-blue-500/60 focus:ring-blue-500/20 focus:ring-2 transition-all duration-300">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 20, 50, 100].map((size) => (
+                        <SelectItem key={size} value={size.toString()}>
+                          {size}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Pagination Info - Now with REAL counts */}
+              {/* Pagination Controls */}
               {totalPages > 1 && (
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredPayments.length)} of {filteredPayments.length} results
-                  </p>
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious 
-                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                        />
-                      </PaginationItem>
-                      
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-                        
-                        return (
-                          <PaginationItem key={pageNum}>
-                            <PaginationLink
-                              onClick={() => setCurrentPage(pageNum)}
-                              isActive={currentPage === pageNum}
-                              className="cursor-pointer"
-                            >
-                              {pageNum}
-                            </PaginationLink>
-                          </PaginationItem>
-                        );
-                      })}
-                      
-                      <PaginationItem>
-                        <PaginationNext 
-                          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                          className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="bg-white/80 backdrop-blur-sm border-white/40 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all duration-300"
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="bg-white/80 backdrop-blur-sm border-white/40 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all duration-300"
+                  >
+                    Previous
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={
+                            currentPage === pageNum
+                              ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg"
+                              : "bg-white/80 backdrop-blur-sm border-white/40 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all duration-300"
+                          }
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="bg-white/80 backdrop-blur-sm border-white/40 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all duration-300"
+                  >
+                    Next
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    className="bg-white/80 backdrop-blur-sm border-white/40 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600 transition-all duration-300"
+                  >
+                    Last
+                  </Button>
                 </div>
               )}
             </div>
+          </div>
+            </>
           )}
         </CardContent>
       </Card>
+    </div>
 
-      {/* Export Confirmation Dialog */}
-      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Export All Payments?</DialogTitle>
-            <DialogDescription className="space-y-3 text-sm leading-relaxed">
-              <p>No payments are currently selected.</p>
-              <p>This will export all <strong>{filteredPayments.length}</strong> payment records from the current filtered list.</p>
-              <p>Choose your preferred export format or cancel to select specific payments first.</p>
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => setIsExportDialogOpen(false)}
-              className="w-full sm:w-auto"
+      {/* Cancel Payment Dialog */}
+      <AlertDialog open={cancelDialog.open} onOpenChange={(open) => setCancelDialog({ open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel payment {cancelDialog.payment?.receipt_number}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleCancelPayment('Cancelled by user')}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cancelPaymentMutation.isPending}
             >
-              Cancel
-            </Button>
-            <Button 
-              onClick={() => exportData('excel')}
-              className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
-            >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Excel
-            </Button>
-            <Button 
-              onClick={() => exportData('csv')}
-              variant="outline"
-              className="w-full sm:w-auto"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              CSV
-            </Button>
+              {cancelPaymentMutation.isPending ? 'Cancelling...' : 'Cancel Payment'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Refund Payment Dialog */}
+      <AlertDialog open={refundDialog.open} onOpenChange={(open) => setRefundDialog({ open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Refund Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Processing refund for payment {refundDialog.payment?.receipt_number}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Refund Amount</label>
+              <Input
+                type="number"
+                max={refundDialog.payment?.amount || 0}
+                step="0.01"
+                value={refundDialog.amount || ''}
+                onChange={(e) => setRefundDialog(prev => ({ ...prev, amount: Number(e.target.value) }))}
+                placeholder="Enter refund amount"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Reason</label>
+              <Input
+                value={refundDialog.reason || ''}
+                onChange={(e) => setRefundDialog(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Enter refund reason"
+              />
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRefundPayment}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={refundPaymentMutation.isPending || !refundDialog.amount || !refundDialog.reason}
+            >
+              {refundPaymentMutation.isPending ? 'Processing...' : 'Process Refund'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
-};
+}
