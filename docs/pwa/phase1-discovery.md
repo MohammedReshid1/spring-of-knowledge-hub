@@ -21,6 +21,13 @@
   - Several routers (e.g., `teachers.py`, `classes.py`) still gate actions with hard-coded role strings instead of `Permission` checks, creating inconsistent enforcement.
   - The frontend relies on `/auth/me`, `/auth/refresh`, and `/rbac/me/permissions` endpoints. Only `/users/me` and `/permissions/me` currently exist, so either new endpoints must be added or the client must be updated.
 
+### Persona Access Mapping
+- **Super Admin / HQ Admin / Branch Admin**: Backed by the full or near-full permission sets in `ROLE_PERMISSIONS`. They own user CRUD (`/users`), branch management (`/branches`, `/branches_dynamic`), fee/payment administration, and bulk academic operations. HQ-level roles bypass branch filters, but branch admins depend on `BranchContext` helpers to scope queries.
+- **Registrar (HQ & Branch)**: Focused on enrollment, attendance, grades, and communications. They primarily consume `/students`, `/student-enrollments`, `/attendance`, `/exams`/`/exam-results`, and `/communication`. HQ registrars can view financial reports; branch registrars are limited to their branch via dependencies like `BranchFilter`.
+- **Teachers**: Granted read/update rights for their own classes, attendance, behavior records, and assessments through `/teachers`, `/attendance`, `/exams`, and `/communication`. `ResourcePermissionChecker` and service-layer guards ensure they only mutate students tied to their assignments.
+- **Parents**: Access `/parents`, `/students_branch_aware`, `/payments`, `/notifications_branch_aware`, and communication endpoints but are filtered to their linked students through `ParentService` and branch-aware dependencies. They receive attendance summaries and payment histories but cannot modify records.
+- **Students**: Limited to self-scoped reads of `/students`, `/attendance`, `/exam-results`, and messaging feeds. Self-access checks in `resource_permissions.py` enforce the JWT subject/role alignment before returning data.
+
 ### Branch-aware Isolation
 - `utils/branch_context.py` centralizes branch isolation, offering `BranchContext.add_branch_filter`, `ensure_branch_compatibility`, and `BranchFilter` dependencies. HQ roles bypass restrictions, while branch roles are forced to operate within their `branch_id`.
 - Many routers have dedicated `*_branch_aware.py` variants that automatically apply branch filters and cross-branch validation.
@@ -112,6 +119,8 @@ Additional integrations (e.g., Firebase Admin SDK, Twilio, AWS SNS) require corr
 | `VITE_WS_URL` | WebSocket endpoint used by `WebSocketContext`; defaults to `ws://localhost:8000/ws`. |
 
 Ensure these values are provided at build-time for mobile deployments (e.g., via `.env.production` or CI pipeline injection).
+
+The repository also includes a `capacitor.config.ts` targeting the Lovable-hosted dev server (`webDir: "dist"`, `server.url` pointing at the current preview). Phase 2 should confirm whether the Capacitor shell is retained for the PWA package or replaced with platform-specific wrappers, and align the server URL with environment-specific API and WebSocket endpoints.
 
 ## Findings, Gaps & Phase 2 Considerations
 
