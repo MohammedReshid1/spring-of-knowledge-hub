@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Building, Edit, Trash2, MapPin, Phone, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 
 interface Branch {
   id: string;

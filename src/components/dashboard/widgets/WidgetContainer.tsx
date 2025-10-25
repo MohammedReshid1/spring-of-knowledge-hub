@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { BaseWidget, WidgetConfig } from './BaseWidget';
 import { getWidgetComponent } from './WidgetRegistry';
 import { cn } from '@/lib/utils';
@@ -111,7 +111,7 @@ export const WidgetContainer: React.FC = () => {
           id: 'admin-stats',
           title: 'System Overview',
           size: 'large',
-          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+          allowedRoles: ['superadmin', 'superadmin', 'hq_admin', 'branch_admin', 'admin']
         });
       }
 
@@ -121,7 +121,7 @@ export const WidgetContainer: React.FC = () => {
           id: 'payment-collection',
           title: 'Payment Collection',
           size: 'large',
-          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+          allowedRoles: ['superadmin', 'superadmin', 'hq_admin', 'branch_admin', 'admin']
         });
       }
 
@@ -131,7 +131,7 @@ export const WidgetContainer: React.FC = () => {
           id: 'attendance-overview',
           title: 'Attendance Overview',
           size: 'large',
-          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+          allowedRoles: ['superadmin', 'superadmin', 'hq_admin', 'branch_admin', 'admin']
         });
       }
 
@@ -141,7 +141,7 @@ export const WidgetContainer: React.FC = () => {
           id: 'system-status',
           title: 'System Status',
           size: 'large',
-          allowedRoles: ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin']
+          allowedRoles: ['superadmin', 'superadmin', 'hq_admin', 'branch_admin', 'admin']
         });
       }
     }
@@ -157,32 +157,15 @@ export const WidgetContainer: React.FC = () => {
         });
       }
 
-      if (canSeeWidget('grade.read')) {
-        baseWidgets.push({
-          id: 'pending-grades',
-          title: 'Pending Grades',
-          size: 'medium',
-          allowedRoles: ['teacher']
-        });
-      }
-
       if (canSeeWidget('message.read')) {
         baseWidgets.push({
           id: 'teacher-notifications',
           title: 'Notifications',
-          size: 'medium',
+          size: 'large',
           allowedRoles: ['teacher']
         });
       }
 
-      if (canSeeWidget('student.read')) {
-        baseWidgets.push({
-          id: 'student-progress',
-          title: 'Student Progress',
-          size: 'medium',
-          allowedRoles: ['teacher']
-        });
-      }
     }
 
     if (isStudent) {

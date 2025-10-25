@@ -826,7 +826,7 @@
       ]
     },
     {
-      "name": "super_admin",
+      "name": "superadmin",
       "display_name": "Super Admin",
       "level": 100,
       "description": "Full system access except superadmin exclusives",
@@ -967,7 +967,7 @@
       "manage_permission": "If user has {resource}.manage, they automatically get all CRUD permissions for that resource",
       "specific_permission": "User can have specific CRUD permissions without .manage",
       "superadmin": "SUPERADMIN has ALL 108 permissions automatically",
-      "super_admin": "SUPER_ADMIN has 106 permissions (all except user.manage_superadmins and system.cleanup)"
+      "superadmin": "SUPER_ADMIN has 106 permissions (all except user.manage_superadmins and system.cleanup)"
     },
     "examples": [
       {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useBranch } from '@/contexts/BranchContext';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -71,7 +71,7 @@ export const GradeResults = ({ examId, onClose }: GradeResultsProps) => {
 
   const queryClient = useQueryClient();
   const { selectedBranch } = useBranch();
-  const { isTeacher, isAdminRole, canEdit, canCreate } = useRoleAccess();
+  const { isTeacher, isAdmin, isSuperAdmin, hasPermission } = useRoleAccess();
 
   // Fetch exam details
   const { data: exam } = useQuery({
@@ -93,12 +93,18 @@ export const GradeResults = ({ examId, onClose }: GradeResultsProps) => {
     }
   });
 
-  // Fetch students for the class
+  // Fetch students for the class - using the exam's class_id
+  // Note: We fetch ALL students in the class regardless of branch for grading purposes
   const { data: studentsResponse } = useQuery({
     queryKey: ['students', exam?.class_id],
     queryFn: async () => {
       if (!exam?.class_id) return { items: [] };
-      const { data, error } = await apiClient.request(`/students/?class_id=${exam.class_id}`);
+      // Fetch all students in this class (don't filter by branch for exam grading)
+      // Set limit to a high number to get all students (avoid pagination)
+      const params = new URLSearchParams();
+      params.append('class_id', exam.class_id);
+      params.append('limit', '1000'); // Set high limit to fetch all students
+      const { data, error } = await apiClient.request(`/students/?${params.toString()}`);
       if (error) throw new Error(error);
       return data;
     },
@@ -106,28 +112,26 @@ export const GradeResults = ({ examId, onClose }: GradeResultsProps) => {
   });
 
   const students = studentsResponse?.items || [];
+  const allStudents = students; // Use the class-filtered students
 
-  // Also get all students for the class without filter for debugging
-  const { data: allStudentsResponse } = useQuery({
-    queryKey: ['all-students'],
-    queryFn: async () => {
-      const { data, error } = await apiClient.request('/students/');
-      if (error) throw new Error(error);
-      return data;
-    }
+  // Debug: Check what we're getting from the API
+  console.log('🔍 Student Fetch Debug:', {
+    examClassId: exam?.class_id,
+    totalStudentsFromAPI: students.length,
+    apiResponse: studentsResponse,
+    totalFromResponse: studentsResponse?.total,
+    countFromResponse: studentsResponse?.count
   });
-
-  const allStudents = allStudentsResponse?.items || [];
 
   // Role-based access control for grading
   const canGradeStudents = () => {
-    // Teachers can grade students, admins can grade students
-    return isTeacher || isAdminRole || canEdit;
+    // Teachers can grade students, admins can grade students, or users with exam.manage/exams.edit permission
+    return isTeacher || isAdmin || isSuperAdmin || hasPermission('exams.edit') || hasPermission('exams.manage');
   };
 
   const canBulkImport = () => {
     // Only admins and teachers can bulk import results
-    return isTeacher || isAdminRole;
+    return isTeacher || isAdmin || isSuperAdmin || hasPermission('exams.manage');
   };
 
   // Create/Update exam result mutation
@@ -327,13 +331,12 @@ export const GradeResults = ({ examId, onClose }: GradeResultsProps) => {
     return status === 'pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
   };
 
-  // Filter students from the exam's class who haven't been graded yet
-  const classStudents = allStudents.filter(student => student.class_id === exam?.class_id);
-  const ungradedStudents = classStudents.filter(student => 
+  // Filter students who haven't been graded yet
+  // allStudents is already filtered by class_id from the query above
+  const classStudents = allStudents;
+  const ungradedStudents = classStudents.filter(student =>
     !results.some(result => result.student_id === student.id)
   );
-
-  // Exam grading statistics logged for development
 
   const passCount = results.filter(result => result.status === 'pass').length;
   const failCount = results.filter(result => result.status === 'fail').length;

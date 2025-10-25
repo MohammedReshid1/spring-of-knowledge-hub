@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useBranch } from '@/contexts/BranchContext';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiveDataForPage } from '@/hooks/useLiveData';
 import { usePermissionCheck } from '@/contexts/RoleAccessContext';
@@ -156,11 +156,17 @@ export default function AttendancePage() {
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null);
   const [editStatus, setEditStatus] = useState<string>('');
   const [editRemarks, setEditRemarks] = useState<string>('');
+  const [startDate, setStartDate] = useState<Date>(subDays(new Date(), 30));
+  const [endDate, setEndDate] = useState<Date>(new Date());
 
   const historySubjectManuallySet = useRef(false);
-  const { user } = useAuth();
-  const { userRole } = useRoleAccess();
+  const { user, student } = useAuth();
+  const { userRole, isStudent } = useRoleAccess();
   const queryClient = useQueryClient();
+
+  // Parent detection
+  const isParent = user?.role === 'parent';
+  const parentId = (user as any)?.parent_id;
 
   const userId = typeof user === 'object' && user !== null && 'id' in user ? (user as { id?: string }).id : undefined;
   const userEmail = typeof user === 'object' && user !== null && 'email' in user ? (user as { email?: string }).email : undefined;
@@ -199,26 +205,31 @@ export default function AttendancePage() {
     return id;
   })();
 
-  // Fetch classes - filter by branch
+  // Fetch classes - filter by branch and teacher
   const { data: classes = [], isLoading: classesLoading } = useQuery<ClassSummary[]>({
-    queryKey: ['classes', selectedBranch],
+    queryKey: userRole === 'teacher' ? ['teacher-classes', userId, selectedBranch] : ['classes', selectedBranch],
     queryFn: async () => {
-      const { data, error } = await apiClient.getClasses();
-      if (error) throw error;
-      const allClasses = Array.isArray(data) ? (data as ClassSummary[]) : [];
-      const byBranch = (selectedBranch && selectedBranch !== 'all')
-        ? allClasses.filter((cls) => cls.branch_id === selectedBranch)
-        : allClasses;
-      if (userRole === 'teacher' && teacherSelfId) {
-        const byTeacher = byBranch.filter((cls) => {
-          if (cls.teacher_id === teacherSelfId) return true;
-          return Array.isArray(cls.subject_teachers)
-            ? cls.subject_teachers.some((mapping) => mapping?.teacher_id === teacherSelfId)
-            : false;
-        });
-  return byTeacher;
+      if (userRole === 'teacher' && userId) {
+        // For teachers, fetch only their assigned classes from backend
+        const { data, error } = await apiClient.getTeacherEnhancedClasses(userId);
+        if (error) throw error;
+        // Extract classes from the response
+        const teacherClasses = data?.classes || [];
+        // Filter by branch if needed
+        if (selectedBranch && selectedBranch !== 'all') {
+          return teacherClasses.filter((cls: ClassSummary) => cls.branch_id === selectedBranch);
+        }
+        return teacherClasses;
+      } else {
+        // For non-teachers, fetch all classes and filter by branch
+        const { data, error } = await apiClient.getClasses();
+        if (error) throw error;
+        const allClasses = Array.isArray(data) ? (data as ClassSummary[]) : [];
+        const byBranch = (selectedBranch && selectedBranch !== 'all')
+          ? allClasses.filter((cls) => cls.branch_id === selectedBranch)
+          : allClasses;
+        return byBranch;
       }
-      return byBranch;
     },
     enabled: !!selectedBranch,
     staleTime: 60000, // Cache for 60 seconds
@@ -292,23 +303,14 @@ export default function AttendancePage() {
     refetchOnWindowFocus: false
   });
 
-  // Resolve selected class object and teacher-mapped subjects
+  // Resolve selected class object
   const selectedClassObj = classes.find((cls) => cls.id === selectedClass);
-  const teacherId = teacherSelfId || user?.id;
-  const allowedSubjectIds = (() => {
-    if (userRole !== 'teacher' || !selectedClassObj) return null;
-    const mappings: Array<{ subject_id: string; teacher_id: string }> = selectedClassObj.subject_teachers || [];
-    const ids = mappings.filter(m => m.teacher_id === teacherId).map(m => m.subject_id);
-    // If no explicit mapping but the teacher is primary teacher, allow all subjects
-    if (ids.length === 0 && selectedClassObj.teacher_id === teacherId) return null; // null means no filtering
-    return new Set(ids);
-  })();
 
+  // For teachers, the backend already filters subjects to only return their assigned subjects
+  // So we can trust the subjects array as-is without additional frontend filtering
   const filteredSubjects = useMemo(() => {
-    if (!allowedSubjectIds) return subjects;
-    const filtered = subjects.filter((subject) => subject?.id && allowedSubjectIds.has(subject.id));
-        return filtered;
-  }, [allowedSubjectIds, subjects]);
+    return subjects;
+  }, [subjects]);
 
   const subjectLookup = useMemo(() => {
     const map = new Map<string, { name: string; code?: string }>();
@@ -378,7 +380,7 @@ export default function AttendancePage() {
       if (error) throw error;
       return data;
     },
-    enabled: (canRead || canManage) && (!!selectedBranch || userRole === 'superadmin' || userRole === 'super_admin'),
+    enabled: (canRead || canManage) && (!!selectedBranch || userRole === 'superadmin' || userRole === 'superadmin'),
     staleTime: 60000,
     refetchOnWindowFocus: false
   });
@@ -510,6 +512,114 @@ export default function AttendancePage() {
     staleTime: 60000, // Cache for 60 seconds
     refetchOnWindowFocus: false // Prevent refetch on window focus
   });
+
+  // Fetch parent's children
+  const { data: parentChildren = [] } = useQuery<StudentProfile[]>({
+    queryKey: ['parent-children', parentId, selectedBranch],
+    queryFn: async () => {
+      if (!parentId) return [];
+      const { data, error } = await apiClient.getStudents({
+        parent_id: parentId,
+        branch_id: selectedBranch && selectedBranch !== 'all' ? selectedBranch : undefined,
+        limit: 100
+      });
+      if (error) throw error;
+      const items = data?.items;
+      return Array.isArray(items) ? (items as StudentProfile[]) : [];
+    },
+    enabled: isParent && !!parentId,
+    staleTime: 60000,
+    refetchOnWindowFocus: false
+  });
+
+  // Student-specific attendance data
+  const { data: studentAttendanceRecords = [], isLoading: studentAttendanceLoading } = useQuery<AttendanceRecord[]>({
+    queryKey: ['student-attendance', student?.student_id, startDate, endDate, selectedHistorySubject],
+    queryFn: async () => {
+      if (!student?.student_id) return [];
+      const { data, error } = await apiClient.getAttendance({
+        student_id: student.student_id,
+        start_date: format(startDate, 'yyyy-MM-dd'),
+        end_date: format(endDate, 'yyyy-MM-dd'),
+        subject_id: selectedHistorySubject && selectedHistorySubject !== 'all' ? selectedHistorySubject : undefined
+      });
+      if (error) throw error;
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: isStudent && !!student?.student_id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false
+  });
+
+  // Parent-specific attendance data - fetch for all children
+  const { data: parentAttendanceRecords = [], isLoading: parentAttendanceLoading } = useQuery<AttendanceRecord[]>({
+    queryKey: ['parent-attendance', parentChildren, startDate, endDate, selectedHistorySubject],
+    queryFn: async () => {
+      if (!parentChildren || parentChildren.length === 0) return [];
+
+      // Fetch attendance for all children
+      const allRecords: AttendanceRecord[] = [];
+      for (const child of parentChildren) {
+        if (!child.student_id) continue;
+        const { data, error } = await apiClient.getAttendance({
+          student_id: child.student_id,
+          start_date: format(startDate, 'yyyy-MM-dd'),
+          end_date: format(endDate, 'yyyy-MM-dd'),
+          subject_id: selectedHistorySubject && selectedHistorySubject !== 'all' ? selectedHistorySubject : undefined
+        });
+        if (!error && Array.isArray(data)) {
+          allRecords.push(...data);
+        }
+      }
+      return allRecords;
+    },
+    enabled: isParent && parentChildren.length > 0,
+    staleTime: 30000,
+    refetchOnWindowFocus: false
+  });
+
+  // Calculate student attendance stats
+  const studentAttendanceStats = useMemo(() => {
+    if (!isStudent || studentAttendanceRecords.length === 0) return null;
+
+    const total = studentAttendanceRecords.length;
+    const present = studentAttendanceRecords.filter(r => r.status === 'present').length;
+    const absent = studentAttendanceRecords.filter(r => r.status === 'absent').length;
+    const late = studentAttendanceRecords.filter(r => r.status === 'late').length;
+    const excused = studentAttendanceRecords.filter(r => r.status === 'excused').length;
+    const attendanceRate = total > 0 ? ((present + late) / total) * 100 : 0;
+
+    return {
+      total,
+      present,
+      absent,
+      late,
+      excused,
+      attendanceRate
+    };
+  }, [isStudent, studentAttendanceRecords]);
+
+  // Calculate parent attendance stats (for all children combined)
+  const parentAttendanceStats = useMemo(() => {
+    if (!isParent || parentAttendanceRecords.length === 0) return null;
+
+    const total = parentAttendanceRecords.length;
+    const present = parentAttendanceRecords.filter(r => r.status === 'present').length;
+    const absent = parentAttendanceRecords.filter(r => r.status === 'absent').length;
+    const late = parentAttendanceRecords.filter(r => r.status === 'late').length;
+    const excused = parentAttendanceRecords.filter(r => r.status === 'excused').length;
+    const attendanceRate = total > 0 ? ((present + late) / total) * 100 : 0;
+
+    return {
+      total,
+      present,
+      absent,
+      late,
+      excused,
+      attendanceRate,
+      childrenCount: parentChildren.length
+    };
+  }, [isParent, parentAttendanceRecords, parentChildren]);
 
   // Initialize attendance data when existing records are loaded
   useEffect(() => {
@@ -703,6 +813,257 @@ export default function AttendancePage() {
     total: Array.isArray(students) ? students.length : 0
   };
 
+  // If student or parent, show read-only attendance view
+  if (isStudent || isParent) {
+    // Determine which data to use
+    const attendanceRecords = isStudent ? studentAttendanceRecords : parentAttendanceRecords;
+    const attendanceStats = isStudent ? studentAttendanceStats : parentAttendanceStats;
+    const isLoading = isStudent ? studentAttendanceLoading : parentAttendanceLoading;
+    const viewTitle = isStudent ? "My Attendance" : "My Children's Attendance";
+    const viewDescription = isStudent
+      ? "Track your attendance history and maintain excellent attendance records."
+      : "Monitor your children's attendance records and track their progress.";
+    const recordsTitle = isStudent ? "My Attendance History" : "Children's Attendance History";
+    const recordsDescription = isStudent
+      ? "View your attendance records for the selected date range"
+      : "View your children's attendance records for the selected date range";
+    const noRecordsMessage = isStudent
+      ? "No attendance records found for the selected date range."
+      : "No attendance records found for your children in the selected date range.";
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
+        {/* Student Hero Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-blue-600 to-blue-700 pb-20 pt-16">
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/90 via-blue-600/90 to-blue-700/90" />
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+
+          <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="mb-8 inline-flex items-center rounded-full bg-white/10 backdrop-blur-sm px-6 py-2 text-sm font-medium text-white/90 ring-1 ring-white/20">
+                <UserCheck className="mr-2 h-4 w-4" />
+                {viewTitle}
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
+                Attendance <span className="bg-gradient-to-r from-indigo-200 to-blue-200 bg-clip-text text-transparent">Records</span>
+              </h1>
+              <p className="mt-6 text-lg leading-8 text-indigo-100">
+                {viewDescription}
+              </p>
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg className="w-full h-20 fill-current text-slate-50" viewBox="0 0 1440 120" preserveAspectRatio="none">
+              <path d="M0,60 C240,120 480,0 720,60 C960,120 1200,0 1440,60 L1440,120 L0,120 Z" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="relative z-10 -mt-10 space-y-8 px-6 pb-16">
+          <div className="mx-auto max-w-7xl">
+            {/* Attendance Stats Cards */}
+            {isLoading ? (
+              <StatsCardLoader count={4} />
+            ) : attendanceStats ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Attendance Rate Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-100/90 to-emerald-100/90 backdrop-blur-glass border border-green-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-green-700/80">Attendance Rate</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">
+                            {attendanceStats.attendanceRate.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-green-100 to-emerald-100 border border-green-200/50">
+                          <TrendingUp className="h-6 w-6 text-green-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Present Days Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-100/90 to-indigo-100/90 backdrop-blur-glass border border-blue-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-blue-700/80">Present Days</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
+                            {attendanceStats.present}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50">
+                          <CheckCircle2 className="h-6 w-6 text-blue-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Absent Days Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-100/90 to-rose-100/90 backdrop-blur-glass border border-red-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-red-700/80">Absent Days</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-red-700 to-rose-600 bg-clip-text text-transparent">
+                            {attendanceStats.absent}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 border border-red-200/50">
+                          <XCircle className="h-6 w-6 text-red-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Total Days Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-100/90 to-violet-100/90 backdrop-blur-glass border border-purple-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-purple-700/80">Total Days</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-purple-700 to-violet-600 bg-clip-text text-transparent">
+                            {attendanceStats.total}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-purple-100 to-violet-100 border border-purple-200/50">
+                          <CalendarIcon className="h-6 w-6 text-purple-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Attendance Records Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>{recordsTitle}</span>
+                  <div className="flex gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {format(startDate, 'PP')} - {format(endDate, 'PP')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-4" align="end">
+                        <div className="space-y-4">
+                          <div>
+                            <Label>Start Date</Label>
+                            <Calendar
+                              mode="single"
+                              selected={startDate}
+                              onSelect={(date) => date && setStartDate(date)}
+                              initialFocus
+                            />
+                          </div>
+                          <div>
+                            <Label>End Date</Label>
+                            <Calendar
+                              mode="single"
+                              selected={endDate}
+                              onSelect={(date) => date && setEndDate(date)}
+                            />
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </CardTitle>
+                <CardDescription>
+                  {recordsDescription}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="space-y-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Skeleton key={i} className="h-12 w-full" />
+                    ))}
+                  </div>
+                ) : attendanceRecords.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        {isParent && <TableHead>Child Name</TableHead>}
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Check In Time</TableHead>
+                        <TableHead>Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {attendanceRecords.map((record, index) => {
+                        // For parents, find the child's name
+                        const childName = isParent && parentChildren
+                          ? parentChildren.find(c => c.student_id === record.student_id)
+                          : null;
+                        const displayName = childName
+                          ? [childName.first_name, childName.father_name, childName.grandfather_name].filter(Boolean).join(' ')
+                          : null;
+
+                        return (
+                        <TableRow key={record.id || index}>
+                          <TableCell className="font-medium">
+                            {format(new Date(record.attendance_date), 'PPP')}
+                          </TableCell>
+                          {isParent && <TableCell>{displayName || 'Unknown'}</TableCell>}
+                          <TableCell>{formatSubjectLabel(record.subject_id)}</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(record.status)}>
+                              <span className="flex items-center gap-1">
+                                {getStatusIcon(record.status)}
+                                {record.status}
+                              </span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {record.check_in_time ? format(new Date(record.check_in_time), 'HH:mm') : '-'}
+                          </TableCell>
+                          <TableCell>{record.notes ?? record.remarks ?? '-'}</TableCell>
+                        </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      {noRecordsMessage}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Admin/Teacher view
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20">
@@ -936,6 +1297,18 @@ export default function AttendancePage() {
                         selected={selectedDate}
                         onSelect={(date) => date && setSelectedDate(date)}
                         initialFocus
+                        disabled={(date) => {
+                          // For teachers, only allow today's date (disable past and future dates)
+                          if (userRole === 'teacher') {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const checkDate = new Date(date);
+                            checkDate.setHours(0, 0, 0, 0);
+                            return checkDate.getTime() !== today.getTime();
+                          }
+                          // Admins and other roles can select any date
+                          return false;
+                        }}
                       />
                     </PopoverContent>
                   </Popover>

@@ -162,7 +162,7 @@ def get_default_permissions_for_role(role: str) -> list[str]:
             "backup.create", "backup.read", "backup.restore", "backup.manage",
         ],
 
-        "super_admin": [
+        "superadmin": [
             # Same as superadmin
             "user.create", "user.read", "user.update", "user.delete", "user.manage",
             "student.create", "student.read", "student.update", "student.delete", "student.manage",
@@ -487,7 +487,7 @@ This is blocking the ENTIRE application for ALL users. No user can access any pr
 1. The frontend is **already working correctly** and ready to receive permissions
 2. Once backend returns permissions, everything will work immediately
 3. The `get_default_permissions_for_role()` function is a quick fix - you should migrate to database-driven permissions later
-4. Make sure to handle all 10 roles: `superadmin`, `super_admin`, `hq_admin`, `branch_admin`, `hq_registrar`, `registrar`, `admin`, `teacher`, `student`, `parent`
+4. Make sure to handle all 10 roles: `superadmin`, `superadmin`, `hq_admin`, `branch_admin`, `hq_registrar`, `registrar`, `admin`, `teacher`, `student`, `parent`
 
 ---
 

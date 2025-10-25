@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Wifi, WifiOff, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { ConnectionStatus as ConnectionStatusEnum } from '@/hooks/useWebSocket';
+import { ConnectionStatus as ConnectionStatusEnum } from '@/types/websocket';
 
 interface ConnectionStatusProps {
   showDetails?: boolean;

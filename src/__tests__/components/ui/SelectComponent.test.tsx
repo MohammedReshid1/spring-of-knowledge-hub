@@ -10,7 +10,7 @@ import {
 // Mock the useRoleAccess hook
 vi.mock('@/hooks/useRoleAccess')
 
-import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { useRoleAccess } from '@/contexts/RoleAccessContext'
 const mockUseRoleAccess = vi.mocked(useRoleAccess)
 
 describe('React Select Component Error Tests', () => {
@@ -21,7 +21,7 @@ describe('React Select Component Error Tests', () => {
   describe('Select Component Value Prop Validation', () => {
     it('should not render Select.Item with empty string value', async () => {
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -41,7 +41,7 @@ describe('React Select Component Error Tests', () => {
       const user = userEvent.setup()
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -66,7 +66,7 @@ describe('React Select Component Error Tests', () => {
 
     it('should validate all SelectItem components have non-empty values', async () => {
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -88,7 +88,7 @@ describe('React Select Component Error Tests', () => {
       const user = userEvent.setup()
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -117,7 +117,7 @@ describe('React Select Component Error Tests', () => {
       const user = userEvent.setup()
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -141,7 +141,7 @@ describe('React Select Component Error Tests', () => {
   describe('Payment Cycle Filter Select Component', () => {
     it('should render payment cycle options with valid values', async () => {
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -163,7 +163,7 @@ describe('React Select Component Error Tests', () => {
   describe('Select Component Error Prevention', () => {
     it('should prevent empty string values in Select components', async () => {
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -197,7 +197,7 @@ describe('React Select Component Error Tests', () => {
 
     it('should handle filter value conversion from empty to "all" correctly', async () => {
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -221,7 +221,7 @@ describe('React Select Component Error Tests', () => {
   describe('Component Rendering Stability', () => {
     it('should render consistently without Select component warnings', async () => {
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })
@@ -261,7 +261,7 @@ describe('React Select Component Error Tests', () => {
       const user = userEvent.setup()
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
       })

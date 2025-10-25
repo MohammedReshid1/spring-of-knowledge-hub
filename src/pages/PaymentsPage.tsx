@@ -11,6 +11,7 @@ import { FeeCategoryManagement } from '@/components/payments/FeeCategoryManageme
 import { BulkPaymentImport } from '@/components/payments/BulkPaymentImport';
 import { UnpaidQuarterlyFees } from '@/components/payments/UnpaidQuarterlyFees';
 import { useRoleAccess } from '@/contexts/RoleAccessContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLiveDataForPage } from '@/hooks/useLiveData';
 import type { Payment } from '@/types/api';
 
@@ -21,6 +22,9 @@ export default function PaymentsPage() {
   });
 
   const { hasPermission } = useRoleAccess();
+  const { user } = useAuth();
+  const isParent = user?.role === 'parent';
+  const parentId = (user as any)?.parent_id;
 
   // Permission checks
   const canRead = hasPermission('payment.read');
@@ -42,15 +46,25 @@ export default function PaymentsPage() {
     const tabs = [];
 
     if (canRead || canManage) {
-      tabs.push(
-        { value: 'dashboard', label: 'Dashboard', icon: BarChart3 },
-        { value: 'payments', label: 'Payments', icon: Receipt },
-        { value: 'unpaid', label: 'Unpaid Fees', icon: AlertCircle },
-        { value: 'reports', label: 'Reports', icon: TrendingUp }
-      );
+      // Parents see Dashboard, Payments, and Unpaid Fees (but not Reports)
+      if (isParent) {
+        tabs.push(
+          { value: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+          { value: 'payments', label: 'Payments', icon: Receipt },
+          { value: 'unpaid', label: 'Unpaid Fees', icon: AlertCircle }
+        );
+      } else {
+        // Non-parents see all tabs including Reports
+        tabs.push(
+          { value: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+          { value: 'payments', label: 'Payments', icon: Receipt },
+          { value: 'unpaid', label: 'Unpaid Fees', icon: AlertCircle },
+          { value: 'reports', label: 'Reports', icon: TrendingUp }
+        );
+      }
     }
 
-    if (canManage) {
+    if (canManage && !isParent) {
       tabs.push(
         { value: 'bulk-import', label: 'Bulk Import', icon: Upload },
         { value: 'categories', label: 'Categories', icon: Settings }
@@ -58,7 +72,7 @@ export default function PaymentsPage() {
     }
 
     return tabs;
-  }, [canRead, canManage]);
+  }, [canRead, canManage, isParent]);
 
   // Active tab - default to first available tab
   const [activeTab, setActiveTab] = useState(availableTabs[0]?.value || 'dashboard');
@@ -168,11 +182,17 @@ export default function PaymentsPage() {
               Financial Management System
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Payment <span className="bg-gradient-to-r from-green-200 to-emerald-200 bg-clip-text text-transparent">Management</span>
+              {isParent ? (
+                <>My <span className="bg-gradient-to-r from-green-200 to-emerald-200 bg-clip-text text-transparent">Payments</span></>
+              ) : (
+                <>Payment <span className="bg-gradient-to-r from-green-200 to-emerald-200 bg-clip-text text-transparent">Management</span></>
+              )}
             </h1>
             <p className="mt-6 text-lg leading-8 text-green-100">
-              Comprehensive payment processing and financial management with advanced analytics.
-              Streamline your financial operations with premium tools.
+              {isParent
+                ? "View and manage your children's payment records, track due dates, and access payment history."
+                : "Comprehensive payment processing and financial management with advanced analytics. Streamline your financial operations with premium tools."
+              }
             </p>
           </div>
         </div>
@@ -192,10 +212,15 @@ export default function PaymentsPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Quick Actions</h2>
-              <p className="text-sm text-gray-600">Manage payments efficiently with powerful tools</p>
+              <p className="text-sm text-gray-600">
+                {isParent
+                  ? "View your children's payment history and upcoming dues"
+                  : "Manage payments efficiently with powerful tools"
+                }
+              </p>
             </div>
             <div className="flex items-center space-x-3">
-              {canCreate && (
+              {canCreate && !isParent && (
                 <Button
                   onClick={handleCreatePayment}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"

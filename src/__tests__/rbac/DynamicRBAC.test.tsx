@@ -364,8 +364,8 @@ describe('Dynamic RBAC System', () => {
       expect(roleAccess.hasAllPermissions(['student.read', 'student.update'])).toBe(true);
       expect(roleAccess.hasAllPermissions(['student.read', 'student.delete'])).toBe(false);
       expect(roleAccess.hasRole('teacher')).toBe(true);
-      expect(roleAccess.hasRole('super_admin')).toBe(false);
-      expect(roleAccess.hasAnyRole(['teacher', 'super_admin'])).toBe(true);
+      expect(roleAccess.hasRole('superadmin')).toBe(false);
+      expect(roleAccess.hasAnyRole(['teacher', 'superadmin'])).toBe(true);
     });
   });
 });

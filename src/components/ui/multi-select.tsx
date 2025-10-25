@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 interface Option {
   value: string
   label: string
+  group?: string
 }
 
 interface MultiSelectProps {
@@ -101,26 +102,44 @@ export function MultiSelect({
         <Command>
           <CommandInput placeholder="Search..." />
           <CommandEmpty>No item found.</CommandEmpty>
-          <CommandGroup className="max-h-64 overflow-auto">
-            {options.map((option) => (
-              <CommandItem
-                key={option.value}
-                onSelect={() => handleSelect(option.value)}
-              >
-                <div
-                  className={cn(
-                    "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                    selected.includes(option.value)
-                      ? "bg-primary text-primary-foreground"
-                      : "opacity-50 [&_svg]:invisible"
-                  )}
+          <div className="max-h-64 overflow-auto">
+            {(() => {
+              // Group options by their group property
+              const grouped = options.reduce((acc, option) => {
+                const group = option.group || 'ungrouped';
+                if (!acc[group]) acc[group] = [];
+                acc[group].push(option);
+                return acc;
+              }, {} as Record<string, Option[]>);
+
+              // Render groups
+              return Object.entries(grouped).map(([groupName, groupOptions]) => (
+                <CommandGroup
+                  key={groupName}
+                  heading={groupName !== 'ungrouped' ? groupName : undefined}
                 >
-                  <X className="h-4 w-4" />
-                </div>
-                {option.label}
-              </CommandItem>
-            ))}
-          </CommandGroup>
+                  {groupOptions.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      onSelect={() => handleSelect(option.value)}
+                    >
+                      <div
+                        className={cn(
+                          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                          selected.includes(option.value)
+                            ? "bg-primary text-primary-foreground"
+                            : "opacity-50 [&_svg]:invisible"
+                        )}
+                      >
+                        <X className="h-4 w-4" />
+                      </div>
+                      {option.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ));
+            })()}
+          </div>
         </Command>
       </PopoverContent>
     </Popover>

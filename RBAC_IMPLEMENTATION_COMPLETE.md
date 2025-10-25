@@ -284,7 +284,7 @@ function StudentList() {
 | Role | Total Permissions | .manage Permissions | Scope |
 |------|------------------|---------------------|-------|
 | **superadmin** | 108 (ALL) | 23 | Global |
-| **super_admin** | 106 | 22 | Global |
+| **superadmin** | 106 | 22 | Global |
 | **hq_admin** | 43 | 20 | All branches |
 | **branch_admin** | 36 | 15 | Single branch |
 | **hq_registrar** | 22 | 0 | All branches |

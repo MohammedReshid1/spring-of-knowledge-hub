@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ComposeMessageProps {
   onClose: () => void;
@@ -27,6 +28,10 @@ interface ComposeMessageProps {
 }
 
 export const ComposeMessage: React.FC<ComposeMessageProps> = ({ onClose, onMessageSent }) => {
+  const { user, student } = useAuth();
+  const isStudent = !!student || user?.role === 'student';
+  const isParent = user?.role === 'parent';
+
   const [formData, setFormData] = useState({
     subject: '',
     content: '',
@@ -41,11 +46,14 @@ export const ComposeMessage: React.FC<ComposeMessageProps> = ({ onClose, onMessa
 
   const queryClient = useQueryClient();
 
-  // Fetch users for recipient selection
+  // Fetch available recipients - uses new endpoint that filters based on user role
   const { data: users = [] } = useQuery({
-    queryKey: ['users'],
+    queryKey: ['available-recipients'],
     queryFn: async () => {
-      const response = await apiClient.get('/users/');
+      const response = await apiClient.get('/communication/available-recipients');
+      console.log('📧 Available recipients from API:', response.data);
+      console.log('📧 Total recipients:', response.data?.length);
+      console.log('📧 Recipient roles:', response.data?.map((u: any) => u.role));
       return response.data;
     },
   });
@@ -87,28 +95,96 @@ export const ComposeMessage: React.FC<ComposeMessageProps> = ({ onClose, onMessa
       return;
     }
 
-    if (formData.recipient_type === 'individual' && formData.recipients.length === 0) {
+    if (formData.recipients.length === 0) {
       toast.error('Please select at least one recipient');
-      return;
-    }
-
-    if (formData.recipient_type === 'class' && formData.class_ids.length === 0) {
-      toast.error('Please select at least one class');
-      return;
-    }
-
-    if (formData.recipient_type === 'grade' && !formData.grade_level) {
-      toast.error('Please select a grade level');
       return;
     }
 
     sendMessageMutation.mutate(formData);
   };
 
-  const userOptions = users.map((user: any) => ({
-    value: user.id,
-    label: `${user.full_name || user.email} (${user.role})`
-  }));
+  // Filter users based on role
+  // Parents can only message teachers, admin, and staff (not students or other parents)
+  const filteredUsers = isParent
+    ? users.filter((u: any) => u.role !== 'student' && u.role !== 'parent')
+    : users;
+
+  // Group recipients by category for better organization (especially for teachers)
+  const isTeacher = user?.role === 'teacher';
+  const categorizedRecipients = useMemo(() => {
+    console.log('🎯 Categorizing recipients. isTeacher:', isTeacher, 'filteredUsers:', filteredUsers);
+
+    if (!isTeacher) {
+      return {
+        all: filteredUsers.map((user: any) => ({
+          value: user.id,
+          label: `${user.full_name || user.email} (${user.role})`
+        }))
+      };
+    }
+
+    // For teachers, organize recipients into categories
+    const classes = filteredUsers.filter((u: any) => u.role === 'class');
+    const students = filteredUsers.filter((u: any) => u.role === 'student');
+    const parents = filteredUsers.filter((u: any) => u.role === 'parent');
+    const staff = filteredUsers.filter((u: any) =>
+      u.role !== 'class' && u.role !== 'student' && u.role !== 'parent'
+    );
+
+    console.log('📊 Categorization results:', {
+      classes: classes.length,
+      students: students.length,
+      parents: parents.length,
+      staff: staff.length
+    });
+
+    return {
+      classes: classes.map((c: any) => ({
+        value: c.id,
+        label: c.full_name,
+        group: 'Classes'
+      })),
+      students: students.map((s: any) => ({
+        value: s.id,
+        label: s.full_name,
+        group: 'Students'
+      })),
+      parents: parents.map((p: any) => ({
+        value: p.id,
+        label: p.full_name,
+        group: 'Parents'
+      })),
+      staff: staff.map((st: any) => ({
+        value: st.id,
+        label: `${st.full_name || st.email} (${st.role})`,
+        group: 'Staff'
+      })),
+      all: [
+        ...classes.map((c: any) => ({
+          value: c.id,
+          label: c.full_name,
+          group: 'Classes'
+        })),
+        ...students.map((s: any) => ({
+          value: s.id,
+          label: s.full_name,
+          group: 'Students'
+        })),
+        ...parents.map((p: any) => ({
+          value: p.id,
+          label: p.full_name,
+          group: 'Parents'
+        })),
+        ...staff.map((st: any) => ({
+          value: st.id,
+          label: `${st.full_name || st.email} (${st.role})`,
+          group: 'Staff'
+        }))
+      ]
+    };
+  }, [filteredUsers, isTeacher]);
+
+  const userOptions = isTeacher ? categorizedRecipients.all : categorizedRecipients.all;
 
   const classOptions = classes.map((cls: any) => ({
     value: cls.id,
@@ -133,110 +209,22 @@ export const ComposeMessage: React.FC<ComposeMessageProps> = ({ onClose, onMessa
 
       <CardContent className="pt-6">
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Recipient Type */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-slate-700">Recipient Type</Label>
-            <Select
-              value={formData.recipient_type}
-              onValueChange={(value) => setFormData({ ...formData, recipient_type: value, recipients: [], class_ids: [], grade_level: '' })}
-            >
-              <SelectTrigger className="border-blue-200/50 focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-300">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="individual">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Individual Users
-                  </div>
-                </SelectItem>
-                <SelectItem value="all_students">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4" />
-                    All Students
-                  </div>
-                </SelectItem>
-                <SelectItem value="all_teachers">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    All Teachers
-                  </div>
-                </SelectItem>
-                <SelectItem value="all_parents">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    All Parents
-                  </div>
-                </SelectItem>
-                <SelectItem value="class">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4" />
-                    Specific Class(es)
-                  </div>
-                </SelectItem>
-                <SelectItem value="grade">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" />
-                    Specific Grade Level
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Recipients Selection */}
-          {formData.recipient_type === 'individual' && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Select Recipients</Label>
-              <MultiSelect
-                options={userOptions}
-                selected={formData.recipients}
-                onChange={(selected) => setFormData({ ...formData, recipients: selected })}
-                placeholder="Select users..."
-              />
-            </div>
-          )}
-
-          {formData.recipient_type === 'class' && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Select Classes</Label>
-              <MultiSelect
-                options={classOptions}
-                selected={formData.class_ids}
-                onChange={(selected) => setFormData({ ...formData, class_ids: selected })}
-                placeholder="Select classes..."
-              />
-            </div>
-          )}
-
-          {formData.recipient_type === 'grade' && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-slate-700">Select Grade Level</Label>
-              <Select
-                value={formData.grade_level}
-                onValueChange={(value) => setFormData({ ...formData, grade_level: value })}
-              >
-                <SelectTrigger className="border-blue-200/50 focus:border-blue-400 focus:ring-blue-400/20 transition-all duration-300">
-                  <SelectValue placeholder="Select a grade" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Kindergarten">Kindergarten</SelectItem>
-                  <SelectItem value="Grade 1">Grade 1</SelectItem>
-                  <SelectItem value="Grade 2">Grade 2</SelectItem>
-                  <SelectItem value="Grade 3">Grade 3</SelectItem>
-                  <SelectItem value="Grade 4">Grade 4</SelectItem>
-                  <SelectItem value="Grade 5">Grade 5</SelectItem>
-                  <SelectItem value="Grade 6">Grade 6</SelectItem>
-                  <SelectItem value="Grade 7">Grade 7</SelectItem>
-                  <SelectItem value="Grade 8">Grade 8</SelectItem>
-                  <SelectItem value="Grade 9">Grade 9</SelectItem>
-                  <SelectItem value="Grade 10">Grade 10</SelectItem>
-                  <SelectItem value="Grade 11">Grade 11</SelectItem>
-                  <SelectItem value="Grade 12">Grade 12</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">
+              {isStudent
+                ? 'Select Recipients (Teachers, Admin, Staff)'
+                : isParent
+                  ? 'Select Recipients (Teachers, Admin, Staff)'
+                  : 'Select Recipients'}
+            </Label>
+            <MultiSelect
+              options={userOptions}
+              selected={formData.recipients}
+              onChange={(selected) => setFormData({ ...formData, recipients: selected })}
+              placeholder={isStudent || isParent ? "Select teachers, admin, or staff..." : "Select users..."}
+            />
+          </div>
 
           {/* Subject */}
           <div className="space-y-2">

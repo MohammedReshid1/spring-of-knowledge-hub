@@ -119,7 +119,7 @@ export const renderWithoutAuth = (ui: ReactElement, options?: Omit<CustomRenderO
 
 // Helper function to create mock role access return values
 export const createMockRoleAccess = (userRole: string) => {
-  const isSuperAdmin = userRole === 'super_admin' || userRole === 'superadmin'
+  const isSuperAdmin = userRole === 'superadmin' || userRole === 'superadmin'
   const isBranchAdmin = userRole === 'branch_admin'
   const isTeacher = userRole === 'teacher'
   const isStudent = userRole === 'student'

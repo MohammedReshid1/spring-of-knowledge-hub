@@ -18,6 +18,7 @@ import { usePermissionCheck, useRoleAccess } from '@/contexts/RoleAccessContext'
 import { useAuth } from '@/contexts/AuthContext';
 import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
 import { useLiveData } from '@/hooks/useLiveData';
+import { useBranch } from '@/contexts/BranchContext';
 import {
   Calendar,
   Clock,
@@ -90,6 +91,7 @@ export const TimetableManagement: React.FC = () => {
   const { loading: permissionsLoading } = useRoleAccess();
   const academicYearQuery = useAcademicYear();
   const currentAcademicYear = getAcademicYearString(academicYearQuery);
+  const { selectedBranch } = useBranch();
 
   // Permission checks
   const canView = hasPermission('timetable.read') || hasPermission('timetable.manage');
@@ -98,8 +100,6 @@ export const TimetableManagement: React.FC = () => {
   const canDelete = hasPermission('timetable.delete') || hasPermission('timetable.manage');
   const canManage = hasPermission('timetable.manage');
 
-  // Get branch from user profile
-  const branchId = user?.profile?.branch_id;
   const [activeTab, setActiveTab] = useState('schedule');
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date());
@@ -107,6 +107,9 @@ export const TimetableManagement: React.FC = () => {
   const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'class' | 'teacher' | 'room'>('class');
+
+  // Get branch from branch selector (for superadmin) or user profile (for branch-specific users)
+  const branchId = selectedBranch?.id || user?.profile?.branch_id;
 
   const queryClient = useQueryClient();
 
@@ -383,6 +386,17 @@ export const TimetableManagement: React.FC = () => {
   };
 
   const handleCreateEntry = (day: string, timeSlotId: string) => {
+    // Get branch_id from the selected entity (class or teacher)
+    let entryBranchId = branchId;
+
+    if (viewMode === 'class') {
+      const selectedClassObj = classes.find(c => c.id === selectedClass);
+      entryBranchId = selectedClassObj?.branch_id || branchId;
+    } else if (viewMode === 'teacher') {
+      const selectedTeacherObj = teachers.find(t => t.id === selectedClass);
+      entryBranchId = selectedTeacherObj?.branch_id || branchId;
+    }
+
     setEditingEntry({
       class_id: selectedClass,
       day_of_week: day,
@@ -392,7 +406,8 @@ export const TimetableManagement: React.FC = () => {
       room_number: '',
       notes: '',
       resources_needed: [],
-      academic_year: currentAcademicYear
+      academic_year: currentAcademicYear,
+      branch_id: entryBranchId
     });
     setShowCreateDialog(true);
   };

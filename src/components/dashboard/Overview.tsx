@@ -1,20 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { useNavigate } from 'react-router-dom';
 import { BranchLoadingWrapper } from '@/components/common/BranchLoadingWrapper';
 import { WidgetContainer } from './widgets/WidgetContainer';
-import { Sparkles, TrendingUp, Users, Zap } from 'lucide-react';
+import { Sparkles, Users, BookOpen, UserCheck } from 'lucide-react';
 import { useLiveData } from '@/hooks/useLiveData';
 import { LiveUpdatesIndicator } from '@/components/common/LiveUpdatesIndicator';
+import { useWidgetData } from '@/hooks/useWidgetData';
 
 export const Overview = () => {
-  const { user } = useAuth();
-  const { isAdmin, isSuperAdmin, isTeacher } = useRoleAccess();
+  const { user, student } = useAuth();
+  const { isAdmin, isSuperAdmin, isTeacher, isAdminRole } = useRoleAccess();
   const { selectedBranch, userBranches } = useBranch();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Fetch dashboard stats for admin roles
+  const { useAdminStats } = useWidgetData();
+  const { data: dashboardStats, isLoading: statsLoading } = useAdminStats();
 
   // Enable real-time updates for dashboard overview
   useLiveData(['students', 'teachers', 'classes', 'attendance', 'payments', 'exams', 'notifications']);
@@ -31,6 +36,13 @@ export const Overview = () => {
       navigate('/teacher-dashboard', { replace: true });
     }
   }, [isTeacher, user, navigate]);
+
+  // Redirect students to their specialized dashboard
+  useEffect(() => {
+    if (student || user?.role === 'student') {
+      navigate('/student-dashboard', { replace: true });
+    }
+  }, [student, user, navigate]);
 
   const getGreeting = () => {
     const hour = currentTime.getHours();
@@ -92,35 +104,83 @@ export const Overview = () => {
                   {/* Premium Stats Bar */}
                   <div className="flex flex-wrap justify-center gap-4 animate-fade-in-up" style={{animationDelay: '600ms', animationFillMode: 'both'}}>
                     <LiveUpdatesIndicator />
-                    <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium hover:bg-white/80 hover:scale-105 transition-all duration-normal">
-                      <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 group-hover:shadow-glow-blue transition-all duration-normal">
-                        <Users className="h-5 w-5 text-blue-600" />
-                      </div>
-                      <div className="text-left">
-                        <div className="text-lg font-bold text-slate-800">Active</div>
-                        <div className="text-xs font-medium text-slate-600">Management</div>
-                      </div>
-                    </div>
 
-                    <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium hover:bg-white/80 hover:scale-105 transition-all duration-normal">
-                      <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 group-hover:shadow-glow-green transition-all duration-normal">
-                        <TrendingUp className="h-5 w-5 text-emerald-600" />
-                      </div>
-                      <div className="text-left">
-                        <div className="text-lg font-bold text-slate-800">Growing</div>
-                        <div className="text-xs font-medium text-slate-600">Excellence</div>
-                      </div>
-                    </div>
+                    {/* Show stats for admin roles only */}
+                    {isAdminRole && (
+                      <>
+                        {statsLoading ? (
+                          // Loading state - show skeleton
+                          <>
+                            <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium animate-pulse">
+                              <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100">
+                                <Users className="h-5 w-5 text-blue-600" />
+                              </div>
+                              <div className="text-left">
+                                <div className="h-5 w-12 bg-slate-200 rounded animate-pulse"></div>
+                                <div className="h-3 w-16 bg-slate-200 rounded mt-1 animate-pulse"></div>
+                              </div>
+                            </div>
+                            <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium animate-pulse">
+                              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100">
+                                <UserCheck className="h-5 w-5 text-emerald-600" />
+                              </div>
+                              <div className="text-left">
+                                <div className="h-5 w-12 bg-slate-200 rounded animate-pulse"></div>
+                                <div className="h-3 w-16 bg-slate-200 rounded mt-1 animate-pulse"></div>
+                              </div>
+                            </div>
+                            <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium animate-pulse">
+                              <div className="p-2 rounded-xl bg-gradient-to-br from-purple-100 to-violet-100">
+                                <BookOpen className="h-5 w-5 text-purple-600" />
+                              </div>
+                              <div className="text-left">
+                                <div className="h-5 w-12 bg-slate-200 rounded animate-pulse"></div>
+                                <div className="h-3 w-16 bg-slate-200 rounded mt-1 animate-pulse"></div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          // Real stats from API
+                          <>
+                            <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium hover:bg-white/80 hover:scale-105 transition-all duration-normal">
+                              <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 group-hover:shadow-glow-blue transition-all duration-normal">
+                                <Users className="h-5 w-5 text-blue-600" />
+                              </div>
+                              <div className="text-left">
+                                <div className="text-lg font-bold text-slate-800">
+                                  {dashboardStats?.overview?.total_students?.toLocaleString() || 0}
+                                </div>
+                                <div className="text-xs font-medium text-slate-600">Students</div>
+                              </div>
+                            </div>
 
-                    <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium hover:bg-white/80 hover:scale-105 transition-all duration-normal">
-                      <div className="p-2 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 group-hover:shadow-md transition-all duration-normal">
-                        <Zap className="h-5 w-5 text-slate-600" />
-                      </div>
-                      <div className="text-left">
-                        <div className="text-lg font-bold text-slate-800">Premium</div>
-                        <div className="text-xs font-medium text-slate-600">Experience</div>
-                      </div>
-                    </div>
+                            <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium hover:bg-white/80 hover:scale-105 transition-all duration-normal">
+                              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-green-100 group-hover:shadow-glow-green transition-all duration-normal">
+                                <UserCheck className="h-5 w-5 text-emerald-600" />
+                              </div>
+                              <div className="text-left">
+                                <div className="text-lg font-bold text-slate-800">
+                                  {dashboardStats?.overview?.total_teachers?.toLocaleString() || 0}
+                                </div>
+                                <div className="text-xs font-medium text-slate-600">Teachers</div>
+                              </div>
+                            </div>
+
+                            <div className="group flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/60 backdrop-blur-glass border border-white/40 shadow-premium hover:bg-white/80 hover:scale-105 transition-all duration-normal">
+                              <div className="p-2 rounded-xl bg-gradient-to-br from-purple-100 to-violet-100 group-hover:shadow-glow-purple transition-all duration-normal">
+                                <BookOpen className="h-5 w-5 text-purple-600" />
+                              </div>
+                              <div className="text-left">
+                                <div className="text-lg font-bold text-slate-800">
+                                  {dashboardStats?.overview?.total_classes?.toLocaleString() || 0}
+                                </div>
+                                <div className="text-xs font-medium text-slate-600">Classes</div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
 

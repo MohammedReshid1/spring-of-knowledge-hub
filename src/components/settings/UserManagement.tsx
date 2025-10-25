@@ -15,16 +15,16 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from '@/hooks/use-toast';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 
 // Role options based on user's permissions
 const getUserRoleOptions = (userRole: string) => {
   // Normalize alias used by backend
-  const normalized = userRole === 'superadmin' ? 'super_admin' : userRole;
+  const normalized = userRole === 'superadmin' ? 'superadmin' : userRole;
 
-  if (normalized === 'super_admin') {
+  if (normalized === 'superadmin') {
     // Full suite (exclude teacher/parent/student; they are managed elsewhere)
-    return ['super_admin', 'hq_admin', 'branch_admin', 'hq_registrar', 'registrar', 'admin'];
+    return ['superadmin', 'hq_admin', 'branch_admin', 'hq_registrar', 'registrar', 'admin'];
   }
   if (normalized === 'hq_admin') {
     return ['hq_admin', 'branch_admin', 'hq_registrar', 'registrar', 'admin'];
@@ -198,7 +198,7 @@ export const UserManagement = () => {
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
-      case 'super_admin': return 'bg-purple-100 text-purple-800';
+      case 'superadmin': return 'bg-purple-100 text-purple-800';
       case 'hq_admin': return 'bg-purple-100 text-purple-700';
       case 'branch_admin': return 'bg-red-100 text-red-800';
       case 'hq_registrar': return 'bg-indigo-100 text-indigo-800';

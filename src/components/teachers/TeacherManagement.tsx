@@ -14,7 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import { TeacherForm } from './TeacherForm';
 import { TeacherDetails } from './TeacherDetails';
 import { useBranch } from '@/contexts/BranchContext';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { usePermissionCheck } from '@/contexts/RoleAccessContext';
 import { useDialogSidebarCollapse } from '@/hooks/useDialogSidebarCollapse';
 import { useLiveData } from '@/hooks/useLiveData';

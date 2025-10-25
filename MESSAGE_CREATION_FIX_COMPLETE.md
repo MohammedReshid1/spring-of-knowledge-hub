@@ -42,7 +42,7 @@ can_create = any(perm in user_permissions for perm in [
 ])
 
 # Superadmin always has access
-if current_user.get('role') in ['superadmin', 'super_admin']:
+if current_user.get('role') in ['superadmin', 'superadmin']:
     can_create = True
 
 if not can_create:

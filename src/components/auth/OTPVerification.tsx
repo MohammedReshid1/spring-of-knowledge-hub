@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { TokenStorage } from '@/utils/tokenStorage';
 import { apiClient } from '@/lib/api';
+import { getCSRFToken } from '@/utils/csrf';
 import {
   Loader2,
   Shield,
@@ -23,13 +24,19 @@ interface OTPVerificationProps {
   onVerified: (userData: any) => void;
   onBack: () => void;
   onResendOTP: () => void;
+  role?: 'parent' | 'teacher'; // Optional role for parent/teacher login
+  identifier?: string; // Original identifier (phone or email)
+  tempSessionToken?: string; // For password-based flow
 }
 
 export const OTPVerification: React.FC<OTPVerificationProps> = ({
   email,
   onVerified,
   onBack,
-  onResendOTP
+  onResendOTP,
+  role,
+  identifier,
+  tempSessionToken
 }) => {
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -37,6 +44,18 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
   const [canResend, setCanResend] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Helper to create headers with CSRF token
+  const createHeadersWithCSRF = (contentType: string = 'application/json'): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'Content-Type': contentType,
+    };
+    const csrfToken = getCSRFToken();
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+    return headers;
+  };
 
   // Timer for OTP expiration
   useEffect(() => {
@@ -112,44 +131,85 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
     setLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/auth/verify-otp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Important for cookies
-        body: JSON.stringify({
-          email: email,
-          code: code
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        toast({
-          title: "Success!",
-          description: "OTP verified successfully",
+      // Check if using password-based flow (temp session token)
+      if (tempSessionToken) {
+        // Use the new password-based OTP verification endpoint
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/auth/verify-otp-final`, {
+          method: 'POST',
+          headers: createHeadersWithCSRF(),
+          credentials: 'include',
+          body: JSON.stringify({
+            temp_session_token: tempSessionToken,
+            otp_code: code
+          })
         });
 
-        // Store auth token using TokenStorage (uses 'auth_token' key)
-        if (data.access_token) {
-          TokenStorage.setToken(data.access_token);
-          // Also set token in apiClient for immediate use
-          apiClient.setToken(data.access_token);
+        const data = await response.json();
+
+        if (data.success) {
+          toast({
+            title: "Success!",
+            description: "Login successful!",
+          });
+
+          // Store auth token
+          if (data.access_token) {
+            TokenStorage.setToken(data.access_token);
+            apiClient.setToken(data.access_token);
+          }
+
+          onVerified(data.user);
+        } else {
+          toast({
+            title: "Verification Failed",
+            description: data.detail || data.message || "Invalid OTP code",
+            variant: "destructive",
+          });
+
+          setOtpCode(['', '', '', '', '', '']);
+          inputRefs.current[0]?.focus();
         }
-
-        onVerified(data.user);
       } else {
-        toast({
-          title: "Verification Failed",
-          description: data.message || "Invalid OTP code",
-          variant: "destructive",
+        // Original OTP verification flow
+        const endpoint = role
+          ? `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/auth/${role}/verify-otp`
+          : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/auth/verify-otp`;
+
+        const requestBody = role && identifier
+          ? { identifier: identifier, code: code, role: role }
+          : { email: email, code: code };
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: createHeadersWithCSRF(),
+          credentials: 'include',
+          body: JSON.stringify(requestBody)
         });
 
-        // Clear OTP input on error
-        setOtpCode(['', '', '', '', '', '']);
-        inputRefs.current[0]?.focus();
+        const data = await response.json();
+
+        if (data.success) {
+          toast({
+            title: "Success!",
+            description: "OTP verified successfully",
+          });
+
+          if (data.access_token) {
+            TokenStorage.setToken(data.access_token);
+            apiClient.setToken(data.access_token);
+          }
+
+          onVerified(data.user);
+        } else {
+          toast({
+            title: "Verification Failed",
+            description: data.message || "Invalid OTP code",
+            variant: "destructive",
+          });
+
+          setOtpCode(['', '', '', '', '', '']);
+          inputRefs.current[0]?.focus();
+        }
       }
     } catch (error) {
       console.error('OTP verification error:', error);
@@ -336,14 +396,16 @@ export const OTPVerification: React.FC<OTPVerificationProps> = ({
                         Verify Your Identity
                       </CardTitle>
                       <CardDescription className="text-slate-600">
-                        Enter the 6-digit code sent to your email
+                        {identifier && !identifier.includes('@')
+                          ? 'Enter the 6-digit code sent to your Telegram'
+                          : 'Enter the 6-digit code sent to your email'}
                       </CardDescription>
                     </div>
 
-                    {/* Email Display */}
+                    {/* Email/Phone Display */}
                     <div className="flex items-center justify-center space-x-2 text-sm text-slate-600 mb-4">
                       <Mail className="h-4 w-4" />
-                      <span className="font-medium">{email}</span>
+                      <span className="font-medium">{identifier || email}</span>
                     </div>
 
                     {/* Timer */}

@@ -28,13 +28,27 @@ import AttendancePage from "./pages/AttendancePage";
 import { NotificationsManagement } from "./components/notifications/NotificationsManagement";
 import { MessagingPage } from "./pages/MessagingPage";
 import { InventoryManagement } from "./components/inventory/InventoryManagement";
-import { ParentPortal } from "./components/parent-portal/ParentPortal";
 import { SystemAdministration } from "./components/settings/SystemAdministration";
 import { AccountSecurity } from "./components/settings/AccountSecurity";
 import TeacherDashboardPage from "./pages/TeacherDashboardPage";
+import TeacherGradingPage from "./pages/TeacherGradingPage";
+import TeacherAttendancePage from "./pages/TeacherAttendancePage";
+import TeacherClassManagementPage from "./pages/TeacherClassManagementPage";
+import TeacherReportsPage from "./pages/TeacherReportsPage";
+import TeacherAssignmentsPage from "./pages/TeacherAssignmentsPage";
+import TeacherSchedulePage from "./pages/TeacherSchedulePage";
+import TeacherCommunicationPage from "./pages/TeacherCommunicationPage";
+import TeacherExamsPage from "./pages/TeacherExamsPage";
+import StudentDashboardPage from "./pages/StudentDashboardPage";
+import ParentDashboardPage from "./pages/ParentDashboardPage";
 import TimetablePage from "./pages/TimetablePage";
+import TeacherTimetablePage from "./pages/TeacherTimetablePage";
 import PaymentsPage from "./pages/PaymentsPage";
 import { SubjectManagement } from "./components/subjects/SubjectManagement";
+import PaymentTestPage from "./pages/PaymentTestPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import StudentTimetablePage from "./pages/StudentTimetablePage";
+import ParentStudentExamsPage from "./pages/ParentStudentExamsPage";
 // Removed pages: Settings, Branches, System Configuration
 import NotFound from "./pages/NotFound";
 import ForbiddenPage from "./pages/ForbiddenPage";
@@ -42,7 +56,7 @@ import ForbiddenPage from "./pages/ForbiddenPage";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, student, loading } = useAuth();
 
   if (loading) {
     return (
@@ -52,7 +66,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) {
+  if (!user && !student) {
     return <Navigate to="/auth" replace />;
   }
 
@@ -60,7 +74,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, student, loading } = useAuth();
 
   if (loading) {
     return (
@@ -70,7 +84,17 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (user) {
+  if (user || student) {
+    // Redirect to role-specific dashboard
+    if (student) {
+      return <Navigate to="/student-dashboard" replace />;
+    }
+    if (user?.role === 'parent') {
+      return <Navigate to="/parent-dashboard" replace />;
+    }
+    if (user?.role === 'teacher') {
+      return <Navigate to="/teacher-dashboard" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -80,6 +104,49 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function ErrorInitializer() {
   useErrorHandler();
   return null;
+}
+
+function TimetableRouter() {
+  const { user, student } = useAuth();
+
+  // Determine which timetable page to show based on user role
+  if (user?.role === 'teacher') {
+    return <TeacherTimetablePage />;
+  }
+  if (student || user?.role === 'student' || user?.role === 'parent') {
+    return <StudentTimetablePage />;
+  }
+  // For admins and other roles, show the full timetable management page
+  return <TimetablePage />;
+}
+
+function RoleBasedRedirect() {
+  const { user, student, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Redirect to role-specific dashboard
+  if (student) {
+    return <Navigate to="/student-dashboard" replace />;
+  }
+  if (user?.role === 'parent') {
+    return <Navigate to="/parent-dashboard" replace />;
+  }
+  if (user?.role === 'teacher') {
+    return <Navigate to="/teacher-dashboard" replace />;
+  }
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Not authenticated, go to auth
+  return <Navigate to="/auth" replace />;
 }
 
 const App = () => (
@@ -97,7 +164,7 @@ const App = () => (
                     <Sonner />
                     <BrowserRouter>
                       <Routes>
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="/" element={<RoleBasedRedirect />} />
                         <Route
                           path="/auth"
                           element={
@@ -165,6 +232,122 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/teacher-grading"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <TeacherGradingPage />
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/teacher-attendance"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <DashboardLayout>
+                                  <TeacherAttendancePage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/teacher-classes"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <DashboardLayout>
+                                  <TeacherClassManagementPage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/teacher-reports"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <DashboardLayout>
+                                  <TeacherReportsPage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/teacher-assignments"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <DashboardLayout>
+                                  <TeacherAssignmentsPage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/teacher-schedule"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <DashboardLayout>
+                                  <TeacherSchedulePage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/teacher-communication"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <DashboardLayout>
+                                  <TeacherCommunicationPage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/teacher-exams"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="teacher">
+                                <DashboardLayout>
+                                  <TeacherExamsPage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/parent-dashboard"
+                          element={
+                            <ProtectedRoute>
+                              <RoleBasedRoute role="parent">
+                                <DashboardLayout>
+                                  <ParentDashboardPage />
+                                </DashboardLayout>
+                              </RoleBasedRoute>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/student-dashboard"
+                          element={
+                            <ProtectedRoute>
+                              <DashboardLayout>
+                                <StudentDashboardPage />
+                              </DashboardLayout>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
                           path="/student-id-cards"
                           element={
                             <ProtectedRoute>
@@ -180,7 +363,7 @@ const App = () => (
                           path="/exams"
                           element={
                             <ProtectedRoute>
-                              <RoleBasedRoute permission="class.read">
+                              <RoleBasedRoute permission="grade.read">
                                 <DashboardLayout>
                                   <ExamsPage />
                                 </DashboardLayout>
@@ -192,11 +375,9 @@ const App = () => (
                           path="/calendar"
                           element={
                             <ProtectedRoute>
-                              <RoleBasedRoute permission="class.read">
-                                <DashboardLayout>
-                                  <CalendarPage />
-                                </DashboardLayout>
-                              </RoleBasedRoute>
+                              <DashboardLayout>
+                                <CalendarPage />
+                              </DashboardLayout>
                             </ProtectedRoute>
                           }
                         />
@@ -237,14 +418,42 @@ const App = () => (
                           }
                         />
                         <Route
+                          path="/inbox"
+                          element={
+                            <ProtectedRoute>
+                              <DashboardLayout>
+                                <NotificationsPage />
+                              </DashboardLayout>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/my-timetable"
+                          element={
+                            <ProtectedRoute>
+                              <DashboardLayout>
+                                <StudentTimetablePage />
+                              </DashboardLayout>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
+                          path="/my-exams"
+                          element={
+                            <ProtectedRoute>
+                              <DashboardLayout>
+                                <ParentStudentExamsPage />
+                              </DashboardLayout>
+                            </ProtectedRoute>
+                          }
+                        />
+                        <Route
                           path="/messaging"
                           element={
                             <ProtectedRoute>
-                              <RoleBasedRoute permission="communication.read">
-                                <DashboardLayout>
-                                  <MessagingPage />
-                                </DashboardLayout>
-                              </RoleBasedRoute>
+                              <DashboardLayout>
+                                <MessagingPage />
+                              </DashboardLayout>
                             </ProtectedRoute>
                           }
                         />
@@ -262,15 +471,7 @@ const App = () => (
                         />
                         <Route
                           path="/parent-portal"
-                          element={
-                            <ProtectedRoute>
-                              <RoleBasedRoute permission="student.read">
-                                <DashboardLayout>
-                                  <ParentPortal />
-                                </DashboardLayout>
-                              </RoleBasedRoute>
-                            </ProtectedRoute>
-                          }
+                          element={<Navigate to="/parent-dashboard" replace />}
                         />
                         <Route
                           path="/grade-levels"
@@ -323,7 +524,7 @@ const App = () => (
                           element={
                             <ProtectedRoute>
                               <DashboardLayout>
-                                <TimetablePage />
+                                <TimetableRouter />
                               </DashboardLayout>
                             </ProtectedRoute>
                           }

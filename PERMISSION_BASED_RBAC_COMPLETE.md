@@ -12,7 +12,7 @@ Successfully migrated the backend from hardcoded role checks to a modern permiss
 ### Before
 ```python
 # Hardcoded role check
-if current_user.get("role") not in ["admin", "superadmin", "super_admin"]:
+if current_user.get("role") not in ["admin", "superadmin", "superadmin"]:
     raise HTTPException(status_code=403, detail="Only admin can create classes")
 ```
 
@@ -56,7 +56,7 @@ current_user: dict = Depends(PermissionChecker(["class.create"]))
 
 ✅ **Branch Filtering Logic** - Kept all role checks that filter data by branch:
 ```python
-if current_user.get("role") not in ["superadmin", "super_admin"]:
+if current_user.get("role") not in ["superadmin", "superadmin"]:
     query["branch_id"] = current_user.get("branch_id")
 ```
 

@@ -14,6 +14,7 @@ import { Search, Filter, MoreHorizontal, Eye, Edit, Receipt, Ban, RotateCcw, Dow
 import { toast } from '@/hooks/use-toast';
 import { useBranch } from '@/contexts/BranchContext';
 import { useRoleAccess } from '@/contexts/RoleAccessContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { format, parseISO } from 'date-fns';
 import type { Payment } from '@/types/api';
 import { useCurrency } from '@/hooks/useSystemSettings';
@@ -45,11 +46,16 @@ const PAYMENT_METHODS = [
 export function PaymentList({ onEditPayment, onViewDetails }: PaymentListProps) {
   const { selectedBranch } = useBranch();
   const { hasPermission, isSuperSuperAdmin } = useRoleAccess();
+  const { user } = useAuth();
   const currency = useCurrency();
   const branchId = selectedBranch === 'all' ? undefined : selectedBranch || undefined;
   // Only enable queries when a specific branch is selected; backend requires branch_id
   const enableQueries = !!selectedBranch && selectedBranch !== 'all';
   const queryClient = useQueryClient();
+
+  // Parent detection and filtering
+  const isParent = user?.role === 'parent';
+  const parentId = (user as any)?.parent_id;
 
   // Permission checks
   const canUpdate = isSuperSuperAdmin || hasPermission('payment.update');
@@ -76,6 +82,7 @@ export function PaymentList({ onEditPayment, onViewDetails }: PaymentListProps) 
       limit: pageSize,
     };
 
+    if (isParent && parentId) params.parent_id = parentId;
     if (branchId) params.branch_id = branchId;
     if (statusFilter !== 'all') params.status = statusFilter;
     if (methodFilter !== 'all') params.payment_method = methodFilter;
@@ -87,7 +94,7 @@ export function PaymentList({ onEditPayment, onViewDetails }: PaymentListProps) 
     }
 
     return params;
-  }, [branchId, statusFilter, methodFilter, dateFromFilter, dateToFilter, searchTerm, currentPage, pageSize]);
+  }, [isParent, parentId, branchId, statusFilter, methodFilter, dateFromFilter, dateToFilter, searchTerm, currentPage, pageSize]);
 
   // Fetch payments
   const { data: paymentsResponse, isLoading, error, refetch } = useQuery({
@@ -292,10 +299,12 @@ export function PaymentList({ onEditPayment, onViewDetails }: PaymentListProps) 
                 <Search className="h-5 w-5 text-blue-600" />
               </div>
               <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-900 bg-clip-text text-transparent">
-                Payment Management
+                {isParent ? "My Children's Payments" : "Payment Management"}
               </CardTitle>
             </div>
-            <p className="text-slate-600 leading-relaxed">Advanced payment tracking with comprehensive filtering and analytics</p>
+            <p className="text-slate-600 leading-relaxed">
+              {isParent ? "View and track your children's payment records" : "Advanced payment tracking with comprehensive filtering and analytics"}
+            </p>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Premium Search */}
@@ -437,8 +446,8 @@ export function PaymentList({ onEditPayment, onViewDetails }: PaymentListProps) 
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
                           <Search className="h-8 w-8 text-blue-400" />
                         </div>
-                        <p className="font-medium">No payments found matching your criteria</p>
-                        <p className="text-sm text-slate-400">Try adjusting your filters or search terms</p>
+                        <p className="font-medium">{isParent ? "No payments found for your children" : "No payments found matching your criteria"}</p>
+                        <p className="text-sm text-slate-400">{isParent ? "Try adjusting your filters or search" : "Try adjusting your filters or search terms"}</p>
                       </div>
                     </TableCell>
                   </TableRow>

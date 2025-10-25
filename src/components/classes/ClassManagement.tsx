@@ -17,7 +17,7 @@ import { ClassSuggestions } from './ClassSuggestions';
 import { StudentClassAssignment } from './StudentClassAssignment';
 import { GradeMismatchFixer } from './GradeMismatchFixer';
 import { DuplicateClassCleaner } from './DuplicateClassCleaner';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useBranch } from '@/contexts/BranchContext';
 import { getHighlightedText } from '@/utils/searchHighlight';
@@ -120,17 +120,17 @@ export const ClassManagement = () => {
     queryFn: async () => {
       if (!user?.id || !isTeacher) return [];
       // Skip 'me' endpoint for now due to CORS/500 on some setups; rely on id-based + local fallback
-      // Try enhanced classes endpoint next
+      // Try teacher classes endpoint
       try {
         const { data: clsData, error: clsErr } = await apiClient.getTeacherEnhancedClasses(user.id);
         if (!clsErr && clsData?.classes) return clsData.classes as any[];
       } catch (_) {}
-      // Fallback to enhanced dashboard
+      // Try teacher dashboard
       try {
-        const { data, error } = await apiClient.getTeacherEnhancedDashboard(user.id);
+        const { data, error } = await apiClient.getTeacherDashboardData(user.id);
         if (!error && data?.assigned_classes) return data.assigned_classes as any[];
       } catch (_) {}
-      // Try non-enhanced teacher classes endpoint
+      // Try legacy teacher classes endpoint
       try {
         const { data: legacy, error: legacyErr } = await apiClient.getTeacherClasses(user.id);
         if (!legacyErr && legacy?.classes) return legacy.classes as any[];
@@ -475,117 +475,6 @@ export const ClassManagement = () => {
         {!isTeacher && (
           <div className="mx-auto max-w-7xl">
             <StudentClassAssignment />
-          </div>
-        )}
-
-        {/* Grade Level Overview (admins only) */}
-        {!isTeacher && (
-          <div className="mx-auto max-w-7xl">
-          <div className="relative">
-            {/* Background card with glass morphism */}
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-glass border border-white/30 rounded-3xl shadow-premium"></div>
-            <div className="absolute inset-0 bg-gradient-to-r from-teal-500/8 via-cyan-500/8 to-blue-500/8 rounded-3xl pointer-events-none"></div>
-
-            <Card className="relative bg-transparent border-0 shadow-none">
-              <CardHeader className="p-8">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-xl bg-gradient-to-br from-teal-100 to-cyan-100 border border-teal-200/50">
-                    <Users className="h-5 w-5 text-teal-600" />
-                  </div>
-                  <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-teal-800 to-cyan-900 bg-clip-text text-transparent">
-                    Grade Level Capacity Overview
-                  </CardTitle>
-                </div>
-                <p className="text-slate-600 leading-relaxed">Current enrollment and capacity for all grade levels with real-time analytics</p>
-              </CardHeader>
-              <CardContent className="px-8 pb-8">
-                {!gradeLevelsFiltered || gradeLevelsFiltered.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-100 to-gray-100 border border-slate-200/50 inline-flex mb-6">
-                      <BookOpen className="h-12 w-12 text-slate-400" />
-                    </div>
-                    <p className="text-slate-700 font-semibold text-lg mb-2">No grade levels found</p>
-                    <p className="text-slate-500">Grade levels will appear here once configured</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {gradeLevelsFiltered.map((grade, index) => {
-                      // Use computed enrollment per grade_level_id or fallback
-                      const actualCount = gradeEnrollmentCounts[grade.id] ?? grade.current_enrollment ?? 0;
-                      const computedMax = gradeCapacityMap[grade.id] ?? grade.max_capacity;
-                      const percentage = computedMax > 0 ? (actualCount / computedMax) * 100 : 0;
-                      const isNearCapacity = percentage >= 80;
-                      const isFull = percentage >= 95;
-
-                      return (
-                        <div
-                          key={grade.id}
-                          className="group relative animate-fade-in-up"
-                          style={{
-                            animationDelay: `${index * 100}ms`,
-                            animationFillMode: 'both'
-                          }}
-                        >
-                          {/* Premium card with glass morphism */}
-                          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium group-hover:shadow-glow-subtle transition-all duration-normal"></div>
-                          <div className={`absolute inset-0 rounded-2xl transition-all duration-normal ${
-                            isFull ? 'bg-gradient-to-br from-red-50/80 to-rose-50/80 border border-red-200/50' :
-                            isNearCapacity ? 'bg-gradient-to-br from-amber-50/80 to-yellow-50/80 border border-amber-200/50' :
-                            'bg-gradient-to-br from-emerald-50/80 to-green-50/80 border border-emerald-200/50'
-                          }`}></div>
-
-                          <div className="relative p-6 space-y-4">
-                            <div className="flex items-center justify-between">
-                              <h3 className="font-bold text-slate-900 text-lg">
-                                {formatGradeLevel(grade.grade)}
-                              </h3>
-                              <div className={`p-2 rounded-xl transition-all duration-normal ${
-                                isFull ? 'bg-red-100 border border-red-200' :
-                                isNearCapacity ? 'bg-amber-100 border border-amber-200' :
-                                'bg-emerald-100 border border-emerald-200'
-                              }`}>
-                                {isFull ? (
-                                  <AlertCircle className="h-5 w-5 text-red-600" />
-                                ) : isNearCapacity ? (
-                                  <AlertCircle className="h-5 w-5 text-amber-600" />
-                                ) : (
-                                  <CheckCircle className="h-5 w-5 text-emerald-600" />
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 rounded-lg bg-white/60 border border-white/40">
-                                  <Users className="h-4 w-4 text-slate-600" />
-                                </div>
-                                <div>
-                                  <span className={`text-2xl font-bold ${getCapacityColor(actualCount, computedMax)}`}>
-                                    {actualCount}
-                                  </span>
-                                  <span className="text-sm text-slate-500 ml-1">/ {computedMax}</span>
-                                </div>
-                              </div>
-                              <Badge className={`${getCapacityBadgeColor(actualCount, grade.max_capacity)} font-semibold`} variant="outline">
-                                {Math.round(percentage)}%
-                              </Badge>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Progress value={percentage} className="h-2" />
-                              <p className="text-sm text-slate-600 font-medium">
-                                {computedMax - actualCount} spots available
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
           </div>
         )}
 

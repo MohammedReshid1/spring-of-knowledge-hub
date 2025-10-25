@@ -12,8 +12,8 @@ export default function TimetablePage() {
   const { user } = useAuth();
   const { selectedBranch } = useBranch();
   
-  // Get user role - handle both 'super_admin' and 'superadmin' formats
-  const userRole = user?.role === 'super_admin' ? 'superadmin' : (user?.role || 'user');
+  // Get user role - handle both 'superadmin' and 'superadmin' formats
+  const userRole = user?.role === 'superadmin' ? 'superadmin' : (user?.role || 'user');
   const userId = user?.user_id || '';
   
   return (

@@ -29,7 +29,7 @@ import {
   User,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import {
   Dialog,
   DialogContent,

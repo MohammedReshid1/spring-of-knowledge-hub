@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useBranch } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +55,10 @@ export const AttendanceReports: React.FC = () => {
   const [reportType, setReportType] = useState<ReportType>('summary');
   const [isExporting, setIsExporting] = useState(false);
   const { selectedBranch } = useBranch();
+  const { user } = useAuth();
+
+  const userRole = user?.role;
+  const userId = user?.id;
 
   // Helper function to convert data to CSV format
   const convertToCSV = (data: any[]): string => {
@@ -538,11 +543,20 @@ export const AttendanceReports: React.FC = () => {
   });
 
   const { data: classes = [] } = useQuery({
-    queryKey: ['classes-list'],
+    queryKey: userRole === 'teacher' ? ['teacher-classes-reports', userId] : ['classes-list'],
     queryFn: async () => {
-      const response = await apiClient.get('/classes');
-      // Ensure we return an array
-      return Array.isArray(response.data) ? response.data : [];
+      if (userRole === 'teacher' && userId) {
+        // For teachers, fetch only their assigned classes
+        const { data, error } = await apiClient.getTeacherEnhancedClasses(userId);
+        if (error) throw error;
+        // Extract classes from the response
+        return data?.classes || [];
+      } else {
+        // For non-teachers, fetch all classes
+        const response = await apiClient.get('/classes');
+        // Ensure we return an array
+        return Array.isArray(response.data) ? response.data : [];
+      }
     },
   });
 
@@ -855,19 +869,21 @@ export const AttendanceReports: React.FC = () => {
               </div>
             </Button>
 
-            {/* Comprehensive Report */}
-            <Button
-              variant="outline"
-              className="h-28 flex flex-col items-center justify-center gap-2"
-              onClick={() => handleExportPDF('comprehensive')}
-              disabled={isExporting}
-            >
-              <FileText className="h-8 w-8 text-orange-600" />
-              <div className="text-center">
-                <div className="font-semibold">Comprehensive PDF</div>
-                <div className="text-xs text-muted-foreground">Complete analysis report</div>
-              </div>
-            </Button>
+            {/* Comprehensive Report - Only for admins */}
+            {userRole !== 'teacher' && (
+              <Button
+                variant="outline"
+                className="h-28 flex flex-col items-center justify-center gap-2"
+                onClick={() => handleExportPDF('comprehensive')}
+                disabled={isExporting}
+              >
+                <FileText className="h-8 w-8 text-orange-600" />
+                <div className="text-center">
+                  <div className="font-semibold">Comprehensive PDF</div>
+                  <div className="text-xs text-muted-foreground">Complete analysis report</div>
+                </div>
+              </Button>
+            )}
 
           </div>
         </CardContent>

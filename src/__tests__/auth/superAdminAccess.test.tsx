@@ -17,7 +17,7 @@ vi.mock('@/contexts/AuthContext', () => ({
   },
 }))
 
-import { useRoleAccess } from '@/hooks/useRoleAccess'
+import { useRoleAccess } from '@/contexts/RoleAccessContext'
 import { useAuth } from '@/contexts/AuthContext'
 
 const mockUseRoleAccess = vi.mocked(useRoleAccess)
@@ -29,9 +29,9 @@ describe('Super Admin Access Verification Tests', () => {
   })
 
   describe('Super Admin Role Variants', () => {
-    it('should recognize "super_admin" role variant', async () => {
+    it('should recognize "superadmin" role variant', async () => {
       mockUseAuth.mockReturnValue({
-        user: { ...mockUsers.superAdmin, role: 'super_admin' },
+        user: { ...mockUsers.superAdmin, role: 'superadmin' },
         login: vi.fn(),
         logout: vi.fn(),
         refreshToken: vi.fn(),
@@ -41,10 +41,10 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
-        userRole: 'super_admin',
+        userRole: 'superadmin',
         permissionsLoading: false,
       })
 
@@ -99,11 +99,11 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: false, // This should be overridden
         isSuperAdmin: true,
         permissionsLoading: true, // Permissions still loading
-        userRole: 'super_admin',
+        userRole: 'superadmin',
       })
 
       renderWithSuperAdmin(<PaymentDashboard />)
@@ -128,12 +128,12 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true, // Super admin override
         isSuperAdmin: true,
         permissionsLoading: false,
         userPermissions: null, // Permissions failed to load
-        userRole: 'super_admin',
+        userRole: 'superadmin',
       })
 
       renderWithSuperAdmin(<PaymentDashboard />)
@@ -160,7 +160,7 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
         canViewFinancialData: true,
@@ -190,7 +190,7 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
         permissionsLoading: false,
@@ -223,7 +223,7 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
         permissionsLoading: false,
@@ -257,10 +257,10 @@ describe('Super Admin Access Verification Tests', () => {
 
       // Simulate a case where super admin is temporarily denied access
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: false, // Temporarily false for debug display
         isSuperAdmin: false, // Temporarily false for debug display
-        userRole: 'super_admin',
+        userRole: 'superadmin',
         permissionsLoading: false,
       })
 
@@ -270,7 +270,7 @@ describe('Super Admin Access Verification Tests', () => {
         expect(screen.getByText('Access Restricted')).toBeInTheDocument()
       })
       
-      expect(screen.getByText('User Role: super_admin')).toBeInTheDocument()
+      expect(screen.getByText('User Role: superadmin')).toBeInTheDocument()
       expect(screen.getByText(`User Email: ${mockUsers.superAdmin.email}`)).toBeInTheDocument()
       expect(screen.getByText('Is Super Admin: No')).toBeInTheDocument()
       expect(screen.getByText('Can View Finances: No')).toBeInTheDocument()
@@ -291,11 +291,11 @@ describe('Super Admin Access Verification Tests', () => {
 
       // Start with loading permissions
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: false,
         isSuperAdmin: true,
         permissionsLoading: true,
-        userRole: 'super_admin',
+        userRole: 'superadmin',
       })
 
       const { rerender } = renderWithSuperAdmin(<PaymentDashboard />)
@@ -306,11 +306,11 @@ describe('Super Admin Access Verification Tests', () => {
 
       // Update to loaded permissions
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
         permissionsLoading: false,
-        userRole: 'super_admin',
+        userRole: 'superadmin',
       })
 
       rerender(<PaymentDashboard />)
@@ -334,11 +334,11 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true, // This should allow access
         isSuperAdmin: true, // This is the key flag
         permissionsLoading: false,
-        userRole: 'super_admin',
+        userRole: 'superadmin',
         // Even if other permissions might be false, super admin should have access
       })
 
@@ -368,7 +368,7 @@ describe('Super Admin Access Verification Tests', () => {
       })
 
       mockUseRoleAccess.mockReturnValue({
-        ...createMockRoleAccess('super_admin'),
+        ...createMockRoleAccess('superadmin'),
         canViewFinances: true,
         isSuperAdmin: true,
         canAccessAllBranches: true,

@@ -499,10 +499,10 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
       if (classFound) continue; // Skip to the next row after finding a class header
 
       // Look for student data - check for student name in the row
-      const studentName = row['__EMPTY'] || row['Student\'s Name'] || Object.values(row).find(val => 
-        val && typeof val === 'string' && 
-        val.trim().length > 5 && 
-        /^[a-zA-Z\s]+$/.test(val.trim()) && 
+      const studentName = row['__EMPTY'] || row['Student Name'] || row['Student\'s Name'] || Object.values(row).find(val =>
+        val && typeof val === 'string' &&
+        val.trim().length > 5 &&
+        /^[a-zA-Z\s]+$/.test(val.trim()) &&
         val.split(' ').length >= 2 &&
         !val.toLowerCase().includes('grade') &&
         !val.toLowerCase().includes('character') &&
@@ -520,16 +520,16 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
 
       if (currentClass && studentName && typeof studentName === 'string') {
         const cleanName = studentName.toString().trim();
-        
+
         // Skip header-like rows
-        const isHeaderRow = cleanName.toLowerCase().includes('student') || 
+        const isHeaderRow = cleanName.toLowerCase().includes('student') ||
                            cleanName.toLowerCase().includes('name') ||
                            cleanName.toLowerCase().includes('sex') ||
                            cleanName.toLowerCase().includes('gender') ||
                            cleanName.toLowerCase().includes('class') ||
                            cleanName.toLowerCase().includes('grade') ||
                            cleanName.toLowerCase().includes('section');
-        
+
         if (cleanName.length > 2 && !isHeaderRow && cleanName.trim() !== '') {
           // Extract gender from various possible column names
           let genderValue = row['__EMPTY_1'] || row['Gen.'] || row['Gen'] || row['SEX'] || row['Sex'] || row['Gender'] || row['GENDER'] || 'M';
@@ -544,9 +544,19 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
             }
           }
 
+          // Extract parent phone numbers from new template columns
+          const motherPhone = (row['Mother Phone'] || row['mother_phone'] || '').toString().trim();
+          const fatherPhone = (row['Father Phone'] || row['father_phone'] || '').toString().trim();
+          const guardianName = (row['Guardian Name'] || row['guardian_name'] || '').toString().trim();
+          const guardianPhone = (row['Guardian Phone'] || row['guardian_phone'] || '').toString().trim();
+
           currentClass.students.push({
             name: cleanName,
             gender: genderValue,
+            mother_phone: motherPhone || null,
+            father_phone: fatherPhone || null,
+            guardian_name: guardianName || null,
+            guardian_phone: guardianPhone || null,
             ...row
           });
         }
@@ -696,8 +706,13 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
             grade_level: classInfo.gradeLevel,
             gender: gender,
             address: null,
-            phone: null,
+            phone: null, // Deprecated - using parent-specific fields
             email: null,
+            // Parent contact information
+            mother_phone: studentRow.mother_phone || null,
+            father_phone: studentRow.father_phone || null,
+            guardian_name: studentRow.guardian_name || null,
+            guardian_phone: studentRow.guardian_phone || null,
             status: 'Active' as const,
             admission_date: new Date().toISOString().split('T')[0],
             class_id: classId,
@@ -781,24 +796,52 @@ export const BulkStudentImport = ({ onImportComplete }: { onImportComplete: () =
   };
 
   const downloadExcelTemplate = () => {
-    // Create sample data with class headers including all variations
+    // Create sample data with class headers including parent contact info
     const templateData = [
-      { 'A': 'PRE KG - A' },
-      { 'A': 'Ahmed Mohammed Ali' },
-      { 'A': 'Aisha Hassan Ibrahim' },
-      { 'A': '' },
-      { 'A': 'KG - B' },
-      { 'A': 'Omar Yusuf Mohammed' },
-      { 'A': 'Fatima Ahmed Said' },
-      { 'A': '' },
-      { 'A': 'PREP - A' },
-      { 'A': 'Sara Ahmed Mohammed' },
-      { 'A': 'Hassan Ali Ibrahim' },
+      { 'Student Name': 'PRE KG - A', 'Mother Phone': '', 'Father Phone': '', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'Ahmed Mohammed Ali', 'Mother Phone': '+251911234567', 'Father Phone': '+251922334455', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'Aisha Hassan Ibrahim', 'Mother Phone': '+251933445566', 'Father Phone': '+251944556677', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': '', 'Mother Phone': '', 'Father Phone': '', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'KG - B', 'Mother Phone': '', 'Father Phone': '', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'Omar Yusuf Mohammed', 'Mother Phone': '+251955667788', 'Father Phone': '+251966778899', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'Fatima Ahmed Said', 'Mother Phone': '+251977889900', 'Father Phone': '+251988990011', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': '', 'Mother Phone': '', 'Father Phone': '', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'PREP - A', 'Mother Phone': '', 'Father Phone': '', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'Sara Ahmed Mohammed', 'Mother Phone': '+251900112233', 'Father Phone': '+251911223344', 'Guardian Name': '', 'Guardian Phone': '' },
+      { 'Student Name': 'Hassan Ali Ibrahim', 'Mother Phone': '+251922334455', 'Father Phone': '+251933445566', 'Guardian Name': '', 'Guardian Phone': '' },
     ];
 
     const ws = XLSX.utils.json_to_sheet(templateData);
+
+    // Set column widths for better visibility
+    ws['!cols'] = [
+      { wch: 25 }, // Student Name
+      { wch: 18 }, // Mother Phone
+      { wch: 18 }, // Father Phone
+      { wch: 20 }, // Guardian Name
+      { wch: 18 }  // Guardian Phone
+    ];
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Students');
+
+    // Add instructions sheet
+    const instructions = [
+      { 'Instructions for Bulk Student Import': 'How to use this template:' },
+      { 'Instructions for Bulk Student Import': '' },
+      { 'Instructions for Bulk Student Import': '1. Each class starts with a header row (e.g., "PRE KG - A", "KG - B", "GRADE 5 - A")' },
+      { 'Instructions for Bulk Student Import': '2. List student names in the "Student Name" column (Format: First Middle Last)' },
+      { 'Instructions for Bulk Student Import': '3. Provide at least ONE parent phone number (Mother, Father, or Guardian)' },
+      { 'Instructions for Bulk Student Import': '4. Phone numbers should include country code (e.g., +251911234567)' },
+      { 'Instructions for Bulk Student Import': '5. Leave a blank row between different classes' },
+      { 'Instructions for Bulk Student Import': '6. The system will automatically create parent login accounts' },
+      { 'Instructions for Bulk Student Import': '' },
+      { 'Instructions for Bulk Student Import': 'Priority for parent account creation: Father → Mother → Guardian' },
+    ];
+    const wsInstructions = XLSX.utils.json_to_sheet(instructions);
+    wsInstructions['!cols'] = [{ wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
+
     XLSX.writeFile(wb, 'student-import-template.xlsx');
   };
 

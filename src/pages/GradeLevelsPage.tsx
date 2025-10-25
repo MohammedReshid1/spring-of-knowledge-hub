@@ -507,8 +507,13 @@ export default function GradeLevelsPage() {
 
                             <div className="space-y-2">
                               <Progress value={percentage} className="h-3" />
-                              <p className="text-sm text-slate-600 font-medium">
-                                {stats.maxCapacity - stats.currentEnrollment} spots available
+                              <p className={`text-sm font-medium ${
+                                stats.currentEnrollment > stats.maxCapacity ? 'text-red-600' : 'text-slate-600'
+                              }`}>
+                                {stats.currentEnrollment > stats.maxCapacity
+                                  ? `${stats.currentEnrollment - stats.maxCapacity} over capacity`
+                                  : `${stats.maxCapacity - stats.currentEnrollment} spots available`
+                                }
                               </p>
                             </div>
                           </div>

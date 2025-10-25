@@ -227,7 +227,7 @@ These files were analyzed and confirmed to NOT need changes:
 
 ```python
 # This is CORRECT - it's data isolation, not permission checking
-if current_user.get("role") not in ["superadmin", "super_admin"]:
+if current_user.get("role") not in ["superadmin", "superadmin"]:
     query["branch_id"] = current_user.get("branch_id")
 ```
 

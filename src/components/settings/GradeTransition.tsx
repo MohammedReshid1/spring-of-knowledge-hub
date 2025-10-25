@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { AlertCircle, Users, ArrowRight, CheckCircle, AlertTriangle, History, Calendar, Lock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 
 interface TransitionPreview {
   student_id: string;

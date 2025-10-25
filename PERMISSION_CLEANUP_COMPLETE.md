@@ -46,7 +46,7 @@ All permissions now follow the standard CRUD + manage pattern:
 - Can perform database cleanup (`system.cleanup`)
 
 ### 🟠 Level 100 - Super Admin (106 permissions)
-**Role:** `super_admin`
+**Role:** `superadmin`
 **Scope:** Global (all branches)
 **Permissions:** All except 2 superadmin exclusives
 

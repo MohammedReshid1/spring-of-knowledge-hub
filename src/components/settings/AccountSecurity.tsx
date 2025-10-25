@@ -1,18 +1,139 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Lock, Eye, EyeOff, Shield, Key } from 'lucide-react';
+import { Lock, Eye, EyeOff, Shield, Key, Upload, User, Camera, X, MessageCircle, CheckCircle2, XCircle, Copy, ExternalLink } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { getImageUrl } from '@/utils/imageUtils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const AccountSecurity = () => {
+  const { user, student, refreshUser } = useAuth();
+  const currentEntity = student || user;
+  const profilePicture = currentEntity?.profile_picture;
+
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(getImageUrl(profilePicture));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Telegram linking state
+  const [telegramLinked, setTelegramLinked] = useState(false);
+  const [telegramLinkedAt, setTelegramLinkedAt] = useState<string | null>(null);
+  const [isCheckingTelegramStatus, setIsCheckingTelegramStatus] = useState(false);
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [isUnlinking, setIsUnlinking] = useState(false);
+  const [showLinkingDialog, setShowLinkingDialog] = useState(false);
+  const [linkingToken, setLinkingToken] = useState('');
+  const [telegramLink, setTelegramLink] = useState('');
+
+  // Update preview when profile picture changes from user/student data
+  useEffect(() => {
+    setProfilePicturePreview(getImageUrl(profilePicture));
+  }, [profilePicture]);
+
+  // Check Telegram linking status on mount
+  useEffect(() => {
+    checkTelegramLinkStatus();
+  }, []);
+
+  const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a JPEG, PNG, or GIF image",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please upload an image smaller than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploadingPicture(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Use different endpoints for students vs regular users
+      const endpoint = student ? '/students/me/profile-picture' : '/users/me/profile-picture';
+
+      // Don't set Content-Type header - let the browser set it with the correct boundary
+      const response = await apiClient.post(endpoint, formData);
+
+      if (response.data) {
+        // Convert the relative URL to full URL for preview
+        setProfilePicturePreview(getImageUrl(response.data.profile_picture));
+        toast({
+          title: "Success",
+          description: "Profile picture updated successfully!",
+        });
+        // Refresh user data to update the profile picture everywhere
+        await refreshUser();
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to upload profile picture",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingPicture(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteProfilePicture = async () => {
+    setIsUploadingPicture(true);
+    try {
+      // Use different endpoints for students vs regular users
+      const endpoint = student ? '/students/me/profile-picture' : '/users/me/profile-picture';
+
+      await apiClient.delete(endpoint);
+      setProfilePicturePreview(null);
+      toast({
+        title: "Success",
+        description: "Profile picture deleted successfully!",
+      });
+      // Refresh user data to update the profile picture everywhere
+      await refreshUser();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to delete profile picture",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingPicture(false);
+    }
+  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +190,104 @@ export const AccountSecurity = () => {
     } finally {
       setIsChangingPassword(false);
     }
+  };
+
+  // Check Telegram linking status
+  const checkTelegramLinkStatus = async () => {
+    setIsCheckingTelegramStatus(true);
+    try {
+      const response = await apiClient.get('/telegram/link-status');
+      if (response.data) {
+        setTelegramLinked(response.data.linked);
+        setTelegramLinkedAt(response.data.linked_at);
+      }
+    } catch (error: any) {
+      console.error('Failed to check Telegram link status:', error);
+    } finally {
+      setIsCheckingTelegramStatus(false);
+    }
+  };
+
+  // Generate Telegram linking token
+  const handleGenerateLinkingToken = async () => {
+    if (!currentEntity?.phone) {
+      toast({
+        title: "Error",
+        description: "No phone number associated with your account. Please contact your administrator.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingToken(true);
+    try {
+      const response = await apiClient.post('/telegram/generate-link-token', {
+        phone: currentEntity.phone
+      });
+
+      if (response.data?.success) {
+        setLinkingToken(response.data.linking_token);
+        setTelegramLink(response.data.telegram_link);
+        setShowLinkingDialog(true);
+        toast({
+          title: "Success",
+          description: "Linking token generated successfully!",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.data?.message || "Failed to generate linking token",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to generate linking token",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingToken(false);
+    }
+  };
+
+  // Unlink Telegram account
+  const handleUnlinkTelegram = async () => {
+    setIsUnlinking(true);
+    try {
+      const response = await apiClient.delete('/telegram/unlink');
+      if (response.data?.success) {
+        setTelegramLinked(false);
+        setTelegramLinkedAt(null);
+        toast({
+          title: "Success",
+          description: "Telegram account unlinked successfully!",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: response.data?.message || "Failed to unlink Telegram account",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.detail || "Failed to unlink Telegram account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
+
+  // Copy to clipboard
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied!",
+      description: `${label} copied to clipboard`,
+    });
   };
 
   return (
@@ -131,6 +350,86 @@ export const AccountSecurity = () => {
             </svg>
           </div>
         </div>
+
+        {/* Profile Picture Card */}
+        <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-xl hover:shadow-2xl transition-all duration-300 animate-fadeInUp">
+          <CardHeader className="border-b border-slate-100/50 pb-4">
+            <CardTitle className="text-lg font-semibold bg-gradient-to-r from-blue-700 via-cyan-700 to-teal-700 bg-clip-text text-transparent flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-cyan-100 border border-blue-200/50">
+                <User className="h-5 w-5 text-blue-600" />
+              </div>
+              Profile Picture
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center space-y-4">
+              {/* Profile Picture Preview */}
+              <div className="relative">
+                <div className="h-32 w-32 rounded-full bg-gradient-to-br from-blue-100 to-purple-100 border-4 border-white shadow-lg overflow-hidden">
+                  {profilePicturePreview ? (
+                    <img
+                      src={profilePicturePreview}
+                      alt="Profile"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center">
+                      <User className="h-16 w-16 text-slate-400" />
+                    </div>
+                  )}
+                </div>
+                {profilePicturePreview && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    className="absolute -top-1 -right-1 h-8 w-8 rounded-full shadow-md"
+                    onClick={handleDeleteProfilePicture}
+                    disabled={isUploadingPicture}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Upload Button */}
+              <div className="flex flex-col items-center gap-3 w-full max-w-sm">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif"
+                  onChange={handleProfilePictureChange}
+                  className="hidden"
+                  disabled={isUploadingPicture}
+                />
+                <Button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingPicture}
+                  className="w-full bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-600 hover:from-blue-700 hover:via-cyan-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  {isUploadingPicture ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-4 w-4 mr-2" />
+                      {profilePicturePreview ? 'Change Photo' : 'Upload Photo'}
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-slate-500 text-center">
+                  JPG, PNG or GIF (max 5MB)
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Change Password Card */}
         <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-xl hover:shadow-2xl transition-all duration-300 animate-fadeInUp">

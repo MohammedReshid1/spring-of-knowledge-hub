@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
@@ -18,7 +18,11 @@ import {
   TrendingUp,
   Clock,
   Bell,
-  FileText
+  FileText,
+  BarChart3,
+  MessageSquare,
+  ClipboardList,
+  Mail
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
@@ -47,16 +51,9 @@ export const TeacherDashboardPage = () => {
     queryFn: async () => {
       if (!user?.id) return null;
 
-      // Try enhanced dashboard first
-      const { data: enhanced, error: enhancedError } = await apiClient.getTeacherEnhancedDashboard(user.id);
-      if (!enhancedError && enhanced) {
-        return enhanced;
-      }
-
-      // Fallback to regular dashboard
-      const { data: regular, error: regularError } = await apiClient.getTeacherDashboardData(user.id);
-      if (regularError) throw new Error(regularError);
-      return regular;
+      const { data, error: apiError } = await apiClient.getTeacherDashboardData(user.id);
+      if (apiError) throw new Error(apiError);
+      return data;
     },
     enabled: isTeacher && !!user?.id,
     staleTime: 300000 // 5 minutes - no polling, using WebSocket updates instead
@@ -172,67 +169,6 @@ export const TeacherDashboardPage = () => {
           </Card>
         </div>
 
-        {/* Quick Actions */}
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4 flex items-center">
-            <Clock className="h-5 w-5 mr-2 text-blue-600" />
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button asChild variant="outline" className="h-20 flex-col">
-              <Link to="/attendance">
-                <ClipboardCheck className="h-6 w-6 mb-2" />
-                Take Attendance
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col">
-              <Link to="/grades">
-                <TrendingUp className="h-6 w-6 mb-2" />
-                Grade Assignments
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col">
-              <Link to="/classes">
-                <BookOpen className="h-6 w-6 mb-2" />
-                View Classes
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col">
-              <Link to="/calendar">
-                <Calendar className="h-6 w-6 mb-2" />
-                Schedule
-              </Link>
-            </Button>
-          </div>
-        </Card>
-
-        {/* Recent Activities */}
-        {dashboardData?.recent_activities && dashboardData.recent_activities.length > 0 && (
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold mb-4">Recent Activities</h2>
-            <div className="space-y-3">
-              {dashboardData.recent_activities.slice(0, 5).map((activity: any, index: number) => (
-                <div key={index} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-900">{activity.message}</p>
-                    <p className="text-xs text-gray-500">
-                      {activity.timestamp ? new Date(activity.timestamp).toLocaleDateString() : 'Today'}
-                    </p>
-                  </div>
-                  {activity.class_id && (
-                    <Button asChild variant="ghost" size="sm">
-                      <Link to={`/classes/${activity.class_id}`}>
-                        View Class
-                      </Link>
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
         {/* Class Overview */}
         {dashboardData?.assigned_classes && dashboardData.assigned_classes.length > 0 && (
           <Card className="p-6">
@@ -259,12 +195,12 @@ export const TeacherDashboardPage = () => {
                   </div>
                   <div className="mt-3 flex space-x-2">
                     <Button asChild variant="outline" size="sm">
-                      <Link to={`/classes/${cls.id}/attendance`}>
+                      <Link to={`/attendance?class_id=${cls.id}`}>
                         Attendance
                       </Link>
                     </Button>
                     <Button asChild variant="outline" size="sm">
-                      <Link to={`/classes/${cls.id}`}>
+                      <Link to={`/classes?class_id=${cls.id}`}>
                         Details
                       </Link>
                     </Button>

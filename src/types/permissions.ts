@@ -166,7 +166,7 @@ export type Permission =
  */
 export type Role =
   | 'superadmin'          // God-level access (110) - ALL 108 permissions
-  | 'super_admin'         // Full system access (100) - 106 permissions
+  | 'superadmin'         // Full system access (100) - 106 permissions
   | 'hq_admin'            // HQ administrator (90) - 43 permissions
   | 'branch_admin'        // Branch administrator (80) - 36 permissions
   | 'hq_registrar'        // HQ registrar (70) - 22 permissions
@@ -334,14 +334,14 @@ export function getResourcePermissions(
  * Check if user is admin (any type)
  */
 export function isAdmin(role: Role): boolean {
-  return ['superadmin', 'super_admin', 'hq_admin', 'branch_admin', 'admin'].includes(role);
+  return ['superadmin', 'superadmin', 'hq_admin', 'branch_admin', 'admin'].includes(role);
 }
 
 /**
  * Check if user is HQ-level (can access all branches)
  */
 export function isHQRole(role: Role): boolean {
-  return ['superadmin', 'super_admin', 'hq_admin', 'hq_registrar'].includes(role);
+  return ['superadmin', 'superadmin', 'hq_admin', 'hq_registrar'].includes(role);
 }
 
 /**
@@ -413,8 +413,8 @@ export const ROLE_INFO: Record<Role, RoleInfo> = {
       'Has ALL 108 permissions',
     ],
   },
-  super_admin: {
-    name: 'super_admin',
+  superadmin: {
+    name: 'superadmin',
     displayName: 'Super Admin',
     level: 100,
     description: 'Full system access except superadmin exclusives',

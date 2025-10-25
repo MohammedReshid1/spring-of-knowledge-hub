@@ -74,6 +74,10 @@ export function PaymentDashboard({
   const enableQueries = !!selectedBranch && isAuthenticated; // only allow queries when authenticated
   const [dateRange, setDateRange] = useState('30'); // days
 
+  // Parent detection and filtering
+  const isParent = user?.role === 'parent';
+  const parentId = (user as any)?.parent_id;
+
   // Enable real-time updates for payment dashboard - replaces 30s polling
   useLiveData(['payments', 'students', 'fees', 'payment-categories'], {
     additionalQueryKeys: ['payment-dashboard-stats', 'recent-payments', 'payments-dashboard-range']
@@ -101,6 +105,7 @@ export function PaymentDashboard({
       }
 
       return apiClient.getPaymentStatsForDashboard({
+        parent_id: isParent && parentId ? parentId : undefined,
         branch_id: branchId,
         date_from: format(startDate, 'yyyy-MM-dd'),
         date_to: format(endDate, 'yyyy-MM-dd'),
@@ -126,6 +131,7 @@ export function PaymentDashboard({
       }
 
       return apiClient.getPaymentStatsForDashboard({
+        parent_id: isParent && parentId ? parentId : undefined,
         branch_id: branchId,
         date_from: format(prevStartDate, 'yyyy-MM-dd'),
         date_to: format(prevEndDate, 'yyyy-MM-dd'),
@@ -151,6 +157,7 @@ export function PaymentDashboard({
       }
 
       return apiClient.getPayments({
+        parent_id: isParent && parentId ? parentId : undefined,
         branch_id: branchId,
         limit: 9,
         skip: 0,
@@ -181,6 +188,7 @@ export function PaymentDashboard({
       let all: Payment[] = [];
       while (true) {
         const resp = await apiClient.getPayments({
+          parent_id: isParent && parentId ? parentId : undefined,
           branch_id: branchId,
           date_from: format(startDate, 'yyyy-MM-dd'),
           date_to: format(endDate, 'yyyy-MM-dd'),
@@ -367,9 +375,14 @@ export function PaymentDashboard({
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">Payment Dashboard</h2>
+            <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+              {isParent ? "My Children's Payment Summary" : "Payment Dashboard"}
+            </h2>
             <p className="text-lg text-gray-600 mt-2">
-              Overview of payment activities and financial metrics
+              {isParent
+                ? "Track your children's payment history and status"
+                : "Overview of payment activities and financial metrics"
+              }
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -385,15 +398,17 @@ export function PaymentDashboard({
               <option value="180">Last 6 months</option>
               <option value="365">Last year</option>
             </select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportDashboardData}
-              disabled={!dashboardStats}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
+            {!isParent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportDashboardData}
+                disabled={!dashboardStats}
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white border-0 hover:from-blue-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -404,7 +419,9 @@ export function PaymentDashboard({
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 to-transparent" />
           <div className="relative flex items-center justify-between">
             <div>
-              <p className="text-emerald-100 text-sm font-medium mb-1">Total Collection</p>
+              <p className="text-emerald-100 text-sm font-medium mb-1">
+                {isParent ? "Total Paid" : "Total Collection"}
+              </p>
               {statsLoading ? (
                 <div className="h-8 w-24 bg-white/20 rounded animate-pulse" />
               ) : (
@@ -440,7 +457,9 @@ export function PaymentDashboard({
           <div className="absolute inset-0 bg-gradient-to-br from-teal-400/20 to-transparent" />
           <div className="relative flex items-center justify-between">
             <div>
-              <p className="text-teal-100 text-sm font-medium mb-1">Total Payments</p>
+              <p className="text-teal-100 text-sm font-medium mb-1">
+                {isParent ? "Number of Payments" : "Total Payments"}
+              </p>
               {statsLoading ? (
                 <div className="h-8 w-16 bg-white/20 rounded animate-pulse" />
               ) : (
@@ -476,7 +495,9 @@ export function PaymentDashboard({
           <div className="absolute inset-0 bg-gradient-to-br from-orange-400/20 to-transparent" />
           <div className="relative flex items-center justify-between">
             <div>
-              <p className="text-orange-100 text-sm font-medium mb-1">Pending Amount</p>
+              <p className="text-orange-100 text-sm font-medium mb-1">
+                {isParent ? "Amount Due" : "Pending Amount"}
+              </p>
               {statsLoading ? (
                 <div className="h-8 w-20 bg-white/20 rounded animate-pulse" />
               ) : (
@@ -485,7 +506,7 @@ export function PaymentDashboard({
                 </p>
               )}
               <p className="text-xs text-orange-100">
-                {dashboardStats?.pending_payments || 0} pending payments
+                {dashboardStats?.pending_payments || 0} {isParent ? "unpaid fees" : "pending payments"}
               </p>
             </div>
             <div className="p-3 bg-white/10 rounded-full">
@@ -499,7 +520,9 @@ export function PaymentDashboard({
           <div className="absolute inset-0 bg-gradient-to-br from-purple-400/20 to-transparent" />
           <div className="relative flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm font-medium mb-1">Collection Rate</p>
+              <p className="text-purple-100 text-sm font-medium mb-1">
+                {isParent ? "Payment Status" : "Collection Rate"}
+              </p>
               {statsLoading ? (
                 <div className="h-8 w-16 bg-white/20 rounded animate-pulse" />
               ) : (
@@ -519,54 +542,62 @@ export function PaymentDashboard({
         </div>
       </div>
 
-      {/* Premium Action Buttons */}
-      <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
-            <p className="text-sm text-gray-600">Manage your payment operations efficiently</p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {onCreatePayment && canCreate && (
-              <Button
-                onClick={onCreatePayment}
-                className="bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Payment
-              </Button>
-            )}
-            {onViewPayments && canRead && (
-              <Button
-                variant="outline"
-                onClick={onViewPayments}
-                className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white border-0 hover:from-teal-600 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                View All Payments
-              </Button>
-            )}
-            {onViewReports && canRead && (
-              <Button
-                variant="outline"
-                onClick={onViewReports}
-                className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 hover:from-cyan-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Generate Reports
-              </Button>
-            )}
+      {/* Premium Action Buttons - Hidden for parents */}
+      {!isParent && (
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+              <p className="text-sm text-gray-600">
+                Manage your payment operations efficiently
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {onCreatePayment && canCreate && (
+                <Button
+                  onClick={onCreatePayment}
+                  className="bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Payment
+                </Button>
+              )}
+              {onViewPayments && canRead && (
+                <Button
+                  variant="outline"
+                  onClick={onViewPayments}
+                  className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white border-0 hover:from-teal-600 hover:to-cyan-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View All Payments
+                </Button>
+              )}
+              {onViewReports && canRead && (
+                <Button
+                  variant="outline"
+                  onClick={onViewReports}
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 hover:from-cyan-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Generate Reports
+                </Button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Premium Monthly Trend Chart */}
       {monthlyTrendData.length > 0 && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Collection Trend</h3>
-              <p className="text-sm text-gray-600 mt-1">Monthly payment collection overview</p>
+              <h3 className="text-xl font-bold text-gray-900">
+                {isParent ? "Payment History Trend" : "Collection Trend"}
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {isParent ? "Monthly payment history overview" : "Monthly payment collection overview"}
+              </p>
             </div>
             <div className="p-3 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-full">
               <BarChart2 className="h-6 w-6 text-emerald-600" />
@@ -596,7 +627,7 @@ export function PaymentDashboard({
                 <Tooltip
                   formatter={(value: number, name: string) => [
                     name === 'amount' ? formatCurrency(value) : value,
-                    name === 'amount' ? 'Collection' : 'Payments'
+                    name === 'amount' ? (isParent ? 'Amount Paid' : 'Collection') : 'Payments'
                   ]}
                   labelStyle={{ color: '#374151' }}
                   contentStyle={{
@@ -627,7 +658,9 @@ export function PaymentDashboard({
             <div className="flex items-center justify-center space-x-6 mt-4">
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 rounded-full bg-[#0088FE]"></div>
-                <span className="text-sm text-gray-600">Collection Amount</span>
+                <span className="text-sm text-gray-600">
+                  {isParent ? "Amount Paid" : "Collection Amount"}
+                </span>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 rounded-full bg-[#00C49F]"></div>
@@ -644,8 +677,12 @@ export function PaymentDashboard({
         <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Payment Methods Distribution</h3>
-              <p className="text-sm text-gray-600 mt-1">Breakdown of payment methods used</p>
+              <h3 className="text-xl font-bold text-gray-900">
+                {isParent ? "How Payments Were Made" : "Payment Methods Distribution"}
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {isParent ? "Breakdown of payment methods you've used" : "Breakdown of payment methods used"}
+              </p>
             </div>
             <div className="p-3 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-full">
               <PieChartIcon className="h-6 w-6 text-blue-600" />
@@ -702,8 +739,12 @@ export function PaymentDashboard({
         {/* Payment Status Overview */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
           <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Status Overview</h3>
-            <p className="text-sm text-gray-600 mt-1">Current payment status breakdown</p>
+            <h3 className="text-xl font-bold text-gray-900">
+              {isParent ? "Payment Status" : "Status Overview"}
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {isParent ? "Current status of your payments" : "Current payment status breakdown"}
+            </p>
           </div>
           <div>
             <div className="space-y-6">
@@ -715,13 +756,13 @@ export function PaymentDashboard({
                   <div>
                     <p className="text-sm font-medium text-green-800">Completed</p>
                     <p className="text-xs text-green-600">
-                      {formatCurrency((dashboardStats?.total_amount_collected || 0) - (dashboardStats?.pending_amount || 0) - (dashboardStats?.overdue_amount || 0))}
+                      {formatCurrency(dashboardStats?.total_paid || dashboardStats?.total_amount_collected || 0)}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-bold text-green-700">
-                    {statsLoading ? '...' : (dashboardStats?.total_payments || 0) - (dashboardStats?.pending_payments || 0) - (dashboardStats?.overdue_payments || 0)}
+                    {statsLoading ? '...' : (dashboardStats?.completed_payments || 0)}
                   </p>
                 </div>
               </div>
@@ -768,9 +809,19 @@ export function PaymentDashboard({
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Total</span>
                   <div className="text-right">
-                    <p className="font-semibold">{statsLoading ? '...' : dashboardStats?.total_payments || 0} payments</p>
+                    <p className="font-semibold">
+                      {statsLoading ? '...' : (
+                        Math.max(0, (dashboardStats?.total_payments || 0) - (dashboardStats?.pending_payments || 0) - (dashboardStats?.overdue_payments || 0)) +
+                        (dashboardStats?.pending_payments || 0) +
+                        (dashboardStats?.overdue_payments || 0)
+                      )} {isParent ? "items" : "payments"}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatCurrency(dashboardStats?.total_amount_collected || 0)}
+                      {formatCurrency(
+                        Math.max(0, (dashboardStats?.total_amount_collected || 0) - (dashboardStats?.pending_amount || 0) - (dashboardStats?.overdue_amount || 0)) +
+                        (dashboardStats?.pending_amount || 0) +
+                        (dashboardStats?.overdue_amount || 0)
+                      )}
                     </p>
                   </div>
                 </div>
@@ -784,8 +835,15 @@ export function PaymentDashboard({
       <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-xl font-bold text-gray-900">Recent Payments</h3>
-            <p className="text-sm text-gray-600 mt-1">Latest payment transactions and activities</p>
+            <h3 className="text-xl font-bold text-gray-900">
+              {isParent ? "Recent Payment Records" : "Recent Payments"}
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {isParent
+                ? "Latest payment records for your children"
+                : "Latest payment transactions and activities"
+              }
+            </p>
           </div>
           {onViewPayments && (
             <Button
@@ -824,8 +882,10 @@ export function PaymentDashboard({
               <div className="col-span-full text-center py-12 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg font-medium">No recent payments found</p>
-                <p className="text-sm">Payment transactions will appear here</p>
-                {onCreatePayment && (
+                <p className="text-sm">
+                  {isParent ? "Payment records will appear here when available" : "Payment transactions will appear here"}
+                </p>
+                {onCreatePayment && !isParent && (
                   <Button className="mt-4" onClick={onCreatePayment}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create First Payment
@@ -881,8 +941,12 @@ export function PaymentDashboard({
       {dashboardStats?.top_fee_categories && dashboardStats.top_fee_categories.length > 0 && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
           <div className="mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Top Fee Categories</h3>
-            <p className="text-sm text-gray-600 mt-1">Revenue breakdown by category</p>
+            <h3 className="text-xl font-bold text-gray-900">
+              {isParent ? "Fee Categories" : "Top Fee Categories"}
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              {isParent ? "Breakdown of fees paid by category" : "Revenue breakdown by category"}
+            </p>
           </div>
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -924,12 +988,14 @@ export function PaymentDashboard({
         </div>
       )}
 
-      {/* Quick Insights & Analytics Summary */}
-      {dashboardStats && (
+      {/* Quick Insights & Analytics Summary - Hidden for parents */}
+      {dashboardStats && !isParent && (
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
           <div className="mb-6">
             <h3 className="text-xl font-bold text-gray-900">Quick Insights</h3>
-            <p className="text-sm text-gray-600 mt-1">Key metrics and performance indicators</p>
+            <p className="text-sm text-gray-600 mt-1">
+              Key metrics and performance indicators
+            </p>
           </div>
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

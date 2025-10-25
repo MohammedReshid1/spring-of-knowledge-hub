@@ -6,7 +6,7 @@ export const mockUsers: Record<string, User> = {
   superAdmin: {
     id: '1',
     email: 'superadmin@test.com',
-    role: 'super_admin',
+    role: 'superadmin',
     is_active: true,
     branch_id: null,
     branch_name: null,
@@ -67,7 +67,7 @@ export const mockUsers: Record<string, User> = {
 
 // Mock permissions for different roles
 export const mockPermissions = {
-  super_admin: {
+  superadmin: {
     permissions: [
       'create_user', 'read_user', 'update_user', 'delete_user',
       'read_payment', 'create_payment', 'update_payment', 'delete_payment',
@@ -140,7 +140,7 @@ export const createMockApiClient = (user: User | null = null) => ({
   }),
   
   getUserPermissions: vi.fn().mockResolvedValue({
-    data: user ? mockPermissions[user.role as keyof typeof mockPermissions] : mockPermissions.super_admin,
+    data: user ? mockPermissions[user.role as keyof typeof mockPermissions] : mockPermissions.superadmin,
     error: null
   }),
   

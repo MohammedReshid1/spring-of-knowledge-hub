@@ -82,6 +82,12 @@ export function useLiveData(
   const { isConnected, subscribe, unsubscribe, addEventListener } = useWebSocket();
   const queryClient = useQueryClient();
 
+  // Create stable keys for array dependencies to prevent unnecessary re-subscriptions
+  // Use [...array].sort() to avoid mutating the original arrays
+  const collectionsKey = [...collections].sort().join(',');
+  const filtersKey = JSON.stringify(filters);
+  const additionalQueryKeysKey = [...additionalQueryKeys].sort().join(',');
+
   // Handle data updates from WebSocket
   const handleDataChange = useCallback((collection: string, payload: any, action: 'update' | 'insert' | 'delete') => {
     console.log(`[useLiveData] ${action} for ${collection}:`, payload);
@@ -106,7 +112,7 @@ export function useLiveData(
         onDelete?.(collection, payload);
         break;
     }
-  }, [queryClient, onUpdate, onInsert, onDelete, additionalQueryKeys]);
+  }, [queryClient, onUpdate, onInsert, onDelete, additionalQueryKeysKey]);
 
   useEffect(() => {
     if (!enabled || !isConnected || collections.length === 0) {
@@ -146,7 +152,8 @@ export function useLiveData(
       subscriptionIds.forEach(id => unsubscribe(id));
       cleanupFunctions.forEach(cleanup => cleanup());
     };
-  }, [enabled, isConnected, collections, filters, subscribe, unsubscribe, addEventListener, handleDataChange]);
+    // Use stable keys instead of array/object references to prevent unnecessary re-subscriptions
+  }, [enabled, isConnected, collectionsKey, filtersKey, subscribe, unsubscribe, addEventListener, handleDataChange]);
 
   return {
     isConnected,

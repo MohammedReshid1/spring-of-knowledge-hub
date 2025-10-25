@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useBranch } from '@/contexts/BranchContext';
 
 export const useWidgetData = () => {
@@ -118,27 +118,7 @@ export const useWidgetData = () => {
     return useQuery({
       queryKey: ['teacher-schedule', user?.id],
       queryFn: async () => {
-        // Try to use enhanced teacher dashboard first
-        const { data: dashboardData, error: dashboardError } = await apiClient.getTeacherEnhancedDashboard(user?.id || '');
-        
-        if (!dashboardError && dashboardData?.assigned_classes) {
-          // Transform assigned classes to schedule format
-          return dashboardData.assigned_classes.map((cls: any, index: number) => {
-            const startHour = 8 + (index * 2);
-            const endHour = startHour + 1;
-            return {
-              id: cls.id,
-              time: `${startHour.toString().padStart(2, '0')}:00 - ${endHour.toString().padStart(2, '0')}:30`,
-              subject: cls.subject || cls.class_name || 'General',
-              grade: cls.grade_level || 'Unknown',
-              room: cls.classroom || 'TBA',
-              students: cls.current_enrollment || 0,
-              status: index === 0 ? 'current' : 'upcoming'
-            };
-          });
-        }
-        
-        // Fallback to timetable data (correct endpoint)
+        // Try to fetch actual timetable data first (priority #1)
         let timetable: any | null = null;
         try {
           const resp = await apiClient.getTeacherTimetable(user?.id || '');
@@ -147,12 +127,12 @@ export const useWidgetData = () => {
           timetable = null;
         }
 
-        // Fallback to classes if timetable doesn't exist
+        // If timetable doesn't exist, fallback to classes
         if (!timetable) {
           const { data: classes, error } = await apiClient.getClasses();
           if (error) throw new Error(error);
-          
-          const teacherClasses = Array.isArray(classes) ? classes.filter((cls: any) => 
+
+          const teacherClasses = Array.isArray(classes) ? classes.filter((cls: any) =>
             cls.teacher_id === user?.id || cls.teachers?.includes(user?.id)
           ) : [];
 
@@ -173,20 +153,54 @@ export const useWidgetData = () => {
         }
 
         // Use actual timetable data: flatten days/periods to schedule items
-        // Backend returns: { teacher_id, teacher_name, total_periods_per_week, entries: [{ day, periods: { [period]: { start_time, end_time, room_number, subject_id }}}], ... }
+        // Backend returns: { teacher_id, teacher_name, total_periods_per_week, entries: [{ day, periods: { [period]: { start_time, end_time, room_number, subject_name, class_name, class_id }}}], ... }
         const entries = Array.isArray(timetable?.entries) ? timetable.entries : [];
+
+        // Collect unique class IDs to fetch student counts
+        const classIds = new Set<string>();
+        for (const dayEntry of entries) {
+          const periods = dayEntry?.periods || {};
+          for (const periodNum of Object.keys(periods)) {
+            const p = periods[periodNum];
+            if (p.class_id) classIds.add(p.class_id);
+          }
+        }
+
+        // Fetch classes to get student counts
+        const classMap = new Map<string, number>();
+        if (classIds.size > 0) {
+          try {
+            const { data: classes } = await apiClient.getClasses();
+            if (Array.isArray(classes)) {
+              classes.forEach((cls: any) => {
+                if (classIds.has(cls.id)) {
+                  classMap.set(cls.id, cls.current_enrollment || cls.student_count || 0);
+                }
+              });
+            }
+          } catch (e) {
+            console.error('Failed to fetch student counts:', e);
+          }
+        }
+
+        // Filter for today's classes only
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase(); // "monday", "tuesday", etc.
+
         const schedule: any[] = [];
         for (const dayEntry of entries) {
+          // Only include classes for today (case-insensitive comparison)
+          if (dayEntry.day?.toLowerCase() !== today) continue;
+
           const periods = dayEntry?.periods || {};
           for (const periodNum of Object.keys(periods)) {
             const p = periods[periodNum];
             schedule.push({
               id: p.entry_id || `${dayEntry.day}-${periodNum}`,
               time: `${(p.start_time || '08:00').slice(0,5)} - ${(p.end_time || '09:30').slice(0,5)}`,
-              subject: p.subject_id || 'General',
-              grade: 'Unknown',
+              subject: p.subject_name || 'Unknown',
+              grade: p.class_name || 'Unknown',
               room: p.room_number || 'TBA',
-              students: 0,
+              students: classMap.get(p.class_id) || 0,
               status: 'upcoming'
             });
           }
@@ -199,33 +213,12 @@ export const useWidgetData = () => {
     });
   };
 
-  // Pending Grades Widget
-  const usePendingGrades = () => {
-    return useQuery({
-      queryKey: ['pending-grades', user?.id],
-      queryFn: async () => {
-        try {
-          // Use the new API method that properly fetches pending grades
-          const { data, error } = await apiClient.getRealPendingGrades(user?.id);
-          if (error) throw new Error(error);
-          return data || [];
-        } catch (error) {
-          console.error('Error fetching pending grades:', error);
-          return [];
-        }
-      },
-      enabled: isTeacher && !!user?.id,
-      staleTime: 300000,
-      refetchInterval: 300000
-    });
-  };
-
   // Teacher Notifications Widget
   const useTeacherNotifications = () => {
     return useQuery({
       queryKey: ['teacher-notifications', user?.id],
       queryFn: async () => {
-        const { data: notifications, error } = await apiClient.get(`/notifications/?recipient_id=${user?.id}&limit=10`);
+        const { data: notifications, error } = await apiClient.get(`/api/notifications/?recipient_id=${user?.id}&limit=10`);
         if (error) throw new Error(error);
 
         return Array.isArray(notifications) ? notifications.map((notif: any) => ({
@@ -245,93 +238,28 @@ export const useWidgetData = () => {
     });
   };
 
-  // Student Progress Widget
-  const useStudentProgress = () => {
-    return useQuery({
-      queryKey: ['student-progress', user?.id],
-      queryFn: async () => {
-        // Try enhanced teacher dashboard first
-        const { data: dashboardData, error: dashboardError } = await apiClient.getTeacherEnhancedDashboard(user?.id || '');
-        
-        if (!dashboardError && dashboardData?.assigned_classes) {
-          // Use enhanced dashboard class data
-          const progressData = await Promise.all(dashboardData.assigned_classes.map(async (cls: any) => {
-            const { data: examResults, error: examError } = await apiClient.getExamResults({ class_id: cls.id });
-            const results = Array.isArray(examResults) && !examError ? examResults : [];
-            
-            const scores = results.map((r: any) => r.marks_obtained || 0);
-            const averageGrade = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-            const strugglingStudents = results.filter((r: any) => (r.marks_obtained || 0) < 60).length;
-            const excellentStudents = results.filter((r: any) => (r.marks_obtained || 0) >= 85).length;
-            const completionRate = cls.current_enrollment > 0 ? (results.length / cls.current_enrollment) * 100 : 0;
-
-            return {
-              id: cls.id,
-              className: cls.class_name || `${cls.grade_level} ${cls.subject}`,
-              students: cls.current_enrollment || 0,
-              averageGrade: Math.round(averageGrade),
-              trend: averageGrade > 75 ? 'up' : 'down',
-              trendValue: Math.round(averageGrade - 75),
-              strugglingStudents,
-              excellentStudents,
-              lastAssessment: 'Recent Assessment',
-              completionRate: Math.round(completionRate)
-            };
-          }));
-
-          return progressData;
-        }
-        
-        // Fallback to original implementation
-        const { data: classes, error: classError } = await apiClient.getClasses();
-        if (classError) throw new Error(classError);
-
-        const teacherClasses = Array.isArray(classes) ? classes.filter((cls: any) => 
-          cls.teacher_id === user?.id
-        ) : [];
-
-        // Fetch exam results for each class
-        const progressData = await Promise.all(teacherClasses.map(async (cls: any) => {
-          const { data: examResults, error: examError } = await apiClient.getExamResults({ class_id: cls.id });
-          const results = Array.isArray(examResults) && !examError ? examResults : [];
-          
-          const scores = results.map((r: any) => r.marks_obtained || 0);
-          const averageGrade = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-          const strugglingStudents = results.filter((r: any) => (r.marks_obtained || 0) < 60).length;
-          const excellentStudents = results.filter((r: any) => (r.marks_obtained || 0) >= 85).length;
-          const completionRate = cls.student_count > 0 ? (results.length / cls.student_count) * 100 : 0;
-
-          return {
-            id: cls.id,
-            className: `${cls.grade_level} ${cls.subject}`,
-            students: cls.student_count || 0,
-            averageGrade: Math.round(averageGrade),
-            trend: averageGrade > 75 ? 'up' : 'down',
-            trendValue: Math.round(averageGrade - 75),
-            strugglingStudents,
-            excellentStudents,
-            lastAssessment: 'Recent Assessment',
-            completionRate: Math.round(completionRate)
-          };
-        }));
-
-        return progressData;
-      },
-      enabled: isTeacher && !!user?.id,
-      staleTime: 600000, // 10 minutes
-      refetchInterval: 600000
-    });
-  };
-
   // Student Grades Widget
   const useStudentGrades = () => {
     return useQuery({
-      queryKey: ['student-grades', user?.id],
+      queryKey: ['student-grades', user?.id, user?.student_id],
       queryFn: async () => {
         try {
+          // IMPORTANT: Use student_id (like "SCH-2025-00002"), not the MongoDB ObjectId
+          // Try to get student_id from user object, fallback to id
+          const studentId = (user as any)?.student_id || user?.id;
+
+          console.log('useStudentGrades - Fetching grades for:', {
+            studentId,
+            userId: user?.id,
+            userStudentId: (user as any)?.student_id,
+            userObject: user
+          });
+
           // Fetch exam results for this student using new API method
-          const { data: results, error } = await apiClient.getExamResults({ student_id: user?.id });
+          const { data: results, error } = await apiClient.getExamResults({ student_id: studentId });
           if (error) throw new Error(error);
+
+          console.log('useStudentGrades - Results received:', results);
 
           return Array.isArray(results) ? results.map((result: any) => ({
             id: result.id,
@@ -381,10 +309,13 @@ export const useWidgetData = () => {
   // Attendance Summary Widget
   const useAttendanceSummary = () => {
     return useQuery({
-      queryKey: ['attendance-summary', user?.id],
+      queryKey: ['attendance-summary', user?.id, user?.student_id],
       queryFn: async () => {
+        // IMPORTANT: Use student_id (like "SCH-2025-00002"), not the MongoDB ObjectId
+        const studentId = (user as any)?.student_id || user?.id;
+
         // Fetch attendance records for this student
-        const { data: attendance, error } = await apiClient.get(`/attendance/?student_id=${user?.id}`);
+        const { data: attendance, error } = await apiClient.get(`/attendance/?student_id=${studentId}`);
         if (error) throw new Error(error);
 
         const records = Array.isArray(attendance) ? attendance : [];
@@ -436,7 +367,7 @@ export const useWidgetData = () => {
       queryKey: ['announcements', selectedBranch, userRole],
       queryFn: async () => {
         // Fetch announcements
-        const { data: announcements, error } = await apiClient.get(`/notifications/?branch_id=${selectedBranch}&type=announcement`);
+        const { data: announcements, error } = await apiClient.get(`/api/notifications/?branch_id=${selectedBranch}&type=announcement`);
         if (error) throw new Error(error);
 
         return Array.isArray(announcements) ? announcements.map((ann: any) => ({
@@ -536,21 +467,24 @@ export const useWidgetData = () => {
   // Fee Status Widget
   const useFeeStatus = () => {
     return useQuery({
-      queryKey: ['fee-status', user?.id],
+      queryKey: ['fee-status', user?.id, user?.student_id],
       queryFn: async () => {
+        // IMPORTANT: Use student_id (like "SCH-2025-00002"), not the MongoDB ObjectId
+        const studentId = (user as any)?.student_id || user?.id;
+
         // Fetch fee records for this student
         const { data: fees, error: feesError } = await apiClient.getFees();
         if (feesError) throw new Error(feesError);
 
         // Also fetch registration payments
         const { data: regPayments, error: regError } = await apiClient.get('/registration-payments/');
-        
-        const studentFees = Array.isArray(fees) ? fees.filter((fee: any) => 
-          fee.student_id === user?.id
+
+        const studentFees = Array.isArray(fees) ? fees.filter((fee: any) =>
+          fee.student_id === studentId || fee.student_id === user?.id
         ) : [];
-        
-        const studentRegPayments = Array.isArray(regPayments) && !regError ? regPayments.filter((payment: any) => 
-          payment.student_id === user?.id
+
+        const studentRegPayments = Array.isArray(regPayments) && !regError ? regPayments.filter((payment: any) =>
+          payment.student_id === studentId || payment.student_id === user?.id
         ) : [];
 
         // Calculate fee summary
@@ -695,9 +629,7 @@ export const useWidgetData = () => {
     
     // Teacher widgets
     useTeacherSchedule,
-    usePendingGrades,
     useTeacherNotifications,
-    useStudentProgress,
     useTeacherGrading,
     
     // Student/Parent widgets

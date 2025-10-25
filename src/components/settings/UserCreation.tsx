@@ -129,7 +129,7 @@ export const UserCreation: React.FC = () => {
   });
 
   // Check if user is superadmin (but not superadmin)
-  const isSuperAdmin = hasRole('super_admin') || hasRole('superadmin');
+  const isSuperAdmin = hasRole('superadmin') || hasRole('superadmin');
 
   // Filter system roles to only show ones the user can create
   const creatableRoles = systemRoles?.filter(role => {
@@ -137,10 +137,10 @@ export const UserCreation: React.FC = () => {
 
     // Supersuperadmin can see all roles except superadmin roles
     if (isSuperSuperAdmin) {
-      // Exclude superadmin roles (super_super_admin, superadmin)
+      // Exclude superadmin roles (super_superadmin, superadmin)
       const isSupersuperadminRole =
         roleName === 'superadmin' ||
-        roleName === 'super_super_admin' ||
+        roleName === 'super_superadmin' ||
         roleName.includes('superadmin');
       return !isSupersuperadminRole;
     }
@@ -150,9 +150,9 @@ export const UserCreation: React.FC = () => {
       // Exclude superadmin and superadmin roles
       const isRestrictedRole =
         roleName === 'superadmin' ||
-        roleName === 'super_super_admin' ||
+        roleName === 'super_superadmin' ||
         roleName === 'superadmin' ||
-        roleName === 'super_admin' ||
+        roleName === 'superadmin' ||
         roleName.includes('superadmin');
       return !isRestrictedRole;
     }

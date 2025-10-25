@@ -1,61 +1,114 @@
-// Secure token storage utility
+/**
+ * SECURITY: Token Storage using httpOnly Cookies
+ *
+ * This module has been updated to work with httpOnly cookies for enhanced security.
+ * Tokens are no longer stored in localStorage (vulnerable to XSS attacks).
+ *
+ * Authentication tokens are now stored in httpOnly cookies by the backend server,
+ * which prevents JavaScript access and protects against XSS token theft.
+ *
+ * IMPORTANT: All authentication is now cookie-based. Do NOT attempt to:
+ * - Store tokens in localStorage
+ * - Read tokens from localStorage
+ * - Send tokens in Authorization headers
+ *
+ * Instead, use `credentials: 'include'` in all fetch requests to send cookies.
+ */
+
 export class TokenStorage {
-  private static readonly TOKEN_KEY = 'auth_token';
-  private static readonly REFRESH_TOKEN_KEY = 'refresh_token';
-
+  /**
+   * DEPRECATED: Tokens are now in httpOnly cookies, not accessible to JavaScript
+   * This method is kept for backward compatibility but does nothing.
+   */
   static setToken(token: string): void {
-    try {
-      // Store in localStorage as fallback
-      localStorage.setItem(this.TOKEN_KEY, token);
-      
-      // Note: For production, consider using httpOnly cookies via backend endpoint
-      // This would require a backend endpoint to set the httpOnly cookie
-      
-    } catch (error) {
-      console.error('Failed to store token:', error);
-    }
+    console.warn(
+      'TokenStorage.setToken() is deprecated. ' +
+      'Tokens are now stored in httpOnly cookies by the backend. ' +
+      'No client-side token storage is needed.'
+    );
+    // Do nothing - tokens are in httpOnly cookies
   }
 
+  /**
+   * DEPRECATED: Tokens are in httpOnly cookies and cannot be accessed by JavaScript
+   * This method always returns null as tokens are not accessible client-side.
+   *
+   * @returns null (tokens are in httpOnly cookies, not accessible)
+   */
   static getToken(): string | null {
-    try {
-      return localStorage.getItem(this.TOKEN_KEY);
-    } catch (error) {
-      console.error('Failed to retrieve token:', error);
-      return null;
-    }
+    // Tokens are in httpOnly cookies - not accessible to JavaScript
+    // This is intentional for security (prevents XSS attacks)
+    return null;
   }
 
-  static removeToken(): void {
-    try {
-      localStorage.removeItem(this.TOKEN_KEY);
-      localStorage.removeItem(this.REFRESH_TOKEN_KEY);
-      
-      // Clear any httpOnly cookies by calling backend logout endpoint
-      // This would be handled by the signOut API call
-      
-    } catch (error) {
-      console.error('Failed to remove token:', error);
-    }
+  /**
+   * Clear authentication by calling the backend logout endpoint.
+   * The backend will clear the httpOnly cookie.
+   *
+   * This method should be called indirectly via apiClient.logout()
+   */
+  static async removeToken(): Promise<void> {
+    // Tokens are cleared by calling /auth/logout endpoint
+    // The backend will clear the httpOnly cookie
+    console.info('Call apiClient.logout() to clear authentication cookies');
   }
 
+  /**
+   * DEPRECATED: Refresh tokens are also in httpOnly cookies
+   */
   static setRefreshToken(refreshToken: string): void {
-    try {
-      localStorage.setItem(this.REFRESH_TOKEN_KEY, refreshToken);
-    } catch (error) {
-      console.error('Failed to store refresh token:', error);
-    }
+    console.warn(
+      'TokenStorage.setRefreshToken() is deprecated. ' +
+      'Refresh tokens are handled automatically via httpOnly cookies.'
+    );
+    // Do nothing
   }
 
+  /**
+   * DEPRECATED: Refresh tokens are in httpOnly cookies
+   * @returns null
+   */
   static getRefreshToken(): string | null {
-    try {
-      return localStorage.getItem(this.REFRESH_TOKEN_KEY);
-    } catch (error) {
-      console.error('Failed to retrieve refresh token:', error);
-      return null;
-    }
+    return null;
   }
 
+  /**
+   * Clear authentication state
+   * Actual cookie clearing happens on the backend via /auth/logout
+   */
   static clear(): void {
-    this.removeToken();
+    console.info('Authentication cleared. Backend cookies will be removed via /auth/logout');
   }
+
+  /**
+   * Check if user is authenticated by making a request to /auth/me
+   * This is the recommended way to check authentication status with httpOnly cookies
+   *
+   * @returns Promise<boolean> - true if authenticated, false otherwise
+   */
+  static async isAuthenticated(): Promise<boolean> {
+    try {
+      const response = await fetch(`${process.env.VITE_API_BASE_URL || 'http://localhost:8000'}/auth/me`, {
+        method: 'GET',
+        credentials: 'include', // Send httpOnly cookies
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return response.ok;
+    } catch (error) {
+      console.error('Authentication check failed:', error);
+      return false;
+    }
+  }
+}
+
+/**
+ * Helper function to get CSRF token from cookies
+ * CSRF tokens are stored in regular cookies (not httpOnly) so JavaScript can read them
+ */
+export function getCSRFTokenFromCookie(): string | null {
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : null;
 }

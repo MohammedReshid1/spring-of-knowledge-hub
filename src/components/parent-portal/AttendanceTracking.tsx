@@ -90,14 +90,69 @@ export const AttendanceTracking: React.FC<Props> = ({ children, selectedChild, o
   const currentChild = selectedChild ? children.find(c => c.id === selectedChild) : children[0];
   const childId = currentChild?.id || '';
 
+  // Fetch attendance data from multiple endpoints
   const { data: attendanceData, isLoading } = useQuery<AttendanceData>({
-    queryKey: ['attendance-tracking', childId],
+    queryKey: ['attendance-tracking', currentChild?.student_id],
     queryFn: async () => {
-      if (!childId) throw new Error('No student selected');
-      const response = await apiClient.get(`/communication/parent-dashboard/attendance/${childId}`);
-      return response.data;
+      if (!currentChild?.student_id) throw new Error('No student selected');
+
+      const studentId = currentChild.student_id;
+      const endDate = new Date();
+      const startDate = new Date(endDate.getTime() - 90 * 24 * 60 * 60 * 1000); // Last 90 days
+
+      // Fetch summary, records, patterns, and alerts in parallel
+      const [summaryRes, recordsRes] = await Promise.all([
+        apiClient.get(`/attendance/summary/${studentId}`, {
+          params: {
+            period_start: startDate.toISOString().split('T')[0],
+            period_end: endDate.toISOString().split('T')[0]
+          }
+        }),
+        apiClient.get(`/attendance/`, {
+          params: {
+            student_id: studentId,
+            start_date: startDate.toISOString().split('T')[0],
+            end_date: endDate.toISOString().split('T')[0],
+            limit: 50
+          }
+        })
+      ]);
+
+      const summary = summaryRes.data;
+      const records = Array.isArray(recordsRes.data) ? recordsRes.data : recordsRes.data.data || [];
+
+      // Transform backend data to match frontend interface
+      return {
+        summary: {
+          total_days: summary.total_days || 0,
+          days_present: summary.days_present || 0,
+          days_absent: summary.days_absent || 0,
+          days_late: summary.days_late || 0,
+          attendance_percentage: summary.attendance_percentage || 0,
+          punctuality_percentage: summary.punctuality_percentage || 0,
+          trend: summary.improvement_trend || 'stable',
+          current_streak: summary.current_streak || 0,
+          longest_streak: summary.longest_streak || 0
+        },
+        monthly_stats: [], // TODO: Aggregate from records
+        recent_attendance: records.map((r: any) => ({
+          date: r.attendance_date || r.date,
+          status: r.status,
+          check_in_time: r.check_in_time,
+          check_out_time: r.check_out_time,
+          remarks: r.remarks || r.notes,
+          marked_by: r.marked_by || 'System',
+          location: r.location
+        })),
+        patterns: {
+          frequent_absence_days: summary.patterns_detected || [],
+          late_arrival_pattern: '',
+          improvement_suggestions: []
+        },
+        alerts: [] // TODO: Fetch from /attendance/alerts
+      } as AttendanceData;
     },
-    enabled: !!childId,
+    enabled: !!currentChild?.student_id,
   });
 
   if (!currentChild) {

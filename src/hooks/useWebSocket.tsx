@@ -417,13 +417,16 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
     }));
   }, [state.socket]);
 
+  // DISABLED: This hook is deprecated - use WebSocketContext instead
   // Connect on mount if autoConnect is enabled
   useEffect(() => {
-    if (autoConnect && !socketRef.current) {
-      connect();
-    } else if (autoConnect && socketRef.current) {
-    } else {
-    }
+    // TEMPORARILY DISABLED to prevent duplicate connections
+    // TODO: Migrate all usages to WebSocketContext
+    console.warn('[useWebSocket] This hook is deprecated. Please use WebSocketContext instead.');
+
+    // if (autoConnect && !socketRef.current) {
+    //   connect();
+    // }
 
     // Cleanup on unmount
     return () => {
@@ -431,21 +434,22 @@ export const useWebSocket = (options: WebSocketOptions = {}) => {
     };
   }, [autoConnect]);
 
-  // Handle visibility change to reconnect when tab becomes visible
+  // DISABLED: Handle visibility change to reconnect when tab becomes visible
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && 
-          !state.isConnected && 
-          autoConnect &&
-          reconnectCountRef.current < maxReconnectAttempts) {
-        connect();
-      }
-    };
+    // TEMPORARILY DISABLED to prevent duplicate connections
+    // const handleVisibilityChange = () => {
+    //   if (document.visibilityState === 'visible' &&
+    //       !state.isConnected &&
+    //       autoConnect &&
+    //       reconnectCountRef.current < maxReconnectAttempts) {
+    //     connect();
+    //   }
+    // };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    // document.addEventListener('visibilitychange', handleVisibilityChange);
+    // return () => {
+    //   document.removeEventListener('visibilitychange', handleVisibilityChange);
+    // };
   }, [state.isConnected, connect, maxReconnectAttempts, autoConnect]);
 
   // Memoize subscriptions array to prevent unnecessary re-renders

@@ -26,8 +26,9 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination';
 import { Plus, Search, Eye, Edit, Trash2, Users, GraduationCap, CreditCard, Filter, Download, Upload, FileText, FileSpreadsheet, CheckSquare, ChevronDown, UserCheck, X } from 'lucide-react';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useBranch } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { PermissionWrapper } from '@/components/rbac/PermissionWrapper';
 import { toast } from '@/hooks/use-toast';
 import { useDialogSidebarCollapse } from '@/hooks/useDialogSidebarCollapse';
@@ -106,6 +107,9 @@ export const StudentList = () => {
   const queryClient = useQueryClient();
   const { canDelete, isSuperAdmin } = useRoleAccess();
   const { selectedBranch } = useBranch();
+  const { user } = useAuth();
+  const isParent = user?.role === 'parent';
+  const parentId = (user as any)?.parent_id;
 
   // Auto-collapse sidebar when any dialog opens
   useDialogSidebarCollapse(!!selectedStudent);
@@ -131,6 +135,8 @@ export const StudentList = () => {
       };
 
       const response = await apiClient.getStudents({
+        // Filter by parent_id for parents
+        parent_id: isParent && parentId ? parentId : undefined,
         // Only filter by branch if we have actual branches in the system
         branch_id: (selectedBranch && selectedBranch !== 'all') ? selectedBranch : undefined,
         search: searchTerm || undefined,
@@ -152,9 +158,12 @@ export const StudentList = () => {
 
   // Get student statistics
   const { data: studentStats } = useQuery({
-    queryKey: ['student-stats', selectedBranch],
+    queryKey: ['student-stats', selectedBranch, parentId],
     queryFn: async () => {
-      const response = await apiClient.getStudentStats(selectedBranch && selectedBranch !== 'all' ? selectedBranch : undefined);
+      const response = await apiClient.getStudentStats(
+        selectedBranch && selectedBranch !== 'all' ? selectedBranch : undefined,
+        isParent && parentId ? parentId : undefined
+      );
       if (response.error) throw new Error(response.error);
       return response.data;
     },
@@ -605,11 +614,17 @@ export const StudentList = () => {
               Student Information System
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
-              Student <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Management</span>
+              {isParent ? (
+                <>My <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Students</span></>
+              ) : (
+                <>Student <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">Management</span></>
+              )}
             </h1>
             <p className="mt-6 text-lg leading-8 text-blue-100">
-              Comprehensive student data management with advanced search, analytics, and bulk operations.
-              Streamline your educational administration with premium tools.
+              {isParent
+                ? "View and manage your children's academic information, attendance records, and performance metrics."
+                : "Comprehensive student data management with advanced search, analytics, and bulk operations. Streamline your educational administration with premium tools."
+              }
             </p>
           </div>
         </div>
@@ -629,7 +644,12 @@ export const StudentList = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-white/20 p-6 shadow-xl">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">Quick Actions</h2>
-              <p className="text-sm text-gray-600">Manage students efficiently with powerful tools</p>
+              <p className="text-sm text-gray-600">
+                {isParent
+                  ? "View your children's information and track their progress"
+                  : "Manage students efficiently with powerful tools"
+                }
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <PermissionWrapper permission="student.read">
@@ -642,40 +662,42 @@ export const StudentList = () => {
                   Export ({selectedStudents.size > 0 ? selectedStudents.size : totalStudents})
                 </Button>
               </PermissionWrapper>
-              <PermissionWrapper permission="student.read">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDuplicateCheckerOpen(true)}
-                  className="bg-gradient-to-r from-amber-400 to-yellow-500 text-white border-0 hover:from-amber-500 hover:to-yellow-600 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <UserCheck className="h-4 w-4 mr-2" />
-                  Check Duplicates
-                </Button>
-              </PermissionWrapper>
-              <PermissionWrapper permission="student.import">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowImportCard(!showImportCard)}
-                  className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-0 hover:from-purple-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {showImportCard ? 'Hide Import' : 'Bulk Import'}
-                </Button>
-              </PermissionWrapper>
-
-              <PermissionWrapper permission="student.create">
-                <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
-                  <SheetTrigger asChild>
+              {!isParent && (
+                <>
+                  <PermissionWrapper permission="student.read">
                     <Button
-                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
-                      onClick={() => setEditingStudent(null)}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsDuplicateCheckerOpen(true)}
+                      className="bg-gradient-to-r from-amber-400 to-yellow-500 text-white border-0 hover:from-amber-500 hover:to-yellow-600 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                     >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Student
+                      <UserCheck className="h-4 w-4 mr-2" />
+                      Check Duplicates
                     </Button>
-                  </SheetTrigger>
+                  </PermissionWrapper>
+                  <PermissionWrapper permission="student.import">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowImportCard(!showImportCard)}
+                      className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white border-0 hover:from-purple-600 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {showImportCard ? 'Hide Import' : 'Bulk Import'}
+                    </Button>
+                  </PermissionWrapper>
+
+                  <PermissionWrapper permission="student.create">
+                    <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
+                      <SheetTrigger asChild>
+                        <Button
+                          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
+                          onClick={() => setEditingStudent(null)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Student
+                        </Button>
+                      </SheetTrigger>
                   <SheetContent className="w-full sm:max-w-2xl overflow-y-auto bg-white/95 backdrop-blur-glass border-l border-white/20 shadow-2xl">
                     {/* Premium Header */}
                     <SheetHeader className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6 -mx-6 -mt-6 mb-6">
@@ -717,6 +739,8 @@ export const StudentList = () => {
                   </SheetContent>
                 </Sheet>
               </PermissionWrapper>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -813,21 +837,22 @@ export const StudentList = () => {
           </div>
         </div>
 
-        {/* Premium Search and Filters */}
-        <div className="mx-auto max-w-7xl">
-          <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/90 via-white/70 to-white/50 border border-white/30 shadow-premium hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-500">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/[0.02] via-indigo-500/[0.03] to-cyan-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-        <CardHeader className="relative pb-4">
-          <CardTitle className="text-xl font-bold flex items-center gap-3 bg-gradient-to-r from-slate-700 to-slate-600 bg-clip-text text-transparent">
-            <div className="relative">
-              <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-lg group-hover:blur-xl transition-all duration-300" />
-              <Filter className="relative h-6 w-6 text-blue-600" />
-            </div>
-            Advanced Search & Filters
-          </CardTitle>
-          <p className="text-sm text-gray-600 mt-1">Search by Student ID, Name, Mother's Name, Phone Numbers, Email, or Class Name</p>
-        </CardHeader>
-        <CardContent className="relative">
+        {/* Premium Search and Filters - Hidden for parents */}
+        {!isParent && (
+          <div className="mx-auto max-w-7xl">
+            <Card className="group relative overflow-hidden backdrop-blur-glass bg-gradient-to-br from-white/90 via-white/70 to-white/50 border border-white/30 shadow-premium hover:shadow-lg hover:shadow-slate-200/50 transition-all duration-500">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/[0.02] via-indigo-500/[0.03] to-cyan-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <CardHeader className="relative pb-4">
+            <CardTitle className="text-xl font-bold flex items-center gap-3 bg-gradient-to-r from-slate-700 to-slate-600 bg-clip-text text-transparent">
+              <div className="relative">
+                <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-lg group-hover:blur-xl transition-all duration-300" />
+                <Filter className="relative h-6 w-6 text-blue-600" />
+              </div>
+              Advanced Search & Filters
+            </CardTitle>
+            <p className="text-sm text-gray-600 mt-1">Search by Student ID, Name, Mother's Name, Phone Numbers, Email, or Class Name</p>
+          </CardHeader>
+          <CardContent className="relative">
               {selectedStudents.size > 0 && (
                 <div className="mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-200/50">
                   <div className="flex flex-wrap items-center gap-3">
@@ -955,7 +980,8 @@ export const StudentList = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
+          </div>
+        )}
 
         {/* Premium Students Table */}
         <div className="mx-auto max-w-7xl">
@@ -1106,9 +1132,9 @@ export const StudentList = () => {
                             </TableCell>
                             <TableCell className="py-4">
                               <span className="text-gray-700 font-medium">
-                                {classes?.find(c => c.id === student.class_id)?.class_name
+                                {(student as any).class_name || classes?.find(c => c.id === student.class_id)?.class_name
                                   ? highlightSearchTerm(
-                                      classes.find(c => c.id === student.class_id)!.class_name,
+                                      (student as any).class_name || classes.find(c => c.id === student.class_id)!.class_name,
                                       searchTerm
                                     )
                                   : <span className="text-gray-400 italic">Not assigned</span>}

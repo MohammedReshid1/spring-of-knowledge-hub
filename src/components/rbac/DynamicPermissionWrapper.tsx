@@ -235,19 +235,19 @@ export const PermissionLink: React.FC<PermissionLinkProps> = ({
 // Utility components for common use cases
 
 export const AdminOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <DynamicPermissionWrapper roles={['superadmin', 'super_admin', 'branch_admin']}>
+  <DynamicPermissionWrapper roles={['superadmin', 'superadmin', 'branch_admin']}>
     {children}
   </DynamicPermissionWrapper>
 );
 
 export const SuperAdminOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <DynamicPermissionWrapper roles={['superadmin', 'super_admin']}>
+  <DynamicPermissionWrapper roles={['superadmin', 'superadmin']}>
     {children}
   </DynamicPermissionWrapper>
 );
 
 export const TeacherOrAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <DynamicPermissionWrapper roles={['teacher', 'branch_admin', 'super_admin', 'superadmin']}>
+  <DynamicPermissionWrapper roles={['teacher', 'branch_admin', 'superadmin', 'superadmin']}>
     {children}
   </DynamicPermissionWrapper>
 );

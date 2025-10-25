@@ -42,6 +42,15 @@ interface RoleAccessContextType {
   hasAnyRole: (roles: string[]) => boolean;
   refreshPermissions: () => Promise<void>;
   isSuperSuperAdmin: boolean;
+  // Role checks
+  isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isTeacher: boolean;
+  isStudent: boolean;
+  isParent: boolean;
+  isAdminRole: boolean; // Added for widget visibility
+  userRole: string | null; // Added for widget filtering
+  currentUser: any;
 }
 
 const RoleAccessContext = createContext<RoleAccessContextType | undefined>(undefined);
@@ -59,52 +68,59 @@ interface RoleAccessProviderProps {
 }
 
 export const RoleAccessProvider: React.FC<RoleAccessProviderProps> = ({ children }) => {
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { user, student, isAuthenticated, isStudentAuthenticated, loading: authLoading } = useAuth();
   const [permissions, setPermissions] = useState<string[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true); // Start as true to prevent flash on initial load
   const [error, setError] = useState<string | null>(null);
 
   const fetchPermissions = useCallback(async () => {
+    // Get the current authenticated entity (either user or student)
+    const currentEntity = user || student;
+    const isAuth = isAuthenticated || isStudentAuthenticated;
+
     // Keep loading true while waiting for authentication to complete
-    if (!isAuthenticated || !user) {
+    if (!isAuth || !currentEntity) {
       setPermissions([]);
       setRoles([]);
-      // Only set loading to false if auth has finished loading and user is not authenticated
+      // Only set loading to false if auth has finished loading and no entity is authenticated
       // This prevents race condition on page reload
-      if (!authLoading && !isAuthenticated) {
+      if (!authLoading && !isAuth) {
         setLoading(false);
       }
       return;
     }
 
-    // Now we have a user, start loading permissions
+    // Now we have an authenticated entity, start loading permissions
     setLoading(true);
     setError(null);
 
     try {
-      // First, check if user already has permissions from AuthContext
+      // First, check if entity already has permissions from AuthContext
+      const entityPermissions = (currentEntity as any).permissions;
 
-      if (user.permissions && user.permissions.length > 0) {
-        setPermissions(user.permissions);
+      if (entityPermissions && entityPermissions.length > 0) {
+        console.log('✅ Loaded permissions from auth context:', entityPermissions);
+        setPermissions(entityPermissions);
 
-        // Set role from user object
-        if (user.role) {
+        // Set role from entity object
+        const entityRole = (currentEntity as any).role;
+        if (entityRole) {
           setRoles([{
-            name: user.role,
-            display_name: user.role,
+            name: entityRole,
+            display_name: entityRole,
             branch_specific: false,
-            branch_id: user.branch_id
+            branch_id: (currentEntity as any).branch_id
           }]);
         }
         setLoading(false);
         return;
       } else {
-        console.warn('⚠️ No permissions found in user object from AuthContext!');
+        console.warn('⚠️ No permissions found in entity object from AuthContext!');
         console.warn('⚠️ Falling back to /rbac/me/permissions API call');
       }
 
-      // If not in user object, fetch from API
+      // If not in entity object, fetch from API
       const { data, error: apiError } = await apiClient.getUserPermissions();
 
       if (apiError) {
@@ -115,6 +131,7 @@ export const RoleAccessProvider: React.FC<RoleAccessProviderProps> = ({ children
       }
 
       if (data) {
+        console.log('✅ Loaded permissions from API:', data.permissions);
         setPermissions(data.permissions || []);
         setRoles(data.roles || []);
       }
@@ -124,7 +141,7 @@ export const RoleAccessProvider: React.FC<RoleAccessProviderProps> = ({ children
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, user, authLoading]);
+  }, [isAuthenticated, isStudentAuthenticated, user, student, authLoading]);
 
   // Load permissions when user changes
   useEffect(() => {
@@ -175,6 +192,51 @@ export const RoleAccessProvider: React.FC<RoleAccessProviderProps> = ({ children
     return hasSSAdminRole || hasSSAdminUserRole;
   }, [roles, user]);
 
+  // Role checks
+  const isAdmin = useMemo(() => {
+    return roles.some(role =>
+      ['admin', 'hq_admin', 'branch_admin', 'superadmin', 'superadmin'].includes(role.name)
+    );
+  }, [roles]);
+
+  const isSuperAdmin = useMemo(() => {
+    return roles.some(role =>
+      ['superadmin', 'superadmin'].includes(role.name)
+    );
+  }, [roles]);
+
+  const isTeacher = useMemo(() => {
+    return roles.some(role => role.name === 'teacher');
+  }, [roles]);
+
+  const isStudent = useMemo(() => {
+    return roles.some(role => role.name === 'student');
+  }, [roles]);
+
+  const isParent = useMemo(() => {
+    return roles.some(role => role.name === 'parent');
+  }, [roles]);
+
+  // Derived role for widget compatibility
+  const userRole = useMemo(() => {
+    // Get the first role name, or use the current user's role property
+    if (roles.length > 0) {
+      return roles[0].name;
+    }
+    const currentEntity = user || student;
+    return currentEntity?.role || null;
+  }, [roles, user, student]);
+
+  // isAdminRole combines all admin-type roles
+  const isAdminRole = useMemo(() => {
+    return roles.some(role =>
+      ['admin', 'hq_admin', 'branch_admin', 'superadmin', 'superadmin'].includes(role.name)
+    );
+  }, [roles]);
+
+  // Current user entity (either user or student)
+  const currentUser = user || student;
+
   const contextValue: RoleAccessContextType = {
     permissions,
     roles,
@@ -186,7 +248,15 @@ export const RoleAccessProvider: React.FC<RoleAccessProviderProps> = ({ children
     hasRole,
     hasAnyRole,
     refreshPermissions,
-    isSuperSuperAdmin
+    isSuperSuperAdmin,
+    isAdmin,
+    isSuperAdmin,
+    isTeacher,
+    isStudent,
+    isParent,
+    isAdminRole,
+    userRole,
+    currentUser
   };
 
   return (
@@ -283,7 +353,7 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
 
 // Hook for conditional rendering based on permissions
 export const usePermissionCheck = () => {
-  const { hasPermission, hasAnyPermission, hasAllPermissions, hasRole, hasAnyRole } = useRoleAccess();
+  const { hasPermission, hasAnyPermission, hasAllPermissions, hasRole, hasAnyRole, isStudent, isTeacher, isAdmin, isSuperAdmin, isParent } = useRoleAccess();
 
   const canAccess = useCallback((config: {
     permission?: string;
@@ -339,6 +409,11 @@ export const usePermissionCheck = () => {
     hasAnyPermission,
     hasAllPermissions,
     hasRole,
-    hasAnyRole
+    hasAnyRole,
+    isStudent,
+    isTeacher,
+    isAdmin,
+    isSuperAdmin,
+    isParent
   };
 };

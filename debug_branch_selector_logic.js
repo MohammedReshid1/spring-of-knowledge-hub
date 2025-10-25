@@ -6,12 +6,12 @@ console.log('🔍 Branch Selector Logic Debug');
 // Simulate the data we know from backend
 const userBranches = []; // 0 branches from backend
 const currentUser = {
-  role: 'super_admin', // from backend
+  role: 'superadmin', // from backend
   branch_id: null
 };
 
 // Simulate the role checks
-const isHQRole = ['super_admin', 'hq_admin', 'hq_registrar'].includes(currentUser.role);
+const isHQRole = ['superadmin', 'hq_admin', 'hq_registrar'].includes(currentUser.role);
 const canSwitchBranches = isHQRole;
 
 console.log('User data:', {

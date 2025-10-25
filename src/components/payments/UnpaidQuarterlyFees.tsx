@@ -74,10 +74,14 @@ interface UnpaidFeesResponse {
 
 export function UnpaidQuarterlyFees() {
   const { selectedBranch } = useBranch();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const academicYearQuery = useAcademicYear();
   const defaultAcademicYear = getAcademicYearString(academicYearQuery);
   const currency = useCurrency();
+
+  // Parent detection and filtering
+  const isParent = user?.role === 'parent';
+  const parentId = (user as any)?.parent_id;
 
   const [feeFrequency, setFeeFrequency] = useState<string>('all');
   const [quarter, setQuarter] = useState<string>('');
@@ -90,9 +94,10 @@ export function UnpaidQuarterlyFees() {
 
   // Fetch unpaid fees
   const { data, isLoading, refetch, isFetching } = useQuery<UnpaidFeesResponse>({
-    queryKey: ['unpaid-fees', branchId, feeFrequency, quarter, academicYear],
+    queryKey: ['unpaid-fees', branchId, feeFrequency, quarter, academicYear, isParent ? parentId : undefined],
     queryFn: async () => {
       const params = new URLSearchParams();
+      if (isParent && parentId) params.append('parent_id', parentId);
       if (branchId) params.append('branch_id', branchId);
       if (feeFrequency && feeFrequency !== 'all') params.append('fee_frequency', feeFrequency);
       if (quarter) params.append('quarter', quarter);
@@ -190,7 +195,7 @@ export function UnpaidQuarterlyFees() {
               <div className="p-2 bg-red-100 rounded-lg group-hover:bg-red-200 transition-colors">
                 <AlertCircle className="h-4 w-4" />
               </div>
-              Unpaid Students
+              {isParent ? "Children With Unpaid Fees" : "Unpaid Students"}
             </CardTitle>
           </CardHeader>
           <CardContent className="relative z-10">
@@ -201,7 +206,7 @@ export function UnpaidQuarterlyFees() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-red-600 mt-2 font-medium">Students with outstanding fees</p>
+            <p className="text-xs text-red-600 mt-2 font-medium">{isParent ? "Children with outstanding fees" : "Students with outstanding fees"}</p>
           </CardContent>
         </Card>
 
@@ -269,7 +274,7 @@ export function UnpaidQuarterlyFees() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-purple-600 mt-2 font-medium">After search filter</p>
+            <p className="text-xs text-purple-600 mt-2 font-medium">{isParent ? "After applying filters" : "After search filter"}</p>
           </CardContent>
         </Card>
       </div>
@@ -283,7 +288,7 @@ export function UnpaidQuarterlyFees() {
             </div>
             Filters & Search
           </CardTitle>
-          <CardDescription>Refine results by fee type, quarter, academic year, or search for specific students</CardDescription>
+          <CardDescription>{isParent ? "Refine results by fee type, quarter, academic year, or search for your children" : "Refine results by fee type, quarter, academic year, or search for specific students"}</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <div className="grid gap-6 md:grid-cols-4">
@@ -375,22 +380,30 @@ export function UnpaidQuarterlyFees() {
                 <div className="p-2 bg-slate-200 rounded-lg">
                   <Users className="h-5 w-5 text-slate-700" />
                 </div>
-                Students with Unpaid Fees
+                {isParent ? "My Children's Unpaid Fees" : "Students with Unpaid Fees"}
               </CardTitle>
               <CardDescription className="mt-2">
-                <span className="font-semibold text-slate-700">{data?.total_unpaid || 0}</span> students have unpaid {data?.fee_frequency === 'all' ? 'fees' : `${data?.fee_frequency} fees`}
-                {data?.quarter && feeFrequency === 'quarterly' ? ` for ${data.quarter}` : ''} ({data?.academic_year})
+                {data?.total_unpaid === 0 && isParent ? (
+                  <>All your children's fees are up to date for {data?.academic_year}</>
+                ) : (
+                  <>
+                    <span className="font-semibold text-slate-700">{data?.total_unpaid || 0}</span> {isParent ? "children have" : "students have"} unpaid {data?.fee_frequency === 'all' ? 'fees' : `${data?.fee_frequency} fees`}
+                    {data?.quarter && feeFrequency === 'quarterly' ? ` for ${data.quarter}` : ''} ({data?.academic_year})
+                  </>
+                )}
               </CardDescription>
             </div>
-            <Button
-              onClick={handleExportCSV}
-              variant="outline"
-              disabled={!data?.students || data.students.length === 0}
-              className="bg-white hover:bg-green-50 border-green-300 hover:border-green-400 text-green-700 hover:text-green-800 transition-all duration-300 shadow-sm hover:shadow disabled:opacity-50"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export CSV
-            </Button>
+            {!isParent && (
+              <Button
+                onClick={handleExportCSV}
+                variant="outline"
+                disabled={!data?.students || data.students.length === 0}
+                className="bg-white hover:bg-green-50 border-green-300 hover:border-green-400 text-green-700 hover:text-green-800 transition-all duration-300 shadow-sm hover:shadow disabled:opacity-50"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-6">
@@ -406,10 +419,20 @@ export function UnpaidQuarterlyFees() {
                 <AlertCircle className="h-10 w-10 text-green-600" />
               </div>
               <p className="text-xl font-semibold text-slate-800 mb-2">
-                {searchTerm ? 'No students found matching your search' : `All students have paid their ${data?.fee_frequency === 'all' ? 'fees' : `${data?.fee_frequency} fees`}!`}
+                {searchTerm
+                  ? (isParent ? 'No children found matching your search' : 'No students found matching your search')
+                  : isParent
+                    ? `All your children have paid their ${data?.fee_frequency === 'all' ? 'fees' : `${data?.fee_frequency} fees`}!`
+                    : `All students have paid their ${data?.fee_frequency === 'all' ? 'fees' : `${data?.fee_frequency} fees`}!`
+                }
               </p>
               <p className="text-sm text-slate-600">
-                {searchTerm ? 'Try adjusting your search criteria' : 'Great job on fee collection!'}
+                {searchTerm
+                  ? 'Try adjusting your search criteria'
+                  : isParent
+                    ? 'All fees are up to date. Thank you!'
+                    : 'Great job on fee collection!'
+                }
               </p>
             </div>
           ) : (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +24,8 @@ interface PersonalizedTimetableProps {
   userRole: string;
   userId: string;
   userName?: string;
+  parentId?: string; // For parent role
+  children?: Array<{ student_id: string; full_name: string }>; // For parent role
 }
 
 interface TimetableEntry {
@@ -70,32 +72,61 @@ const DAYS_OF_WEEK = [
 export const PersonalizedTimetable: React.FC<PersonalizedTimetableProps> = ({
   userRole,
   userId,
-  userName
+  userName,
+  parentId,
+  children = []
 }) => {
+  const isParent = userRole === 'parent';
+  const [selectedChildId, setSelectedChildId] = useState<string>(
+    isParent && children.length > 0 ? children[0].student_id : userId
+  );
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
   const [selectedDay, setSelectedDay] = useState<string>('monday');
   const [showPastClasses, setShowPastClasses] = useState(false);
   const [compactView, setCompactView] = useState(false);
 
+  // Update selectedChildId when children data becomes available
+  useEffect(() => {
+    if (isParent && children.length > 0) {
+      // Check if selectedChildId is not already set to a valid child
+      const isValidChildId = children.some(child => child.student_id === selectedChildId);
+      console.log('[PersonalizedTimetable] Children loaded:', {
+        childrenCount: children.length,
+        selectedChildId,
+        isValidChildId,
+        firstChildId: children[0]?.student_id
+      });
+      if (!isValidChildId) {
+        console.log('[PersonalizedTimetable] Setting selectedChildId to:', children[0].student_id);
+        setSelectedChildId(children[0].student_id);
+      }
+    }
+  }, [children, isParent, selectedChildId]);
+
   // Fetch personalized timetable
   const { data: schedule, isLoading } = useQuery<WeeklySchedule>({
-    queryKey: ['personal-timetable', userId, selectedWeek],
+    queryKey: ['personal-timetable', isParent ? selectedChildId : userId, selectedWeek],
     queryFn: async () => {
-      const endpoint = userRole === 'student' 
-        ? `/timetable/student/${userId}`
-        : `/timetable/teacher/${userId}`;
-      
+      let endpoint: string;
+      if (userRole === 'student' || userRole === 'parent') {
+        // For parents, use the selected child's ID
+        endpoint = `/api/timetable/student/${isParent ? selectedChildId : userId}`;
+      } else {
+        endpoint = `/api/timetable/teacher/${userId}`;
+      }
+
       const response = await apiClient.get(endpoint);
       return response.data.entries || {};
-    }
+    },
+    enabled: isParent ? !!selectedChildId : true
   });
 
   // Fetch upcoming classes
   const { data: upcomingClasses = [] } = useQuery<UpcomingClass[]>({
     queryKey: ['upcoming-classes', userId],
     queryFn: async () => {
-      const response = await apiClient.get(`/timetable/upcoming/${userId}`);
+      const response = await apiClient.get(`/api/timetable/upcoming/${userId}`);
       return response.data;
     },
     refetchInterval: 60000 // Refresh every minute
@@ -321,15 +352,22 @@ export const PersonalizedTimetable: React.FC<PersonalizedTimetableProps> = ({
     );
   }
 
+  // Get current child name for parents
+  const selectedChild = isParent ? children.find(c => c.student_id === selectedChildId) : null;
+  const displayTitle = isParent
+    ? `${selectedChild?.full_name || 'Child'}'s Timetable`
+    : userRole === 'student' ? 'My Timetable' : 'My Teaching Schedule';
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">
-            {userRole === 'student' ? 'My Timetable' : 'My Teaching Schedule'}
+            {displayTitle}
           </h2>
           <p className="text-muted-foreground">
-            {userName && `Welcome, ${userName}`}
+            {!isParent && userName && `Welcome, ${userName}`}
+            {isParent && children.length > 1 && "Select a child to view their timetable"}
             {upcomingClasses.length > 0 && (
               <span className="ml-2">
                 • Next class in {upcomingClasses[0]?.minutes_until} minutes
@@ -339,6 +377,26 @@ export const PersonalizedTimetable: React.FC<PersonalizedTimetableProps> = ({
         </div>
         
         <div className="flex items-center space-x-2">
+          {isParent && children.length > 1 && selectedChildId && (
+            <Select
+              key={`child-select-${children.length}-${selectedChildId}`}
+              value={selectedChildId}
+              onValueChange={setSelectedChildId}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue>
+                  {children.find(c => c.student_id === selectedChildId)?.full_name || "Select child"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {children.map((child) => (
+                  <SelectItem key={child.student_id} value={child.student_id}>
+                    {child.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button
             variant="outline"
             size="sm"

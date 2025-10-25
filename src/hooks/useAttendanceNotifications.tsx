@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useWebSocket, MessageType, SubscriptionType } from './useWebSocket';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+import { MessageType, SubscriptionType } from '@/types/websocket';
+import { useAuth } from '@/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/hooks/use-toast';
 
@@ -101,60 +103,85 @@ export const useAttendanceNotifications = (options: UseAttendanceNotificationsOp
     }
   }, [onNotificationReceived, onStatsUpdate, enableToastNotifications, queryClient]);
 
+  // Use WebSocketContext instead of old hook
   const {
     isConnected,
-    isAuthenticated,
-    subscribe,
-    unsubscribe,
+    connectionStatus,
+    subscribe: wsSubscribe,
+    unsubscribe: wsUnsubscribe,
     sendMessage,
-    userInfo
-  } = useWebSocket({
-    onMessage: handleWebSocketMessage,
-    enableSubscriptions: true
-  });
+    addEventListener
+  } = useWebSocket();
+
+  // Get user info from AuthContext
+  const { user } = useAuth();
+  const userInfo = user ? { user_id: user.id, role: user.role, branch_id: user.branch_id } : null;
+  const isAuthenticated = connectionStatus === 'authenticated';
+
+  // Set up WebSocket message listeners
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const unsubscribers: (() => void)[] = [];
+
+    // Listen for all attendance message types
+    ['attendance_notification', 'attendance_stats_update', 'attendance_bulk_complete'].forEach(type => {
+      const unsub = addEventListener(type, (payload) => {
+        const message = { type, payload };
+        handleWebSocketMessage(message);
+      });
+      unsubscribers.push(unsub);
+    });
+
+    return () => {
+      unsubscribers.forEach(unsub => unsub());
+    };
+  }, [isConnected, addEventListener, handleWebSocketMessage]);
 
   // Subscribe to attendance notifications when authenticated
   useEffect(() => {
     if (isAuthenticated && !isSubscribed) {
       // Subscribe to general attendance notifications
-      subscribe(SubscriptionType.NOTIFICATIONS, 'attendance_notifications');
-      
+      // New signature: subscribe(resource, type, filters)
+      wsSubscribe('attendance_notifications', SubscriptionType.NOTIFICATIONS);
+
       // Subscribe to class-specific notifications if classId is provided
       if (classId) {
-        subscribe(SubscriptionType.COLLECTION, `attendance_class_${classId}`);
+        wsSubscribe(`attendance_class_${classId}`, SubscriptionType.COLLECTION);
       }
-      
+
       // Subscribe to student-specific notifications if studentId is provided
       if (studentId) {
-        subscribe(SubscriptionType.DOCUMENT, `attendance_student_${studentId}`);
+        wsSubscribe(`attendance_student_${studentId}`, SubscriptionType.DOCUMENT);
       }
-      
+
       // Subscribe to branch-level attendance updates if user has branch_id
       if (userInfo?.branch_id) {
-        subscribe(SubscriptionType.BRANCH_DATA, `attendance_branch_${userInfo.branch_id}`);
+        wsSubscribe(`attendance_branch_${userInfo.branch_id}`, SubscriptionType.BRANCH_DATA);
       }
-      
+
       setIsSubscribed(true);
     }
-  }, [isAuthenticated, isSubscribed, subscribe, classId, studentId, userInfo?.branch_id]);
+  }, [isAuthenticated, isSubscribed, wsSubscribe, classId, studentId, userInfo?.branch_id]);
 
   // Cleanup subscriptions on unmount or option changes
   useEffect(() => {
     return () => {
       if (isSubscribed) {
-        unsubscribe('attendance_notifications');
+        // Unsubscribe using subscription IDs (format: type:resource)
+        wsUnsubscribe(`${SubscriptionType.NOTIFICATIONS}:attendance_notifications`);
         if (classId) {
-          unsubscribe(`attendance_class_${classId}`);
+          wsUnsubscribe(`${SubscriptionType.COLLECTION}:attendance_class_${classId}`);
         }
         if (studentId) {
-          unsubscribe(`attendance_student_${studentId}`);
+          wsUnsubscribe(`${SubscriptionType.DOCUMENT}:attendance_student_${studentId}`);
         }
         if (userInfo?.branch_id) {
-          unsubscribe(`attendance_branch_${userInfo.branch_id}`);
+          wsUnsubscribe(`${SubscriptionType.BRANCH_DATA}:attendance_branch_${userInfo.branch_id}`);
         }
       }
     };
-  }, [classId, studentId, userInfo?.branch_id]);
+  }, [classId, studentId, userInfo?.branch_id, wsUnsubscribe, isSubscribed]);
 
   const getToastConfig = (notification: AttendanceNotification) => {
     const baseConfig = {

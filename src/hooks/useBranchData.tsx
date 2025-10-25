@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import type { RegistrationPayment, Fee } from '@/types/api';
 import { useAuth } from '@/hooks/useAuth';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { useEffect } from 'react';
 

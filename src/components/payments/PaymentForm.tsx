@@ -16,6 +16,8 @@ import { Plus, Trash2, Calculator, Receipt } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useBranch } from '@/contexts/BranchContext';
 import { useRoleAccess } from '@/contexts/RoleAccessContext';
+import { BankTransferDetails } from './BankTransferDetails';
+import { MobilePaymentDetails } from './MobilePaymentDetails';
 import type { Payment, FeeCategory, Student } from '@/types/api';
 
 const paymentItemSchema = z.object({
@@ -27,9 +29,22 @@ const paymentItemSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Conditional schemas for payment method details
+const bankDetailsSchema = z.object({
+  bank_name: z.string().min(2, 'Bank name must be at least 2 characters'),
+  bank_code: z.string().optional(),
+  transaction_number: z.string().min(3, 'Transaction number must be at least 3 characters'),
+  transaction_screenshot_url: z.string().optional(),
+});
+
+const mobileDetailsSchema = z.object({
+  transaction_id: z.string().min(3, 'Transaction ID must be at least 3 characters'),
+  transaction_screenshot_url: z.string().optional(),
+});
+
 const paymentSchema = z.object({
   student_id: z.string().min(1, 'Student is required'),
-  payment_method: z.enum(['cash', 'card', 'bank_transfer', 'cheque', 'online'], {
+  payment_method: z.enum(['cash', 'card', 'bank_transfer', 'cheque', 'online', 'mobile_payment'], {
     required_error: 'Payment method is required'
   }),
   payment_date: z.string().min(1, 'Payment date is required'),
@@ -38,6 +53,54 @@ const paymentSchema = z.object({
   notes: z.string().optional(),
   discount_amount: z.number().min(0).optional().default(0),
   items: z.array(paymentItemSchema).min(1, 'At least one payment item is required'),
+  // Conditional fields for payment methods
+  bank_details: bankDetailsSchema.optional(),
+  mobile_details: mobileDetailsSchema.optional(),
+}).superRefine((data, ctx) => {
+  // Validate conditional fields based on payment method
+  if (data.payment_method === 'bank_transfer') {
+    if (!data.bank_details) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Bank details are required for bank transfer payments',
+        path: ['bank_details']
+      });
+    } else {
+      // Validate bank details fields
+      if (!data.bank_details.bank_name || data.bank_details.bank_name.length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Bank name must be at least 2 characters',
+          path: ['bank_details', 'bank_name']
+        });
+      }
+      if (!data.bank_details.transaction_number || data.bank_details.transaction_number.length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Transaction number must be at least 3 characters',
+          path: ['bank_details', 'transaction_number']
+        });
+      }
+    }
+  }
+
+  if (data.payment_method === 'mobile_payment' || data.payment_method === 'online') {
+    if (!data.mobile_details) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Mobile/Online payment details are required for mobile/online payments',
+        path: ['mobile_details']
+      });
+    } else {
+      if (!data.mobile_details.transaction_id || data.mobile_details.transaction_id.length < 3) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Transaction ID must be at least 3 characters',
+          path: ['mobile_details', 'transaction_id']
+        });
+      }
+    }
+  }
 });
 
 type PaymentFormData = z.infer<typeof paymentSchema>;
@@ -73,6 +136,17 @@ export function PaymentForm({ payment, studentId, onSuccess, onCancel }: Payment
       reference_number: (payment as any)?.reference_number || (payment as any)?.payment_reference || '',
       notes: (payment as any)?.notes || '',
       discount_amount: Number((payment as any)?.discount_amount ?? 0),
+      // Initialize conditional fields
+      bank_details: (payment as any)?.bank_details || {
+        bank_name: '',
+        bank_code: '',
+        transaction_number: '',
+        transaction_screenshot_url: ''
+      },
+      mobile_details: (payment as any)?.mobile_details || {
+        transaction_id: '',
+        transaction_screenshot_url: ''
+      },
       items: payment ? [
         {
           fee_category_id: (payment as any)?.fee_category_id || (payment as any)?.fee_category?.id || '',
@@ -178,7 +252,8 @@ export function PaymentForm({ payment, studentId, onSuccess, onCancel }: Payment
         throw new Error('Please select a branch before creating a payment');
       }
 
-      return apiClient.createPayment({
+      // Prepare payment data with conditional fields
+      const paymentData: any = {
         student_id: data.student_id,
         branch_id: branchId,
         payment_method: data.payment_method as any,
@@ -193,7 +268,18 @@ export function PaymentForm({ payment, studentId, onSuccess, onCancel }: Payment
           discount_amount: i.discount_amount,
           notes: i.notes,
         })),
-      });
+      };
+
+      // Add method-specific details if present
+      if (data.bank_details && (data.payment_method === 'bank_transfer')) {
+        paymentData.bank_details = data.bank_details;
+      }
+
+      if (data.mobile_details && (data.payment_method === 'mobile_payment' || data.payment_method === 'online')) {
+        paymentData.mobile_details = data.mobile_details;
+      }
+
+      return apiClient.createPayment(paymentData);
     },
     onSuccess: (response) => {
       if (response.data) {
@@ -213,6 +299,31 @@ export function PaymentForm({ payment, studentId, onSuccess, onCancel }: Payment
       });
     },
   });
+
+  // File upload handler
+  const handleFileUpload = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      // SECURITY FIX: Use httpOnly cookies instead of localStorage (HIGH severity - Phase 2)
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/upload-screenshot`, {
+        method: 'POST',
+        credentials: 'include',  // Send httpOnly cookies automatically
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('File upload failed');
+      }
+
+      const result = await response.json();
+      return result.url;
+    } catch (error) {
+      console.error('File upload error:', error);
+      throw error;
+    }
+  };
 
   const handleSubmit = async (data: PaymentFormData) => {
     setIsSubmitting(true);
@@ -401,11 +512,58 @@ export function PaymentForm({ payment, studentId, onSuccess, onCancel }: Payment
                           <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                           <SelectItem value="cheque">Cheque</SelectItem>
                           <SelectItem value="online">Online Payment</SelectItem>
+                          <SelectItem value="mobile_payment">Mobile Payment</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                {/* Conditional Payment Method Fields */}
+                <FormField
+                  control={form.control}
+                  name="bank_details"
+                  render={({ field }) => {
+                    const paymentMethod = form.watch('payment_method');
+                    if (paymentMethod !== 'bank_transfer') return null;
+
+                    return (
+                      <BankTransferDetails
+                        value={field.value || {
+                          bank_name: '',
+                          bank_code: '',
+                          transaction_number: '',
+                          transaction_screenshot_url: ''
+                        }}
+                        onChange={field.onChange}
+                        onFileUpload={handleFileUpload}
+                        errors={form.formState.errors.bank_details || {}}
+                      />
+                    );
+                  }}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="mobile_details"
+                  render={({ field }) => {
+                    const paymentMethod = form.watch('payment_method');
+                    if (paymentMethod !== 'mobile_payment' && paymentMethod !== 'online') return null;
+
+                    return (
+                      <MobilePaymentDetails
+                        value={field.value || {
+                          transaction_id: '',
+                          transaction_screenshot_url: ''
+                        }}
+                        onChange={field.onChange}
+                        onFileUpload={handleFileUpload}
+                        errors={form.formState.errors.mobile_details || {}}
+                        paymentMethod={paymentMethod as 'online_payment' | 'mobile_payment'}
+                      />
+                    );
+                  }}
                 />
 
                 <FormField

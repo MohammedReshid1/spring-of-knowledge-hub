@@ -92,9 +92,9 @@ export const ComprehensiveRBACManagement: React.FC = () => {
   // Check if user has access to RBAC system
   // Use the same access control logic as SystemAdministration component
   const isAdmin = hasRole('admin') || user?.role === 'admin';
-  const isSuperAdmin = hasRole('super_admin') || hasRole('superadmin') || user?.role === 'superadmin';
+  const isSuperAdmin = hasRole('superadmin') || hasRole('superadmin') || user?.role === 'superadmin';
   const isHQAdmin = hasRole('hq_admin') || hasRole('hqadmin') || user?.role === 'hqadmin';
-  const isSuperSuperAdmin = hasRole('super_super_admin') || hasRole('superadmin') || user?.role === 'superadmin';
+  const isSuperSuperAdmin = hasRole('super_superadmin') || hasRole('superadmin') || user?.role === 'superadmin';
   const canManageUsers = isAdmin || isSuperAdmin || isHQAdmin || isSuperSuperAdmin;
 
   // Also check for the specific RBAC permission as a fallback

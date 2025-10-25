@@ -69,14 +69,15 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     queryKey: ['all-branches'],
     queryFn: async () => {
       const { data, error } = await apiClient.getBranches();
-      
+
       if (error) {
         console.error('Error fetching all branches:', error);
         return [];
       }
-      
+
       return data?.filter((branch: Branch) => branch.is_active) || [];
-    }
+    },
+    enabled: !!user?.id  // Only fetch when user is authenticated
   });
 
   // Get current user's role to determine if they can manage branches
@@ -92,7 +93,7 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Updated role-based permissions - use user directly from auth context
   const userRole = user?.role || currentUser?.role;
-  const isSuperAdmin = userRole === 'superadmin' || userRole === 'super_admin' || userRole === 'superadmin';
+  const isSuperAdmin = userRole === 'superadmin' || userRole === 'superadmin' || userRole === 'superadmin';
   const canManageBranches = isSuperAdmin;
   const canSwitchBranches = isSuperAdmin; // Only super admin can switch branches
   const isHQRole = isSuperAdmin; // Only super admin is HQ role

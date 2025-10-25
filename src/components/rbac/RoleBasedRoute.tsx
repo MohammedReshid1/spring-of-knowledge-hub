@@ -32,17 +32,20 @@ export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
   redirectTo,
   showUnauthorized = true
 }) => {
-  const { user, loading } = useAuth();
+  const { user, student, loading } = useAuth();
   const { hasPermission, hasRole, loading: roleLoading } = useRoleAccess();
   const location = useLocation();
 
+  // Get current authenticated entity (either user or student)
+  const currentEntity = user || student;
+
   // Helper function to check if user has admin privileges (dynamic RBAC + auth fallback)
   const hasAdminAccess = () => {
-    const adminAccess = hasRole('admin') || hasRole('super_admin') || hasRole('superadmin') ||
+    const adminAccess = hasRole('admin') || hasRole('superadmin') || hasRole('superadmin') ||
            hasRole('hq_admin') || hasRole('hqadmin') ||
-           hasRole('super_super_admin') || hasRole('superadmin') ||
-           user?.role === 'admin' || user?.role === 'superadmin' ||
-           user?.role === 'hqadmin' || user?.role === 'superadmin';
+           hasRole('super_superadmin') || hasRole('superadmin') ||
+           currentEntity?.role === 'admin' || currentEntity?.role === 'superadmin' ||
+           currentEntity?.role === 'hqadmin' || currentEntity?.role === 'superadmin';
 
     // Admin access debug data logged for development
 
@@ -58,8 +61,8 @@ export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
     );
   }
 
-  // Redirect to auth if not authenticated
-  if (!user) {
+  // Redirect to auth if not authenticated (check both user and student)
+  if (!currentEntity) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
@@ -85,8 +88,8 @@ export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
 
   // Check minimum role level (simplified - just check for admin-type roles)
   if (minRoleLevel && minRoleLevel >= 3 &&
-      !hasRole('admin') && !hasRole('super_admin') && !hasRole('superadmin') &&
-      !hasRole('super_super_admin') && !hasRole('superadmin')) {
+      !hasRole('admin') && !hasRole('superadmin') && !hasRole('superadmin') &&
+      !hasRole('super_superadmin') && !hasRole('superadmin')) {
     hasAccess = false;
   }
 
@@ -99,8 +102,8 @@ export const RoleBasedRoute: React.FC<RoleBasedRouteProps> = ({
   // Check HQ requirement
   if (requireHQ &&
       !hasRole('hq_admin') && !hasRole('hqadmin') &&
-      !hasRole('super_admin') && !hasRole('superadmin') &&
-      !hasRole('super_super_admin') && !hasRole('superadmin')) {
+      !hasRole('superadmin') && !hasRole('superadmin') &&
+      !hasRole('super_superadmin') && !hasRole('superadmin')) {
     hasAccess = false;
   }
 

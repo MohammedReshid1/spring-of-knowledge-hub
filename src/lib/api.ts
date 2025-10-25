@@ -3,6 +3,7 @@ import type { ApiResponse, User, Branch, Student, Teacher, SchoolClass, Attendan
 import { config } from './config';
 import { isTokenExpired, shouldRefreshToken } from '@/utils/jwt';
 import { TokenStorage } from '@/utils/tokenStorage';
+import { getCSRFToken, requiresCSRFToken } from '@/utils/csrf';
 
 const API_BASE_URL = config.API_BASE_URL;
 
@@ -95,22 +96,33 @@ function mapFromBackendFeeCategory(doc: any): FrontendFeeCategory {
 }
 
 class ApiClient {
-  private token: string | null = null;
+  // SECURITY: Removed token storage - now using httpOnly cookies
   private errorHandler: ((error: unknown, endpoint?: string, context?: Record<string, unknown>) => void) | null = null;
 
   constructor() {
-    // Get token from secure storage if it exists
-    this.token = TokenStorage.getToken();
+    // SECURITY: Tokens are now in httpOnly cookies, not stored client-side
+    console.info('API Client initialized with cookie-based authentication');
   }
 
+  /**
+   * DEPRECATED: Tokens are now in httpOnly cookies
+   * This method is kept for backward compatibility
+   */
   setToken(token: string) {
-    this.token = token;
-    TokenStorage.setToken(token);
+    console.warn('setToken() is deprecated - using httpOnly cookies for authentication');
+    // Do nothing - tokens are in httpOnly cookies
   }
 
-  removeToken() {
-    this.token = null;
-    TokenStorage.removeToken();
+  /**
+   * Clear authentication by calling logout endpoint
+   * The backend will clear the httpOnly cookie
+   */
+  async removeToken() {
+    try {
+      await this.logout();
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
   }
 
   setErrorHandler(handler: (error: unknown, endpoint?: string, context?: Record<string, unknown>) => void) {
@@ -187,84 +199,64 @@ class ApiClient {
     retryCount = 0
   ): Promise<ApiResponse<T>> {
     const url = `${API_BASE_URL}${endpoint}`;
-    
-    // Check if token needs refresh (but not for auth endpoints)
-    if (this.token && !endpoint.includes('/auth/') && shouldRefreshToken(this.token)) {
-      try {
-        const refreshResponse = await this.refreshToken();
-        if (refreshResponse.data?.access_token) {
-          this.setToken(refreshResponse.data.access_token);
-        } else if (refreshResponse.error) {
-          // Refresh failed, trigger logout
-          console.warn('Token refresh failed, logging out');
-          this.removeToken();
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('auth:logout'));
-          }
-          return { error: 'Authentication failed' };
-        }
-      } catch (error) {
-        console.warn('Token refresh error, logging out:', error);
-        this.removeToken();
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('auth:logout'));
-        }
-        return { error: 'Authentication failed' };
-      }
-    }
-    
+
+    // SECURITY: Token refresh is now handled automatically by httpOnly cookies
+    // No need to manually refresh tokens client-side
+
     const headers: HeadersInit = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers || {}),
     };
 
-    if (this.token) {
-      // Validate token before using it
-      if (isTokenExpired(this.token)) {
-        this.removeToken();
-        return { error: 'Token expired' };
+    // SECURITY: No Authorization header - authentication via httpOnly cookies
+    // Tokens are sent automatically by the browser with credentials: 'include'
+
+    // ✅ SECURITY: Add CSRF token for state-changing requests
+    const method = options.method || 'GET';
+    if (requiresCSRFToken(method)) {
+      const csrfToken = getCSRFToken();
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
       }
-      headers['Authorization'] = `Bearer ${this.token}`;
     }
 
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        credentials: 'include',  // ✅ SECURITY: Send httpOnly cookies with every request
       });
 
-      // Handle 401 Unauthorized - token might be invalid
-      if (response.status === 401 && this.token && retryCount === 0) {
-        // Try to refresh token and retry once
+      // Handle 401 Unauthorized - session might be expired
+      // IMPORTANT: Don't retry refresh endpoint itself to prevent infinite loop
+      if (response.status === 401 && retryCount === 0 && endpoint !== '/auth/refresh') {
+        // Try to refresh session and retry once
         try {
           const refreshResponse = await this.refreshToken();
-          if (refreshResponse.data?.access_token) {
-            this.setToken(refreshResponse.data.access_token);
-            return this.request(endpoint, options, retryCount + 1);
-          } else {
-            // Refresh returned but no token - logout
-            this.removeToken();
+          if (refreshResponse.error) {
+            // Refresh failed, trigger logout
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('auth:logout'));
             }
-            return { error: 'Authentication failed' };
+            return { error: 'Authentication failed - session expired' };
           }
+          // Refresh succeeded (cookie updated by backend), retry original request
+          return this.request(endpoint, options, retryCount + 1);
         } catch (refreshError) {
-          // Refresh failed, remove token and trigger logout
-          this.removeToken();
+          // Refresh failed, trigger logout
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('auth:logout'));
           }
-          return { error: 'Authentication failed' };
+          return { error: 'Authentication failed - session expired' };
         }
       }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }));
         const error = errorData.detail || `HTTP ${response.status}`;
-        
+
         // Notify error handler
-        this.handleRequestError(error, endpoint, { 
+        this.handleRequestError(error, endpoint, {
           status: response.status, 
           statusText: response.statusText,
           ...options 
@@ -296,7 +288,11 @@ class ApiClient {
   }
 
   // Authentication methods
-  async signIn(email: string, password: string): Promise<ApiResponse<{ access_token: string; token_type: string }>> {
+  /**
+   * SECURITY: Login now uses httpOnly cookies for token storage
+   * The backend sets the cookie automatically - no token handling needed client-side
+   */
+  async signIn(email: string, password: string): Promise<ApiResponse<{ token_type: string; user: any }>> {
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
@@ -307,6 +303,7 @@ class ApiClient {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
+        credentials: 'include', // ✅ SECURITY: Enable httpOnly cookie reception
         body: formData.toString(),
       });
 
@@ -315,6 +312,8 @@ class ApiClient {
         return { error: errorData.detail || `HTTP ${response.status}` };
       }
 
+      // SECURITY: Backend no longer returns access_token in response body
+      // Token is automatically set in httpOnly cookie
       const data = await response.json();
       return { data };
     } catch (error) {
@@ -341,10 +340,89 @@ class ApiClient {
     return this.request('/auth/me');
   }
 
-  async refreshToken(): Promise<ApiResponse<{ access_token: string; token_type: string }>> {
+  /**
+   * SECURITY: Token refresh now uses httpOnly cookies
+   * The backend updates the cookie automatically
+   */
+  async refreshToken(): Promise<ApiResponse<{ token_type: string }>> {
     return this.request('/auth/refresh', {
       method: 'POST',
     });
+  }
+
+  /**
+   * SECURITY: Logout clears httpOnly cookies on the backend
+   */
+  async logout(): Promise<ApiResponse<{ message: string }>> {
+    return this.request('/auth/logout', {
+      method: 'POST',
+    });
+  }
+
+  // Student authentication methods
+  /**
+   * SECURITY: Student login now uses httpOnly cookies
+   */
+  async signInStudent(studentId: string, password: string): Promise<ApiResponse<{
+    success: boolean;
+    token_type?: string;
+    student_data?: any;
+    requires_password_change?: boolean;
+    is_default_password?: boolean;
+    message?: string;
+  }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/student/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // ✅ SECURITY: Enable httpOnly cookie reception
+        body: JSON.stringify({
+          student_id: studentId,
+          password: password
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }));
+        return { error: errorData.detail || errorData.message || `HTTP ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { data };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : 'Network error' };
+    }
+  }
+
+  async changeStudentPassword(studentId: string, currentPassword: string, newPassword: string): Promise<ApiResponse<{
+    success: boolean;
+    message?: string;
+  }>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/student/change-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          student_id: studentId,
+          current_password: currentPassword,
+          new_password: newPassword
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }));
+        return { error: errorData.detail || errorData.message || `HTTP ${response.status}` };
+      }
+
+      const data = await response.json();
+      return { data };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : 'Network error' };
+    }
   }
 
   // Generic HTTP methods
@@ -374,15 +452,17 @@ class ApiClient {
   }
 
   async post<T>(endpoint: string, data?: any, options?: RequestInit): Promise<ApiResponse<T>> {
-    const body = data ? JSON.stringify(data) : undefined;
+    // If data is FormData, send it directly without JSON.stringify
+    const body = data instanceof FormData ? data : (data ? JSON.stringify(data) : undefined);
+    const headers = data instanceof FormData
+      ? { ...options?.headers } // Don't set Content-Type for FormData
+      : { 'Content-Type': 'application/json', ...options?.headers };
+
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
       body,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers
-      }
+      headers
     });
   }
 
@@ -517,6 +597,7 @@ class ApiClient {
 
   // Student methods
   async getStudents(params?: {
+    parent_id?: string;
     branch_id?: string;
     search?: string;
     status?: string;
@@ -534,6 +615,7 @@ class ApiClient {
     pages: number;
   }>> {
     const searchParams = new URLSearchParams();
+    if (params?.parent_id) searchParams.append('parent_id', params.parent_id);
     if (params?.branch_id) searchParams.append('branch_id', params.branch_id);
     if (params?.search) searchParams.append('search', params.search);
     if (params?.status) searchParams.append('status', params.status);
@@ -543,7 +625,7 @@ class ApiClient {
     if (params?.sort_order) searchParams.append('sort_order', params.sort_order);
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
-    
+
     const queryString = searchParams.toString();
     const url = queryString ? `/students/?${queryString}` : '/students/';
     return this.request(url);
@@ -558,8 +640,12 @@ class ApiClient {
     return this.request(url);
   }
 
-  async getStudentStats(branchId?: string): Promise<ApiResponse<any>> {
-    const params = branchId ? `?branch_id=${branchId}` : '';
+  async getStudentStats(branchId?: string, parentId?: string): Promise<ApiResponse<any>> {
+    const searchParams = new URLSearchParams();
+    if (parentId) searchParams.append('parent_id', parentId);
+    if (branchId) searchParams.append('branch_id', branchId);
+    const queryString = searchParams.toString();
+    const params = queryString ? `?${queryString}` : '';
     return this.request(`/students/stats${params}`);
   }
 
@@ -627,6 +713,8 @@ class ApiClient {
     status?: string;
     branch_id?: string;
     subject_id?: string;
+    start_date?: string;
+    end_date?: string;
   }): Promise<ApiResponse<any[]>> {
     const searchParams = new URLSearchParams();
     if (params?.class_id) searchParams.append('class_id', params.class_id);
@@ -635,7 +723,9 @@ class ApiClient {
     if (params?.status) searchParams.append('status', params.status);
     if (params?.branch_id) searchParams.append('branch_id', params.branch_id);
     if (params?.subject_id) searchParams.append('subject_id', params.subject_id);
-    
+    if (params?.start_date) searchParams.append('start_date', params.start_date);
+    if (params?.end_date) searchParams.append('end_date', params.end_date);
+
     const queryString = searchParams.toString();
     const url = queryString ? `/attendance/?${queryString}` : '/attendance/';
     return this.request(url);
@@ -807,8 +897,13 @@ class ApiClient {
   }
 
   // Class methods
-  async getClasses(): Promise<ApiResponse<any[]>> {
-    return this.request('/classes/');
+  async getClasses(params?: { branch_id?: string; grade_level?: string }): Promise<ApiResponse<any[]>> {
+    const searchParams = new URLSearchParams();
+    if (params?.branch_id) searchParams.append('branch_id', params.branch_id);
+    if (params?.grade_level) searchParams.append('grade_level', params.grade_level);
+
+    const queryString = searchParams.toString();
+    return this.request(`/classes/${queryString ? `?${queryString}` : ''}`);
   }
 
   async createClass(classData: any): Promise<ApiResponse<any>> {
@@ -836,6 +931,15 @@ class ApiClient {
     return this.request(`/classes/${classId}`, {
       method: 'DELETE',
     });
+  }
+
+  // Grade methods (branch-aware)
+  async getGrades(params?: { branch_id?: string }): Promise<ApiResponse<any[]>> {
+    const searchParams = new URLSearchParams();
+    if (params?.branch_id) searchParams.append('branch_id', params.branch_id);
+
+    const queryString = searchParams.toString();
+    return this.request(`/grade-levels-branch/${queryString ? `?${queryString}` : ''}`);
   }
 
   // Grade Level methods
@@ -1219,12 +1323,11 @@ class ApiClient {
   }
 
   async downloadAdvancedBackup(backupId: string): Promise<Blob> {
-    const token = localStorage.getItem('token');
+    // SECURITY FIX: Use httpOnly cookies instead of localStorage (HIGH severity - Phase 2)
+    // Removed localStorage token fallback to prevent XSS-based token theft
     const response = await fetch(`${this.baseURL}/backups/download/${backupId}`, {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+      credentials: 'include',  // Send httpOnly cookies automatically
     });
 
     if (!response.ok) {
@@ -1416,8 +1519,8 @@ class ApiClient {
 
   // Timetable API methods
   async getTeacherTimetable(teacherId: string): Promise<ApiResponse<any>> {
-    // Uses backend route: GET /timetable/teacher/{teacher_id}
-    return this.request(`/timetable/teacher/${teacherId}`);
+    // Uses backend route: GET /api/timetable/teacher/{teacher_id}
+    return this.request(`/api/timetable/teacher/${teacherId}`);
   }
 
   async getPendingGrades(teacherId?: string): Promise<ApiResponse<any>> {
@@ -1436,8 +1539,10 @@ class ApiClient {
   }
 
   async getStudentGrades(studentId?: string): Promise<ApiResponse<any>> {
-    const params = studentId ? `?student_id=${studentId}` : '';
-    return this.request(`/exam-results/student${params}`);
+    if (!studentId) {
+      return { data: [], error: null };
+    }
+    return this.request(`/exam-results/student/${studentId}/summary`);
   }
 
   async getUpcomingExams(studentId?: string, branchId?: string): Promise<ApiResponse<any>> {
@@ -1730,6 +1835,7 @@ class ApiClient {
     term?: string;
     exam_type?: string;
     branch_id?: string;
+    teacher_id?: string;
     skip?: number;
     limit?: number;
   }): Promise<ApiResponse<any[]>> {
@@ -1740,9 +1846,10 @@ class ApiClient {
     if (params?.term) searchParams.append('term', params.term);
     if (params?.exam_type) searchParams.append('exam_type', params.exam_type);
     if (params?.branch_id) searchParams.append('branch_id', params.branch_id);
+    if (params?.teacher_id) searchParams.append('teacher_id', params.teacher_id);
     if (params?.skip) searchParams.append('skip', params.skip.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
-    
+
     const queryString = searchParams.toString();
     const url = queryString ? `/exams?${queryString}` : '/exams';
     return this.request(url);
@@ -1818,6 +1925,17 @@ class ApiClient {
     return this.request(`/exam-results/${resultId}`, {
       method: 'DELETE',
     });
+  }
+
+  async bulkCreateUpdateExamResults(bulkData: any): Promise<ApiResponse<any>> {
+    return this.request('/exam-results/bulk', {
+      method: 'POST',
+      body: JSON.stringify(bulkData),
+    });
+  }
+
+  async getExamStatistics(examId: string): Promise<ApiResponse<any>> {
+    return this.request(`/exam-results/statistics/${examId}`);
   }
 
   async getStudentExamSummary(studentId: string, academicYear?: string, term?: string): Promise<ApiResponse<any>> {
@@ -1925,36 +2043,54 @@ class ApiClient {
     const { data: exams, error: examError } = await this.getExams({
       // We'll filter by teacher in the frontend since the API doesn't support teacher_id directly
     });
-    
+
     if (examError) throw new Error(examError);
-    
-    const teacherExams = Array.isArray(exams) ? exams.filter((exam: any) => 
+
+    const teacherExams = Array.isArray(exams) ? exams.filter((exam: any) =>
       exam.teacher_id === teacherId
     ) : [];
-    
+
+    // Fetch classes to get student counts
+    const { data: classes } = await this.getClasses();
+    const classMap = new Map();
+    if (Array.isArray(classes)) {
+      classes.forEach((cls: any) => {
+        classMap.set(cls.id, cls.current_enrollment || cls.student_count || 0);
+      });
+    }
+
     // For each exam, check if results exist
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
+
     const pendingGrades = await Promise.all(
       teacherExams.map(async (exam: any) => {
         const { data: results } = await this.getExamResults({ exam_id: exam.id });
         const resultsCount = Array.isArray(results) ? results.length : 0;
-        
-        // If no results or incomplete results, this exam needs grading
-        if (resultsCount === 0) {
+        const studentCount = classMap.get(exam.class_id) || 0;
+
+        // Only include exams that have already happened (past dates)
+        const examDate = new Date(exam.exam_date);
+        examDate.setHours(0, 0, 0, 0);
+        const isPastExam = examDate < today;
+
+        // If exam is in the past, has no results (or incomplete results), and has students, it needs grading
+        if (isPastExam && resultsCount === 0 && studentCount > 0) {
           return {
             id: exam.id,
             type: exam.exam_type || 'exam',
             title: exam.name || 'Untitled Exam',
             class: exam.class_name || 'Unknown Class',
             subject: exam.subject_name || 'General',
-            students: exam.total_students || 0,
+            students: studentCount,
             dueDate: exam.exam_date,
-            priority: new Date(exam.exam_date) < new Date() ? 'high' : 'medium',
+            priority: 'high', // All past exams without grades are high priority
           };
         }
         return null;
       })
     );
-    
+
     return { data: pendingGrades.filter(Boolean) };
   }
 
@@ -3091,6 +3227,7 @@ class ApiClient {
 
   // Enhanced Payment Methods for Payment Management System
   async getPayments(params?: {
+    parent_id?: string;
     student_id?: string;
     fee_category_id?: string;
     status?: string;
@@ -3248,6 +3385,7 @@ class ApiClient {
 
   // Payment Dashboard Stats
   async getPaymentStatsForDashboard(params?: {
+    parent_id?: string;
     branch_id?: string;
     academic_year?: string;
     date_from?: string;
@@ -3358,6 +3496,78 @@ class ApiClient {
     audit: { todayEntries: number; successRate: number; failedActions: number };
   }>> {
     return this.request('/rbac/stats');
+  }
+
+  // Communication/Messaging APIs
+
+  /**
+   * Send a message to specific recipients (individual messaging)
+   */
+  async sendMessage(messageData: {
+    recipients: string[];  // Array of user IDs
+    subject: string;
+    content: string;
+    message_type?: string;
+    priority?: string;
+    recipient_type?: string;
+  }): Promise<ApiResponse<any>> {
+    const payload = {
+      recipients: messageData.recipients,
+      subject: messageData.subject,
+      content: messageData.content,
+      message_type: messageData.message_type || 'direct',
+      priority: messageData.priority || 'normal',
+      recipient_type: messageData.recipient_type || 'individual',
+    };
+
+    return this.request('/communication/messages', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Send an announcement to classes
+   */
+  async sendAnnouncement(announcementData: {
+    title: string;
+    content: string;
+    announcement_type: string;
+    target_audience?: string;
+    class_ids?: string[];
+    priority?: string;
+    publish_date?: string;
+  }): Promise<ApiResponse<any>> {
+    const now = new Date().toISOString();
+    const payload = {
+      title: announcementData.title,
+      content: announcementData.content,
+      announcement_type: announcementData.announcement_type || 'general',
+      target_audience: announcementData.target_audience || 'parents',
+      class_ids: announcementData.class_ids || [],
+      priority: announcementData.priority || 'normal',
+      publish_date: announcementData.publish_date || now,
+      is_pinned: false,
+    };
+
+    return this.request('/communication/announcements', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
+   * Get parents for a specific student (for teacher communication)
+   */
+  async getStudentParents(studentId: string): Promise<ApiResponse<any>> {
+    return this.request(`/students/${studentId}/parents`);
+  }
+
+  /**
+   * Get parent by user ID
+   */
+  async getParentByUserId(userId: string): Promise<ApiResponse<any>> {
+    return this.request(`/parents/by-user/${userId}`);
   }
 
 }

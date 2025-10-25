@@ -51,8 +51,8 @@ export const NotificationBell: React.FC = () => {
         navigate('/' + notification.action_url);
       }
     } else {
-      // Navigate to notification center with the notification ID highlighted
-      navigate(`/notifications?id=${notification.id}`);
+      // Navigate to inbox (student notifications page) with the notification ID highlighted
+      navigate(`/inbox?id=${notification.id}`);
     }
   };
 
@@ -189,7 +189,7 @@ export const NotificationBell: React.FC = () => {
               className="w-full text-sm"
               onClick={() => {
                 setIsOpen(false);
-                window.location.href = '/notifications';
+                navigate('/inbox');
               }}
             >
               View all notifications

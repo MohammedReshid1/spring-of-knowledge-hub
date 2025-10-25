@@ -18,7 +18,8 @@ import {
   CheckCircle,
   Activity,
   User,
-  Building
+  Building,
+  Key
 } from 'lucide-react';
 import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,6 +34,8 @@ import { AccountSettings } from './AccountSettings';
 import { BranchManagement } from '@/components/branches/BranchManagement';
 import { SystemMonitoring } from './SystemMonitoring';
 import { UserCreation } from './UserCreation';
+import { StudentPasswordManagement } from '../system-admin/student-password-management';
+import { ParentPasswordManagement } from '../system-admin/parent-password-management';
 
 type AdminTab =
   | 'overview'
@@ -42,7 +45,9 @@ type AdminTab =
   | 'roles'
   | 'monitoring'
   | 'grade-transition'
-  | 'backup';
+  | 'backup'
+  | 'password-management'
+  | 'parent-password-management';
 
 interface SystemStats {
   totalUsers: number;
@@ -61,9 +66,9 @@ export const SystemAdministration = () => {
   // Check for admin roles (handle both underscore and non-underscore formats)
   // Also fallback to check auth user role if dynamic RBAC hasn't been set up yet
   const isAdmin = hasRole('admin') || user?.role === 'admin';
-  const isSuperAdmin = hasRole('super_admin') || hasRole('superadmin') || user?.role === 'superadmin';
+  const isSuperAdmin = hasRole('superadmin') || hasRole('superadmin') || user?.role === 'superadmin';
   const isHQAdmin = hasRole('hq_admin') || hasRole('hqadmin') || user?.role === 'hqadmin';
-  const isSuperSuperAdmin = hasRole('super_super_admin') || hasRole('superadmin') || user?.role === 'superadmin';
+  const isSuperSuperAdmin = hasRole('super_superadmin') || hasRole('superadmin') || user?.role === 'superadmin';
   const canManageUsers = isAdmin || isSuperAdmin || isHQAdmin || isSuperSuperAdmin;
 
   // Debug: log current roles for troubleshooting
@@ -151,6 +156,8 @@ export const SystemAdministration = () => {
     { id: 'users' as AdminTab, label: 'User Creation', icon: Users, adminOnly: false },
     { id: 'roles' as AdminTab, label: 'Role Management', icon: Shield, adminOnly: false },
     { id: 'monitoring' as AdminTab, label: 'System Monitoring', icon: Monitor, adminOnly: false },
+    { id: 'password-management' as AdminTab, label: 'Student Passwords', icon: Key, adminOnly: false },
+    { id: 'parent-password-management' as AdminTab, label: 'Parent Passwords', icon: Key, adminOnly: false },
     { id: 'grade-transition' as AdminTab, label: 'Grade Transition', icon: ArrowRight, superAdminOnly: true },
     { id: 'backup' as AdminTab, label: 'Advanced Backup', icon: Database, adminOnly: false }
   ];
@@ -504,6 +511,8 @@ export const SystemAdministration = () => {
                                 {tab.id === 'users' && 'Create user accounts'}
                                 {tab.id === 'roles' && 'Access control'}
                                 {tab.id === 'monitoring' && 'System health & logs'}
+                                {tab.id === 'password-management' && 'Reset student passwords'}
+                                {tab.id === 'parent-password-management' && 'Reset parent passwords'}
                                 {tab.id === 'grade-transition' && 'Student progression'}
                                 {tab.id === 'backup' && 'Data backup & restore'}
                               </p>
@@ -620,6 +629,40 @@ export const SystemAdministration = () => {
                             </h3>
                           </div>
                           <SystemMonitoring />
+                        </div>
+                      </div>
+                    )}
+                    {activeTab === 'password-management' && (
+                      <div className="relative pointer-events-auto">
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium pointer-events-none"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-violet-50/80 to-purple-50/80 rounded-2xl pointer-events-none"></div>
+                        <div className="relative z-10 pointer-events-auto p-8">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 border border-violet-200/50">
+                              <Key className="h-5 w-5 text-violet-600" />
+                            </div>
+                            <h3 className="text-xl font-bold bg-gradient-to-r from-slate-900 via-violet-800 to-purple-900 bg-clip-text text-transparent">
+                              Student Password Management
+                            </h3>
+                          </div>
+                          <StudentPasswordManagement />
+                        </div>
+                      </div>
+                    )}
+                    {activeTab === 'parent-password-management' && (
+                      <div className="relative pointer-events-auto">
+                        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm border border-white/40 rounded-2xl shadow-premium pointer-events-none"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-violet-50/80 to-purple-50/80 rounded-2xl pointer-events-none"></div>
+                        <div className="relative z-10 pointer-events-auto p-8">
+                          <div className="flex items-center gap-3 mb-6">
+                            <div className="p-2 rounded-xl bg-gradient-to-br from-violet-100 to-purple-100 border border-violet-200/50">
+                              <Key className="h-5 w-5 text-violet-600" />
+                            </div>
+                            <h3 className="text-xl font-bold bg-gradient-to-r from-slate-900 via-violet-800 to-purple-900 bg-clip-text text-transparent">
+                              Parent Password Management
+                            </h3>
+                          </div>
+                          <ParentPasswordManagement />
                         </div>
                       </div>
                     )}

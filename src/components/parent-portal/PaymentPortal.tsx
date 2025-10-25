@@ -197,8 +197,8 @@ export const PaymentPortal: React.FC<Props> = ({ children, parentInfo }) => {
       const response = await apiClient.createPaymentLink({
         fee_ids: feeIds,
         student_id: studentId,
-        success_url: window.location.origin + '/parent-portal?payment=success',
-        cancel_url: window.location.origin + '/parent-portal?payment=cancelled'
+        success_url: window.location.origin + '/parent-dashboard?payment=success',
+        cancel_url: window.location.origin + '/parent-dashboard?payment=cancelled'
       });
 
       if (response.data && response.data.payment_url) {

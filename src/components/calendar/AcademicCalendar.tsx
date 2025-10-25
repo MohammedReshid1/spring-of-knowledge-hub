@@ -20,7 +20,7 @@ import {
   BookOpen, AlertCircle, CheckCircle, X, Edit, Trash2, Filter, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useBranch } from '@/contexts/BranchContext';
 
 interface AcademicEvent {
@@ -95,8 +95,12 @@ export const AcademicCalendar = () => {
   });
 
   const queryClient = useQueryClient();
-  const { currentUser, canDelete } = useRoleAccess();
+  const { currentUser, canDelete, hasPermission, isStudent } = useRoleAccess();
   const { selectedBranch } = useBranch();
+
+  // Check if user can create/edit/delete calendar events
+  // Users with calendar.manage permission automatically get all CRUD permissions
+  const canManageCalendar = hasPermission('calendar.manage') || hasPermission('calendar.create') || hasPermission('calendar.update') || hasPermission('calendar.delete');
 
   // Get current month range for events
   const monthStart = startOfMonth(selectedDate);
@@ -614,17 +618,25 @@ export const AcademicCalendar = () => {
                 <p className="text-sm text-gray-600">Manage calendar events efficiently with powerful tools</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button
-                      className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
-                      onClick={resetForm}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Event
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
+                {canManageCalendar && (
+                  <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button
+                        className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-0 px-6 py-2.5"
+                        onClick={resetForm}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Event
+                      </Button>
+                    </DialogTrigger>
+                  </Dialog>
+                )}
+                {!canManageCalendar && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <BookOpen className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-700 font-medium">Read-Only Access</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -798,24 +810,26 @@ export const AcademicCalendar = () => {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditEvent(event)}
-                              className="bg-white/80 border-blue-200 text-blue-700 hover:bg-blue-50 rounded-lg"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteEvent(event.id)}
-                              className="bg-white/80 border-red-200 text-red-700 hover:bg-red-50 rounded-lg"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                          {canManageCalendar && (
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditEvent(event)}
+                                className="bg-white/80 border-blue-200 text-blue-700 hover:bg-blue-50 rounded-lg"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteEvent(event.id)}
+                                className="bg-white/80 border-red-200 text-red-700 hover:bg-red-50 rounded-lg"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

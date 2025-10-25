@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { useRoleAccess } from "@/contexts/RoleAccessContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { useBranch } from "@/contexts/BranchContext";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Footer } from "@/components/layout/Footer";
 import { BranchSelector } from "@/components/branches/BranchSelector";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { getImageUrl } from "@/utils/imageUtils";
 import {
   GraduationCap,
   Users,
@@ -39,6 +40,7 @@ import {
   MessageSquare,
   KeyRound,
   Library,
+  Mail,
 } from "lucide-react";
 
 interface DashboardLayoutProps {
@@ -48,8 +50,8 @@ interface DashboardLayoutProps {
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
 }) => {
-  const { user, signOut } = useAuth();
-  const { isAdmin, isSuperAdmin, isTeacher, hasPermission, isSuperSuperAdmin } =
+  const { user, signOut, student } = useAuth();
+  const { isAdmin, isSuperAdmin, isTeacher, isStudent, hasPermission, isSuperSuperAdmin } =
     useRoleAccess();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -89,7 +91,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const { selectedBranch, userBranches } = useBranch();
 
   // User profile is already available from auth context
-  const userProfile = user ? { full_name: user.full_name } : null;
+  // For students, use student object; for regular users, use user object
+  const currentEntity = student || user;
+  const userProfile = currentEntity ? { full_name: currentEntity.full_name } : null;
+
+  // Determine user role display
+  const isParentRole = user?.role === 'parent';
+  const userRoleDisplay = isStudent ? 'Student' : (isTeacher ? 'Teacher' : (isParentRole ? 'Parent' : (isAdmin || isSuperAdmin || isSuperSuperAdmin ? 'Admin' : 'User')));
 
   const adminNav = [
     {
@@ -167,8 +175,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       href: "/calendar",
       icon: Calendar,
       adminOnly: false,
-      permission: null,
-    }, // Always visible
+      permission: "calendar.read",
+    },
     {
       name: "Discipline",
       href: "/discipline",
@@ -259,17 +267,24 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     },
     {
       name: "Timetable",
-      href: "/timetable",
+      href: "/teacher-schedule",
       icon: CalendarDays,
       adminOnly: false,
       permission: "timetable.read",
     },
     {
       name: "Exams",
-      href: "/exams",
+      href: "/teacher-exams",
       icon: FileText,
       adminOnly: false,
       permission: "grade.read",
+    },
+    {
+      name: "Messages",
+      href: "/messaging",
+      icon: Mail,
+      adminOnly: false,
+      permission: null,
     },
     {
       name: "Notifications",
@@ -287,7 +302,143 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     },
   ];
 
-  const navigation = isTeacher ? teacherNav : adminNav;
+  // Parent navigation - limited to parent-appropriate pages only
+  const parentNav = [
+    {
+      name: "My Dashboard",
+      href: "/parent-dashboard",
+      icon: Home,
+      adminOnly: false,
+      permission: null,
+    },
+    {
+      name: "My Students",
+      href: "/students",
+      icon: Users,
+      adminOnly: false,
+      permission: "student.read",
+    },
+    {
+      name: "My Payments",
+      href: "/payments",
+      icon: DollarSign,
+      adminOnly: false,
+      permission: "payment.read",
+    },
+    {
+      name: "Attendance",
+      href: "/attendance",
+      icon: Clock,
+      adminOnly: false,
+      permission: "attendance.read",
+    },
+    {
+      name: "Children's Timetables",
+      href: "/my-timetable",
+      icon: CalendarDays,
+      adminOnly: false,
+      permission: "timetable.read",
+    },
+    {
+      name: "Children's Exams",
+      href: "/my-exams",
+      icon: FileText,
+      adminOnly: false,
+      permission: "grade.read",
+    },
+    {
+      name: "Calendar",
+      href: "/calendar",
+      icon: Calendar,
+      adminOnly: false,
+      permission: "calendar.read",
+    },
+    {
+      name: "My Notifications",
+      href: "/inbox",
+      icon: Bell,
+      adminOnly: false,
+      permission: null,
+    },
+    {
+      name: "Messages",
+      href: "/messaging",
+      icon: MessageSquare,
+      adminOnly: false,
+      permission: "communication.read",
+    },
+    {
+      name: "Account Security",
+      href: "/account-security",
+      icon: KeyRound,
+      adminOnly: false,
+      permission: null,
+    },
+  ];
+
+  // Student navigation - limited to student-appropriate pages only
+  const studentNav = [
+    {
+      name: "My Dashboard",
+      href: "/student-dashboard",
+      icon: Home,
+      adminOnly: false,
+      permission: null,
+    },
+    {
+      name: "My Grades",
+      href: "/exams",
+      icon: BookOpen,
+      adminOnly: false,
+      permission: "grade.read",
+    },
+    {
+      name: "My Attendance",
+      href: "/attendance",
+      icon: Clock,
+      adminOnly: false,
+      permission: "attendance.read",
+    },
+    {
+      name: "My Notifications",
+      href: "/inbox",
+      icon: Bell,
+      adminOnly: false,
+      permission: null,
+    },
+    {
+      name: "My Timetable",
+      href: "/my-timetable",
+      icon: CalendarDays,
+      adminOnly: false,
+      permission: null,
+    },
+    {
+      name: "Calendar",
+      href: "/calendar",
+      icon: Calendar,
+      adminOnly: false,
+      permission: "calendar.read",
+    },
+    {
+      name: "Messages",
+      href: "/messaging",
+      icon: MessageSquare,
+      adminOnly: false,
+      permission: "communication.read",
+    },
+    {
+      name: "Account Security",
+      href: "/account-security",
+      icon: KeyRound,
+      adminOnly: false,
+      permission: null,
+    },
+  ];
+
+  // Select navigation based on user role
+  const isParent = user?.role === 'parent';
+  const navigation = isStudent ? studentNav : (isTeacher ? teacherNav : (isParent ? parentNav : adminNav));
 
   // Filter navigation items based on user role and permissions using RBAC
   const filteredNavigation = navigation.filter((item) => {
@@ -310,7 +461,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     await signOut();
   };
 
-  const displayName = userProfile?.full_name || user?.email || "User";
+  // For students, display only the first name; for others, display full name
+  const fullName = userProfile?.full_name || user?.email || "User";
+  const displayName = isStudent && fullName
+    ? fullName.split(' ')[0] // Extract first name for students
+    : fullName;
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -390,19 +545,42 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
               {/* Notification Bell */}
               <NotificationBell />
 
-              {/* Premium User Welcome - Rightmost Edge */}
+              {/* Premium User Welcome with Role Indicator - Rightmost Edge */}
               <div className="hidden lg:flex items-center space-x-3 px-3 py-2 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100/80 backdrop-blur-sm border border-white/20 shadow-sm">
                 <div className="flex flex-col text-right min-w-0">
-                  <span className="text-xs font-medium text-slate-500 leading-none">
-                    Welcome back
-                  </span>
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <span className="text-xs font-medium text-slate-500 leading-none">
+                      {userRoleDisplay}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                      isStudent ? 'bg-blue-100 text-blue-700' :
+                      isTeacher ? 'bg-green-100 text-green-700' :
+                      isParentRole ? 'bg-orange-100 text-orange-700' :
+                      'bg-purple-100 text-purple-700'
+                    }`}>
+                      {isStudent ? '👨‍🎓' : isTeacher ? '👨‍🏫' : isParentRole ? '👨‍👩‍👧' : '👔'}
+                    </span>
+                  </div>
                   <span className="text-sm font-semibold bg-gradient-to-r from-slate-700 to-slate-800 bg-clip-text text-transparent truncate max-w-24">
                     {displayName}
                   </span>
                 </div>
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold shadow-md flex-shrink-0">
-                  {displayName.charAt(0).toUpperCase()}
-                </div>
+                {(currentEntity?.profile_picture) ? (
+                  <img
+                    src={getImageUrl(currentEntity.profile_picture) || ''}
+                    alt={displayName}
+                    className="h-8 w-8 rounded-full object-cover shadow-md flex-shrink-0 ring-2 ring-white/50"
+                  />
+                ) : (
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-semibold shadow-md flex-shrink-0 ${
+                    isStudent ? 'bg-gradient-to-br from-blue-500 to-cyan-600' :
+                    isTeacher ? 'bg-gradient-to-br from-green-500 to-emerald-600' :
+                    isParentRole ? 'bg-gradient-to-br from-orange-500 to-red-600' :
+                    'bg-gradient-to-br from-blue-500 to-purple-600'
+                  }`}>
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
               </div>
 
               {/* Premium Sign Out Button - Far Right */}

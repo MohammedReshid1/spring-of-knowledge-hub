@@ -38,6 +38,7 @@ import QuickAttendanceMobile from './QuickAttendanceMobile';
 import { useAttendanceNotifications } from '@/hooks/useAttendanceNotifications';
 import { useLiveData } from '@/hooks/useLiveData';
 import { LiveUpdatesIndicator } from '@/components/common/LiveUpdatesIndicator';
+import { useBranch } from '@/contexts/BranchContext';
 
 interface Student {
   id: string;
@@ -67,6 +68,8 @@ interface AttendanceRecord {
   notes?: string;
   recorded_by?: string;
   send_notifications?: boolean;
+  branch_id?: string;
+  subject_id?: string;
 }
 
 interface AttendanceSummary {
@@ -112,8 +115,10 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [sendNotifications, setSendNotifications] = useState(true);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
 
   const queryClient = useQueryClient();
+  const { selectedBranch } = useBranch();
 
   // Enable real-time updates for attendance management - complements useAttendanceNotifications
   useLiveData(['attendance', 'students', 'classes', 'attendance-alerts'], {
@@ -136,12 +141,31 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
     }
   });
 
-  // Fetch classes
+  // Fetch classes - for teachers, fetch only their assigned classes
   const { data: classes = [], isLoading: classesLoading } = useQuery<Class[]>({
-    queryKey: ['classes'],
+    queryKey: userRole === 'teacher' ? ['teacher-classes', currentUserId] : ['classes'],
     queryFn: async () => {
-      const response = await apiClient.get('/classes');
-      return response.data;
+      if (userRole === 'teacher') {
+        // For teachers, fetch only their assigned classes using their user ID
+        const response = await apiClient.getTeacherEnhancedClasses(currentUserId);
+        if (response.error) throw new Error(response.error);
+        // Extract classes from the response
+        return response.data?.classes || [];
+      } else {
+        // For non-teachers (admin, etc.), fetch all classes
+        const response = await apiClient.get('/classes');
+        return response.data;
+      }
+    },
+  });
+
+  // Fetch subjects - for teachers, fetch only their assigned subjects
+  const { data: subjects = [], isLoading: subjectsLoading } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: async () => {
+      const response = await apiClient.request('/subjects');
+      if (response.error) throw new Error(response.error);
+      return response.data || [];
     },
   });
 
@@ -266,7 +290,9 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
       attendance_date: selectedDate.toISOString().split('T')[0],
       status: status as any,
       check_in_time: status === 'present' || status === 'late' ? new Date().toISOString() : undefined,
-      send_notifications: sendNotifications
+      send_notifications: sendNotifications,
+      branch_id: selectedBranch !== 'all' ? selectedBranch : undefined,
+      subject_id: selectedSubject || undefined
     };
 
     // Update local state and save
@@ -282,7 +308,9 @@ export const AttendanceManagement: React.FC<AttendanceManagementProps> = ({
       attendance_date: selectedDate.toISOString().split('T')[0],
       status: bulkStatus as any,
       check_in_time: bulkStatus === 'present' || bulkStatus === 'late' ? new Date().toISOString() : undefined,
-      send_notifications: sendNotifications
+      send_notifications: sendNotifications,
+      branch_id: selectedBranch !== 'all' ? selectedBranch : undefined,
+      subject_id: selectedSubject || undefined
     }));
 
     attendanceMutation.mutate(bulkRecords);

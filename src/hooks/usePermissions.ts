@@ -214,7 +214,7 @@ export function useIsAdmin(): boolean {
   return useMemo(() => {
     return (
       hasRole('superadmin') ||
-      hasRole('super_admin') ||
+      hasRole('superadmin') ||
       hasRole('hq_admin') ||
       hasRole('branch_admin') ||
       hasRole('admin')
@@ -231,7 +231,7 @@ export function useIsHQ(): boolean {
   return useMemo(() => {
     return (
       hasRole('superadmin') ||
-      hasRole('super_admin') ||
+      hasRole('superadmin') ||
       hasRole('hq_admin') ||
       hasRole('hq_registrar')
     );

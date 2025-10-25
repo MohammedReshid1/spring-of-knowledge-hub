@@ -6,9 +6,7 @@ import { PaymentCollectionWidget } from './admin/PaymentCollectionWidget';
 import { AttendanceOverviewWidget } from './admin/AttendanceOverviewWidget';
 import { SystemStatusWidget } from './admin/SystemStatusWidget';
 import { TeacherScheduleWidget } from './teacher/TeacherScheduleWidget';
-import { PendingGradesWidget } from './teacher/PendingGradesWidget';
 import { TeacherNotificationsWidget } from './teacher/TeacherNotificationsWidget';
-import { StudentProgressWidget } from './teacher/StudentProgressWidget';
 import { StudentGradesWidget } from './student/StudentGradesWidget';
 import { UpcomingExamsWidget } from './student/UpcomingExamsWidget';
 import { AttendanceSummaryWidget } from './student/AttendanceSummaryWidget';
@@ -47,13 +45,11 @@ export const widgetRegistry: WidgetRegistryType = {
   'payment-collection': PaymentCollectionWidget,
   'attendance-overview': AttendanceOverviewWidget,
   'system-status': SystemStatusWidget,
-  
+
   // Teacher widgets
   'teacher-schedule': TeacherScheduleWidget,
-  'pending-grades': PendingGradesWidget,
   'teacher-notifications': TeacherNotificationsWidget,
-  'student-progress': StudentProgressWidget,
-  
+
   // Student/Parent widgets
   'student-grades': StudentGradesWidget,
   'upcoming-exams': UpcomingExamsWidget,

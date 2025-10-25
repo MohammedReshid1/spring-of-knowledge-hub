@@ -44,9 +44,9 @@ export const MessagingPage: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Permission checks
-  const { hasPermission } = usePermissionCheck();
-  const canRead = hasPermission('communication.read');
-  const canCreate = hasPermission('communication.create');
+  const { hasPermission, isStudent, isParent, isTeacher } = usePermissionCheck();
+  const canRead = hasPermission('communication.read') || isStudent || isParent || isTeacher;
+  const canCreate = hasPermission('communication.create') || hasPermission('communication.manage') || isStudent || isParent || isTeacher;
   const canManage = hasPermission('communication.manage');
 
   // Fetch messages

@@ -27,7 +27,8 @@ import { AttendanceTracking } from './AttendanceTracking';
 import { PaymentPortal } from './PaymentPortal';
 import { CommunicationCenter } from './CommunicationCenter';
 import { ParentSettings } from './ParentSettings';
-import { useWebSocket, MessageType, SubscriptionType } from '@/hooks/useWebSocket';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+import { MessageType, SubscriptionType } from '@/types/websocket';
 
 interface ParentInfo {
   id: string;
@@ -69,47 +70,51 @@ export const ParentPortal: React.FC = () => {
   const [latestNotification, setLatestNotification] = useState<any>(null);
 
   // WebSocket integration for real-time notifications
-  const { isAuthenticated, lastMessage, subscribe } = useWebSocket({
-    onMessage: (message) => {
-      // Handle parent-specific real-time notifications
-      if (message.type === MessageType.NOTIFICATION) {
-        const notification = message.payload;
-        
-        // Add to realtime notifications
-        setRealtimeNotifications(prev => [notification, ...prev.slice(0, 9)]);
-        setLatestNotification(notification);
-        setShowNotificationToast(true);
-        
-        // Auto-hide toast after 5 seconds
-        setTimeout(() => setShowNotificationToast(false), 5000);
-        
-        // Play notification sound if enabled
-        if (notification.urgency === 'high' && 'Notification' in window) {
-          new Notification(notification.title, {
-            body: notification.message,
-            icon: '/favicon.ico'
-          });
-        }
-      } else if (message.type === MessageType.DATA_UPDATE) {
-        // Handle real-time data updates (grades, attendance, etc.)
-      }
-    },
-    autoConnect: true,
-    enableSubscriptions: true
-  });
+  const { isConnected, connectionStatus, subscribe: wsSubscribe, addEventListener } = useWebSocket();
+  const isAuthenticated = connectionStatus === 'authenticated';
 
-  // Subscribe to parent-specific notifications when authenticated
-  React.useEffect(() => {
-    if (isAuthenticated && parentInfo?.id) {
-      // Subscribe to parent notifications
-      subscribe(SubscriptionType.NOTIFICATIONS, `parent:${parentInfo.id}`);
-      
-      // Subscribe to children's data updates
-      parentInfo.children.forEach(child => {
-        subscribe(SubscriptionType.USER_DATA, `student:${child.id}`);
-      });
+  // Handle WebSocket messages
+  const handleMessage = React.useCallback((type: string, payload: any) => {
+    if (type === MessageType.NOTIFICATION) {
+      const notification = payload;
+
+      // Add to realtime notifications
+      setRealtimeNotifications(prev => [notification, ...prev.slice(0, 9)]);
+      setLatestNotification(notification);
+      setShowNotificationToast(true);
+
+      // Auto-hide toast after 5 seconds
+      setTimeout(() => setShowNotificationToast(false), 5000);
+
+      // Play notification sound if enabled
+      if (notification.urgency === 'high' && 'Notification' in window) {
+        new Notification(notification.title, {
+          body: notification.message,
+          icon: '/favicon.ico'
+        });
+      }
+    } else if (type === MessageType.DATA_UPDATE) {
+      // Handle real-time data updates (grades, attendance, etc.)
     }
-  }, [isAuthenticated, parentInfo, subscribe]);
+  }, []);
+
+  // Set up WebSocket message listeners
+  React.useEffect(() => {
+    if (!isConnected) return;
+
+    const unsubNotification = addEventListener(MessageType.NOTIFICATION, (payload) => {
+      handleMessage(MessageType.NOTIFICATION, payload);
+    });
+
+    const unsubDataUpdate = addEventListener(MessageType.DATA_UPDATE, (payload) => {
+      handleMessage(MessageType.DATA_UPDATE, payload);
+    });
+
+    return () => {
+      unsubNotification();
+      unsubDataUpdate();
+    };
+  }, [isConnected, addEventListener, handleMessage]);
 
   const { data: parentInfo, isLoading: parentLoading, error: parentError } = useQuery<ParentInfo>({
     queryKey: ['parent-info'],
@@ -142,6 +147,19 @@ export const ParentPortal: React.FC = () => {
   const notifications = Array.isArray(notificationsResponse)
     ? notificationsResponse
     : (notificationsResponse?.notifications || []);
+
+  // Subscribe to parent-specific notifications when authenticated (AFTER parentInfo is declared)
+  React.useEffect(() => {
+    if (isAuthenticated && parentInfo?.id) {
+      // Subscribe to parent notifications (new signature: resource, type, filters)
+      wsSubscribe(`parent:${parentInfo.id}`, SubscriptionType.NOTIFICATIONS);
+
+      // Subscribe to children's data updates
+      parentInfo.children.forEach(child => {
+        wsSubscribe(`student:${child.id}`, SubscriptionType.USER_DATA);
+      });
+    }
+  }, [isAuthenticated, parentInfo, wsSubscribe]);
 
   if (parentLoading || statsLoading) {
     return (

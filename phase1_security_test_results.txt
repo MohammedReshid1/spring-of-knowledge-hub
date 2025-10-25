@@ -1,0 +1,23 @@
+=== Phase 1 Security Test Results ===
+Test Date: Sat Oct 25 07:13:37 EAT 2025
+======================================
+PASS - Health endpoint accessible - Status code: 200
+FAIL - Login sets httpOnly cookie - HttpOnly cookie not found in response
+PASS - Token not in response body - No token in response body
+FAIL - Cookie has SameSite attribute - SameSite attribute missing
+FAIL - X-Content-Type-Options: nosniff - Header missing
+FAIL - X-Frame-Options: DENY - Header missing
+FAIL - X-XSS-Protection header - Header missing
+FAIL - Referrer-Policy header - Header missing
+WARN - HSTS header (production) - Header missing (acceptable in dev, required in prod)
+WARN - CSP header - Header missing (recommended)
+WARN - CSRF token generated on GET - csrf_token cookie not found (may be set on auth endpoints)
+SKIP - CSRF validation - Requires authenticated session for proper testing
+PASS - Account lockout on brute force - Lockout triggered after multiple failed attempts
+PASS - NoSQL injection prevention - Auth required (HTTP 401) - cannot test without auth
+PASS - ObjectId validation - Protected endpoint (HTTP 401)
+SKIP - WebSocket auth enforcement - Requires WebSocket client for proper testing
+FAIL - CORS headers present - CORS headers missing
+FAIL - CORS allows credentials - Credentials not enabled
+PASS - Error message sanitization - No sensitive data in error responses
+PASS - No database errors exposed - Clean error messages

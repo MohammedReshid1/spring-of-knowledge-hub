@@ -33,7 +33,7 @@ vi.mock('@/contexts/AuthContext', () => ({
     user: {
       id: 'admin-user-1',
       email: 'admin@school.com',
-      role: 'super_admin',
+      role: 'superadmin',
       branch_id: 'main-branch'
     },
     isAuthenticated: true,
@@ -120,7 +120,7 @@ const mockUsers = [
 
 const mockUserPermissions = {
   user_id: 'admin-user-1',
-  roles: [{ name: 'super_admin', display_name: 'Super Admin', branch_specific: false }],
+  roles: [{ name: 'superadmin', display_name: 'Super Admin', branch_specific: false }],
   permissions: ['role.create', 'role.read', 'role.update', 'role.delete', 'permission.create', 'permission.read', 'user.assign_role'],
   cached: false,
   computed_at: new Date().toISOString()

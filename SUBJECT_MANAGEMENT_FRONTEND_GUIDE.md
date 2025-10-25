@@ -317,7 +317,7 @@ interface User {
 
 function canManageSubjects(user: User): boolean {
   // Current implementation: Check role
-  return ['admin', 'superadmin', 'super_admin'].includes(user.role);
+  return ['admin', 'superadmin', 'superadmin'].includes(user.role);
 }
 
 function canViewSubjects(user: User): boolean {

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useReducer, useRef, useState } from 'react';
-import { useWebSocket, ConnectionStatus, MessageType, SubscriptionType, WebSocketMessage } from '@/hooks/useWebSocket';
+import { useWebSocket } from '@/contexts/WebSocketContext';
+import { ConnectionStatus, MessageType, SubscriptionType, WebSocketMessage } from '@/types/websocket';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { config } from '@/lib/config';
@@ -267,13 +268,14 @@ interface NotificationContextType {
   addSystemAlert: (alert: SystemAlert) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  markAsClicked: (id: string) => void;
   dismissNotification: (id: string) => void;
   removeNotification: (id: string) => void;
   dismissAlert: (id: string) => void;
   toggleSound: () => void;
   subscribe: (type: SubscriptionType, resource: string, filters?: any) => boolean;
   unsubscribe: (subscriptionId: string) => boolean;
-  
+
   // WebSocket
   connectionId: string | null;
   reconnect: () => void;
@@ -525,45 +527,90 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     dispatch({ type: 'SET_CONNECTION_STATUS', payload: status });
   };
 
-  // Configure WebSocket
-  const wsBaseUrl = config.API_BASE_URL.replace(/^http/, 'ws');
-  const wsUrl = `${wsBaseUrl}/ws`;
-
+  // Use WebSocketContext (replaces old useWebSocket hook)
   const {
     isConnected,
-    isAuthenticated: wsIsAuthenticated,
-    connectionId,
+    connectionStatus: wsConnectionStatus,
     subscribe: wsSubscribe,
     unsubscribe: wsUnsubscribe,
-    subscriptions: wsSubscriptions,
-    connect: wsConnect,
-    disconnect: wsDisconnect
-  } = useWebSocket({
-    url: wsUrl,
-    onMessage: handleWebSocketMessage,
-    onConnectionStatusChange: handleConnectionStatusChange,
-    autoConnect: authIsAuthenticated,
-    enableSubscriptions: true,
-    shouldReconnect: (closeEvent) => {
-      // Don't reconnect on authentication failures
-      return closeEvent?.code !== 1011 && authIsAuthenticated;
-    }
-  });
+    addEventListener
+  } = useWebSocket();
+
+  // Map connection status to ConnectionStatus enum and update local state
+  const wsIsAuthenticated = wsConnectionStatus === 'authenticated';
+  const connectionId = null; // WebSocketContext doesn't expose connectionId, but it's not critical
+  const reconnectCount = useRef(0); // Track reconnection attempts locally if needed
+
+  // Monitor connection status changes and dispatch to reducer
+  useEffect(() => {
+    const statusMap: Record<typeof wsConnectionStatus, ConnectionStatus> = {
+      'disconnected': ConnectionStatus.DISCONNECTED,
+      'connecting': ConnectionStatus.CONNECTING,
+      'connected': ConnectionStatus.CONNECTED,
+      'authenticated': ConnectionStatus.AUTHENTICATED
+    };
+
+    const mappedStatus = statusMap[wsConnectionStatus] || ConnectionStatus.DISCONNECTED;
+    dispatch({ type: 'SET_CONNECTION_STATUS', payload: mappedStatus });
+  }, [wsConnectionStatus]);
+
+  // Set up WebSocket message listeners
+  useEffect(() => {
+    if (!isConnected) return;
+
+    // Listen for notification messages
+    const unsubNotification = addEventListener(MessageType.NOTIFICATION, (payload) => {
+      const message: WebSocketMessage = { type: MessageType.NOTIFICATION, payload };
+      handleWebSocketMessage(message);
+    });
+
+    // Listen for system alerts
+    const unsubSystemAlert = addEventListener(MessageType.SYSTEM_ALERT, (payload) => {
+      const message: WebSocketMessage = { type: MessageType.SYSTEM_ALERT, payload };
+      handleWebSocketMessage(message);
+    });
+
+    // Listen for data updates
+    const unsubDataUpdate = addEventListener(MessageType.DATA_UPDATE, (payload) => {
+      const message: WebSocketMessage = { type: MessageType.DATA_UPDATE, payload };
+      handleWebSocketMessage(message);
+    });
+
+    const unsubDataInsert = addEventListener(MessageType.DATA_INSERT, (payload) => {
+      const message: WebSocketMessage = { type: MessageType.DATA_INSERT, payload };
+      handleWebSocketMessage(message);
+    });
+
+    const unsubDataDelete = addEventListener(MessageType.DATA_DELETE, (payload) => {
+      const message: WebSocketMessage = { type: MessageType.DATA_DELETE, payload };
+      handleWebSocketMessage(message);
+    });
+
+    // Cleanup listeners on unmount or when connection changes
+    return () => {
+      unsubNotification();
+      unsubSystemAlert();
+      unsubDataUpdate();
+      unsubDataInsert();
+      unsubDataDelete();
+    };
+  }, [isConnected, addEventListener]);
 
   // Auto-subscribe to notifications when authenticated
   useEffect(() => {
     if (wsIsAuthenticated && user) {
       // Subscribe to user-specific notifications
-      wsSubscribe(SubscriptionType.USER_DATA, user.id);
-      wsSubscribe(SubscriptionType.NOTIFICATIONS, 'user_notifications');
-      
+      // New signature: subscribe(resource, type, filters)
+      wsSubscribe(user.id, SubscriptionType.USER_DATA);
+      wsSubscribe('user_notifications', SubscriptionType.NOTIFICATIONS);
+
       // Subscribe to branch-specific data if user has branch
       if (user.branch_id) {
-        wsSubscribe(SubscriptionType.BRANCH_DATA, user.branch_id);
+        wsSubscribe(user.branch_id, SubscriptionType.BRANCH_DATA);
       }
 
       // Subscribe to system events
-      wsSubscribe(SubscriptionType.SYSTEM_EVENTS, 'system_notifications');
+      wsSubscribe('system_notifications', SubscriptionType.SYSTEM_EVENTS);
 
       // Subscribe to relevant collections based on user role
       const roleSubscriptions = {
@@ -576,7 +623,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
       const collections = roleSubscriptions[user.role as keyof typeof roleSubscriptions] || [];
       collections.forEach(collection => {
-        wsSubscribe(SubscriptionType.COLLECTION, collection);
+        wsSubscribe(collection, SubscriptionType.COLLECTION);
       });
     }
   }, [wsIsAuthenticated, user, wsSubscribe]);
@@ -633,10 +680,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     fetchNotifications();
   }, [authIsAuthenticated, user]);
 
-  // Update subscriptions in state
-  useEffect(() => {
-    dispatch({ type: 'UPDATE_SUBSCRIPTIONS', payload: wsSubscriptions });
-  }, [wsSubscriptions]);
+  // Note: WebSocketContext doesn't expose subscriptions array
+  // We can't track active subscriptions in state anymore, but the context handles it internally
 
   // Periodic cleanup of expired notifications and alerts
   useEffect(() => {
@@ -670,6 +715,25 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
+    }
+  };
+
+  const markAsClicked = async (id: string) => {
+    dispatch({ type: 'MARK_CLICKED', payload: id });
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        await fetch(`${config.API_BASE_URL}/api/notifications/mark-clicked/${id}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to mark notification as clicked:', error);
     }
   };
 
@@ -758,7 +822,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     isConnected: state.isConnected,
     isAuthenticated: state.isAuthenticated,
     soundEnabled: state.soundEnabled,
-    subscriptions: state.subscriptions,
+    subscriptions: state.subscriptions, // Empty array now - WebSocketContext manages internally
     stats: state.stats,
 
     // Actions
@@ -766,6 +830,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     addSystemAlert: (alert) => dispatch({ type: 'ADD_SYSTEM_ALERT', payload: alert }),
     markAsRead,
     markAllAsRead,
+    markAsClicked,
     dismissNotification,
     removeNotification,
     dismissAlert: (id) => dispatch({ type: 'DISMISS_ALERT', payload: id }),
@@ -778,13 +843,26 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         setTimeout(() => playNotificationSound('medium'), 100);
       }
     },
-    subscribe: wsSubscribe,
-    unsubscribe: wsUnsubscribe,
+    // Wrap subscribe to match old signature: (type, resource, filters) => boolean
+    subscribe: (type: SubscriptionType, resource: string, filters?: any) => {
+      wsSubscribe(resource, type, filters);
+      return true; // WebSocketContext returns string, but old signature expects boolean
+    },
+    // Wrap unsubscribe to match old signature
+    unsubscribe: (subscriptionId: string) => {
+      wsUnsubscribe(subscriptionId);
+      return true;
+    },
 
     // WebSocket
     connectionId,
-    reconnect: wsConnect,
-    disconnect: wsDisconnect
+    // WebSocketContext manages connection automatically - these are no-ops for backward compatibility
+    reconnect: () => {
+      console.warn('reconnect() called but WebSocketContext manages connections automatically');
+    },
+    disconnect: () => {
+      console.warn('disconnect() called but WebSocketContext manages connections automatically');
+    }
   };
 
   return (

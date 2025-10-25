@@ -230,8 +230,8 @@ export const ParentOverviewWidget: React.FC<WidgetProps> = ({ config }) => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-2 pt-2 border-t">
-        <Link 
-          to="/parent-portal"
+        <Link
+          to="/parent-dashboard"
           className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-center"
         >
           Full Portal

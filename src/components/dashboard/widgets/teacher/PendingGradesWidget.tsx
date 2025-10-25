@@ -132,8 +132,8 @@ export const PendingGradesWidget: React.FC<WidgetProps> = ({ config }) => {
                   </span>
                 </div>
                 
-                <Link 
-                  to={`/grades/${item.id}`}
+                <Link
+                  to="/teacher-exams"
                   className="text-blue-600 hover:text-blue-800 underline"
                 >
                   Grade Now
@@ -155,14 +155,14 @@ export const PendingGradesWidget: React.FC<WidgetProps> = ({ config }) => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-2 pt-2 border-t">
-        <Link 
-          to="/grades?filter=pending"
+        <Link
+          to="/teacher-exams"
           className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 text-center"
         >
           View All Pending
         </Link>
-        <Link 
-          to="/exams"
+        <Link
+          to="/teacher-exams"
           className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-center"
         >
           Exam Schedule

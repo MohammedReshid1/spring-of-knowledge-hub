@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, UserPlus, UserMinus, Search, School } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { useLiveData } from '@/hooks/useLiveData';
 
 interface ClassStudentsPopupProps {

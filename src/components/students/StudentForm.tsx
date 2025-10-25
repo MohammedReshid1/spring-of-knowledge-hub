@@ -18,8 +18,8 @@ import { toast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBranch } from '@/contexts/BranchContext';
 
-// Schema for creating a new student (all required except optional fields)
-const studentSchema = z.object({
+// Base schema without refinements (for use with .partial())
+const studentBaseSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   mother_name: z.string().min(1, 'Mother\'s name is required'),
   father_name: z.string().min(1, 'Father\'s name is required'),
@@ -31,8 +31,16 @@ const studentSchema = z.object({
   parent_guardian_id: z.string().optional(),
   status: z.enum(['Active', 'Graduated', 'Transferred Out', 'Dropped Out', 'On Leave'], { required_error: 'Status is required' }),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().min(1, 'Parent\'s/Guardian\'s phone number is required'),
+  phone: z.string().optional(), // Deprecated - using parent-specific fields now
   phone_secondary: z.string().optional(),
+  // Parent contact information (at least one parent's phone required)
+  father_phone: z.string().optional(),
+  father_email: z.string().email().optional().or(z.literal('')),
+  mother_phone: z.string().optional(),
+  mother_email: z.string().email().optional().or(z.literal('')),
+  guardian_name: z.string().optional(),
+  guardian_phone: z.string().optional(),
+  guardian_email: z.string().email().optional().or(z.literal('')),
   address: z.string().optional(),
   emergency_contact_name: z.string().optional(),
   emergency_contact_phone: z.string().optional(),
@@ -46,8 +54,18 @@ const studentSchema = z.object({
   health_policy_url: z.string().optional(),
   other_document_url: z.string().optional(),
 });
+
+// Schema for creating a new student (with validation refinements)
+const studentSchema = studentBaseSchema.refine(
+  (data) => data.father_phone || data.mother_phone || data.guardian_phone,
+  {
+    message: "At least one parent phone number is required (Father, Mother, or Guardian)",
+    path: ["father_phone"],
+  }
+);
+
 // Schema for updating an existing student (all fields optional and nullable)
-const studentUpdateSchema = studentSchema.partial().extend({
+const studentUpdateSchema = studentBaseSchema.partial().extend({
   first_name: z.string().min(1).optional().nullable(),
   mother_name: z.string().optional().nullable(),
   father_name: z.string().optional().nullable(),
@@ -61,6 +79,13 @@ const studentUpdateSchema = studentSchema.partial().extend({
   email: z.string().email().optional().or(z.literal('')).nullable(),
   phone: z.string().optional().nullable(),
   phone_secondary: z.string().optional().nullable(),
+  father_phone: z.string().optional().nullable(),
+  father_email: z.string().email().optional().or(z.literal('')).nullable(),
+  mother_phone: z.string().optional().nullable(),
+  mother_email: z.string().email().optional().or(z.literal('')).nullable(),
+  guardian_name: z.string().optional().nullable(),
+  guardian_phone: z.string().optional().nullable(),
+  guardian_email: z.string().email().optional().or(z.literal('')).nullable(),
   address: z.string().optional().nullable(),
   emergency_contact_name: z.string().optional().nullable(),
   emergency_contact_phone: z.string().optional().nullable(),
@@ -114,6 +139,13 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
         email: student?.email,
         phone: student?.phone,
         phone_secondary: student?.phone_secondary,
+        father_phone: student?.father_phone,
+        father_email: student?.father_email,
+        mother_phone: student?.mother_phone,
+        mother_email: student?.mother_email,
+        guardian_name: student?.guardian_name,
+        guardian_phone: student?.guardian_phone,
+        guardian_email: student?.guardian_email,
         address: student?.address,
         emergency_contact_name: student?.emergency_contact_name,
         emergency_contact_phone: student?.emergency_contact_phone,
@@ -141,6 +173,13 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
         email: '',
         phone: '',
         phone_secondary: '',
+        father_phone: '',
+        father_email: '',
+        mother_phone: '',
+        mother_email: '',
+        guardian_name: '',
+        guardian_phone: '',
+        guardian_email: '',
         address: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
@@ -299,6 +338,14 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
         email: data.email || null,
         phone: data.phone || null,
         phone_secondary: data.phone_secondary || null,
+        // Parent contact information
+        father_phone: data.father_phone || null,
+        father_email: data.father_email || null,
+        mother_phone: data.mother_phone || null,
+        mother_email: data.mother_email || null,
+        guardian_name: data.guardian_name || null,
+        guardian_phone: data.guardian_phone || null,
+        guardian_email: data.guardian_email || null,
         address: data.address || null,
         emergency_contact_name: data.emergency_contact_name || null,
         emergency_contact_phone: data.emergency_contact_phone || null,
@@ -641,6 +688,206 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
           </div>
         </div>
 
+        {/* Premium Parent Contact Information Section */}
+        <div className="relative group mt-6">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-pink-500/5 to-rose-500/5 rounded-xl blur opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="relative bg-white/80 backdrop-blur-sm border border-white/30 rounded-xl p-6 shadow-lg">
+            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
+                <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <span className="bg-gradient-to-r from-purple-800 to-pink-600 bg-clip-text text-transparent">
+                Parent Contact Information
+              </span>
+            </h3>
+
+            <div className="bg-blue-50/80 border border-blue-200 rounded-lg p-4 mb-6 backdrop-blur-sm">
+              <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
+                <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Provide at least one parent's phone number to automatically create a parent login account
+              </p>
+              <p className="text-xs text-blue-600 mt-2 ml-6">
+                Priority: Father → Mother → Guardian. The system will create ONE parent account based on availability.
+              </p>
+              <div className="mt-3 ml-6 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-emerald-800 flex items-center gap-1">
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  Default Password Format
+                </p>
+                <p className="text-xs text-emerald-700 mt-1">
+                  Parent's password: <code className="bg-emerald-100 px-2 py-0.5 rounded font-mono">firstname.fathername321</code>
+                </p>
+                <p className="text-xs text-emerald-600 mt-1">
+                  Example: If parent is "Ahmed Mohammed", password is: <code className="bg-emerald-100 px-2 py-0.5 rounded font-mono">ahmed.mohammed321</code>
+                </p>
+                <p className="text-xs text-emerald-600 mt-1 italic">
+                  Parents will be required to change their password on first login
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {/* Father Contact */}
+              <div className="space-y-4 p-4 bg-gray-50/80 rounded-lg border border-gray-200">
+                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                  Father's Contact
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="father_phone"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Father's Phone Number</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="+251911234567"
+                            className="h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-purple-300/50 focus:border-purple-500/60 focus:ring-purple-500/20 focus:ring-4 transition-all duration-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-500 font-medium" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="father_email"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Father's Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="email"
+                            placeholder="father@example.com"
+                            className="h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-purple-300/50 focus:border-purple-500/60 focus:ring-purple-500/20 focus:ring-4 transition-all duration-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-500 font-medium" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Mother Contact */}
+              <div className="space-y-4 p-4 bg-gray-50/80 rounded-lg border border-gray-200">
+                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-pink-500 rounded-full"></span>
+                  Mother's Contact
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="mother_phone"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Mother's Phone Number</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="+251911234567"
+                            className="h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-purple-300/50 focus:border-purple-500/60 focus:ring-purple-500/20 focus:ring-4 transition-all duration-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-500 font-medium" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="mother_email"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Mother's Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="email"
+                            placeholder="mother@example.com"
+                            className="h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-purple-300/50 focus:border-purple-500/60 focus:ring-purple-500/20 focus:ring-4 transition-all duration-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-500 font-medium" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Guardian Contact (Optional) */}
+              <div className="space-y-4 p-4 bg-gray-50/80 rounded-lg border border-gray-200">
+                <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                  Guardian Contact (Optional)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="guardian_name"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Guardian Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="Guardian's full name"
+                            className="h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-purple-300/50 focus:border-purple-500/60 focus:ring-purple-500/20 focus:ring-4 transition-all duration-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-500 font-medium" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="guardian_phone"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Guardian Phone</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="+251911234567"
+                            className="h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-purple-300/50 focus:border-purple-500/60 focus:ring-purple-500/20 focus:ring-4 transition-all duration-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-500 font-medium" />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="guardian_email"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-sm font-semibold text-slate-700">Guardian Email</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type="email"
+                            placeholder="guardian@example.com"
+                            className="h-12 bg-white/80 backdrop-blur-sm border-white/40 hover:border-purple-300/50 focus:border-purple-500/60 focus:ring-purple-500/20 focus:ring-4 transition-all duration-300"
+                          />
+                        </FormControl>
+                        <FormMessage className="text-red-500 font-medium" />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -787,34 +1034,22 @@ export const StudentForm = ({ student, onSuccess }: StudentFormProps) => {
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input type="email" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Parent's/Guardian's Phone Number *</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Student Email (Optional)</FormLabel>
+              <FormControl>
+                <Input type="email" {...field} placeholder="student@example.com" />
+              </FormControl>
+              <FormMessage />
+              <p className="text-xs text-gray-500">
+                For student login purposes only (if applicable)
+              </p>
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

@@ -47,7 +47,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useRoleAccess } from '@/contexts/RoleAccessContext';
-import { useRoleAccess as useRoleAccessHook } from '@/hooks/useRoleAccess';
+import { useRoleAccess as useRoleAccessHook } from '@/contexts/RoleAccessContext';
 import {
   Key,
   Plus,

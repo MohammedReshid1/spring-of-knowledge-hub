@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useBranchData } from '@/hooks/useBranchData';
 import { useBranch } from '@/contexts/BranchContext';
 import { useLiveDataForPage } from '@/hooks/useLiveData';
 import { useAcademicYear, getAcademicYearString } from '@/hooks/useAcademicYear';
+import { useAuth } from '@/hooks/useAuth';
+import { useRoleAccess } from '@/contexts/RoleAccessContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -73,6 +75,10 @@ export default function ExamsPage() {
   const { selectedBranch } = useBranch();
   const { getBranchFilter } = useBranchData();
   const academicYearQuery = useAcademicYear();
+
+  // Import student context for student view
+  const { student } = useAuth();
+  const { isStudent } = useRoleAccess();
 
   // Fetch exams
   const { data: exams = [], isLoading } = useQuery({
@@ -143,6 +149,50 @@ export default function ExamsPage() {
       return data;
     }
   });
+
+  // Fetch student grades for student view
+  const { data: studentGrades = [], isLoading: studentGradesLoading } = useQuery({
+    queryKey: ['student-grades', student?.student_id],
+    queryFn: async () => {
+      if (!student?.student_id) return [];
+      const { data, error } = await apiClient.getStudentGrades(student.student_id);
+      if (error) throw new Error(error);
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: isStudent && !!student?.student_id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false
+  });
+
+  // Calculate student grade stats
+  const studentGradeStats = useMemo(() => {
+    if (!isStudent || studentGrades.length === 0) return null;
+
+    const totalExams = studentGrades.length;
+    const passedExams = studentGrades.filter((grade: any) =>
+      grade.marks_obtained >= grade.passing_marks
+    ).length;
+    const failedExams = totalExams - passedExams;
+    const averageMarks = totalExams > 0
+      ? studentGrades.reduce((sum: number, grade: any) => sum + (grade.marks_obtained || 0), 0) / totalExams
+      : 0;
+    const averagePercentage = totalExams > 0
+      ? studentGrades.reduce((sum: number, grade: any) => {
+          const percentage = grade.total_marks > 0
+            ? (grade.marks_obtained / grade.total_marks) * 100
+            : 0;
+          return sum + percentage;
+        }, 0) / totalExams
+      : 0;
+
+    return {
+      totalExams,
+      passedExams,
+      failedExams,
+      averageMarks: averageMarks.toFixed(1),
+      averagePercentage: averagePercentage.toFixed(1)
+    };
+  }, [isStudent, studentGrades]);
 
   // Create exam mutation
   const createExamMutation = useMutation({
@@ -422,6 +472,210 @@ export default function ExamsPage() {
     return examDateStr < todayStr;
   };
 
+  const getGradeColor = (marksObtained: number, totalMarks: number, passingMarks: number) => {
+    if (marksObtained >= passingMarks) {
+      const percentage = (marksObtained / totalMarks) * 100;
+      if (percentage >= 90) return 'bg-green-100 text-green-800';
+      if (percentage >= 75) return 'bg-blue-100 text-blue-800';
+      if (percentage >= 60) return 'bg-yellow-100 text-yellow-800';
+      return 'bg-orange-100 text-orange-800';
+    }
+    return 'bg-red-100 text-red-800';
+  };
+
+  // Student View
+  if (isStudent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-indigo-50/20">
+        {/* Student Hero Header */}
+        <div className="relative overflow-hidden bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-700 pb-20 pt-16">
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-600/90 via-indigo-600/90 to-blue-700/90" />
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+
+          <div className="relative mx-auto max-w-7xl px-6 lg:px-8">
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="mb-8 inline-flex items-center rounded-full bg-white/10 backdrop-blur-sm px-6 py-2 text-sm font-medium text-white/90 ring-1 ring-white/20">
+                <BookOpen className="mr-2 h-4 w-4" />
+                My Grades
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-white sm:text-6xl">
+                Exam <span className="bg-gradient-to-r from-purple-200 to-blue-200 bg-clip-text text-transparent">Results</span>
+              </h1>
+              <p className="mt-6 text-lg leading-8 text-purple-100">
+                View your exam results and track your academic progress.
+              </p>
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0">
+            <svg className="w-full h-20 fill-current text-slate-50" viewBox="0 0 1440 120" preserveAspectRatio="none">
+              <path d="M0,60 C240,120 480,0 720,60 C960,120 1200,0 1440,60 L1440,120 L0,120 Z" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="relative z-10 -mt-10 space-y-8 px-6 pb-16">
+          <div className="mx-auto max-w-7xl">
+            {/* Student Grade Stats Cards */}
+            {studentGradesLoading ? (
+              <CardLoader count={4} />
+            ) : studentGradeStats ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Average Percentage Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-green-100/90 to-emerald-100/90 backdrop-blur-glass border border-green-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-green-700/80">Average Score</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">
+                            {studentGradeStats.averagePercentage}%
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-green-100 to-emerald-100 border border-green-200/50">
+                          <Award className="h-6 w-6 text-green-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Total Exams Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-100/90 to-indigo-100/90 backdrop-blur-glass border border-blue-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-blue-700/80">Total Exams</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
+                            {studentGradeStats.totalExams}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50">
+                          <FileText className="h-6 w-6 text-blue-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Passed Exams Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-100/90 to-teal-100/90 backdrop-blur-glass border border-emerald-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-emerald-700/80">Passed</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-emerald-700 to-teal-600 bg-clip-text text-transparent">
+                            {studentGradeStats.passedExams}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/50">
+                          <BarChart3 className="h-6 w-6 text-emerald-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Failed Exams Card */}
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-red-100/90 to-rose-100/90 backdrop-blur-glass border border-red-200/50 rounded-3xl shadow-premium-lg group-hover:shadow-premium-xl transition-all duration-300"></div>
+                  <Card className="relative bg-transparent border-0 shadow-none hover:scale-105 transition-transform duration-300">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-red-700/80">Failed</p>
+                          <p className="text-3xl font-bold bg-gradient-to-r from-red-700 to-rose-600 bg-clip-text text-transparent">
+                            {studentGradeStats.failedExams}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-red-100 to-rose-100 border border-red-200/50">
+                          <AlertCircle className="h-6 w-6 text-red-600" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Grades Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>My Exam Results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {studentGradesLoading ? (
+                  <ListLoader rows={5} />
+                ) : studentGrades.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Exam Name</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Marks Obtained</TableHead>
+                        <TableHead>Total Marks</TableHead>
+                        <TableHead>Percentage</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentGrades.map((grade: any) => {
+                        const percentage = grade.total_marks > 0
+                          ? ((grade.marks_obtained / grade.total_marks) * 100).toFixed(1)
+                          : '0.0';
+                        const passed = grade.marks_obtained >= grade.passing_marks;
+
+                        return (
+                          <TableRow key={grade.id}>
+                            <TableCell className="font-medium">{grade.exam_name || 'N/A'}</TableCell>
+                            <TableCell>{grade.subject_name || 'N/A'}</TableCell>
+                            <TableCell>
+                              {grade.exam_date ? format(new Date(grade.exam_date), 'PPP') : 'N/A'}
+                            </TableCell>
+                            <TableCell className="font-semibold">{grade.marks_obtained}</TableCell>
+                            <TableCell>{grade.total_marks}</TableCell>
+                            <TableCell>
+                              <Badge className={getGradeColor(grade.marks_obtained, grade.total_marks, grade.passing_marks)}>
+                                {percentage}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={passed ? 'default' : 'destructive'}>
+                                {passed ? 'Pass' : 'Fail'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">
+                      No exam results found yet.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Admin/Teacher View
   return (
     <>
       {/* Premium Animation Styles */}
